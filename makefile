@@ -17,17 +17,17 @@ endef
 define PROJECT_template
 $2_SRCFILES += $1.c
 $2_SRCFILES += $($2_DEPENDS)
-$2_DEPEND_OBJS:=$($2_DEPENDS:.c=.o)
+$2_DFILES:=$$($2_SRCFILES:.c=.d)
 
 $2_OBJFILE:=$1.o
 $2_OBJFILES:=$$($2_SRCFILES:.c=.o)
 
 SRCFILES += $$($2_SRCFILES)
 OBJFILES += $$($2_OBJFILES)
+DFILES += $$($2_DFILES)
 
 TARGETS += $1
 
-$$($2_OBJFILE): $$($2_DEPEND_OBJS) $1.c
 $1: $$($2_OBJFILES) 
 endef
      
@@ -42,15 +42,16 @@ test:
 	@echo TARGETS=$(TARGETS)
 	@echo SRCFILES=$(SRCFILES)
 	@echo OBJFILES=$(OBJFILES)
+	@echo DFILES=$(DFILES)
 	@echo GYM_TEST_SRCFILES=$(GYM_TEST_SRCFILES)
 	@echo GYM_TEST_OBJFILES=$(GYM_TEST_OBJFILES)
 	@echo GYM_TEST_DEPENDS=$(GYM_TEST_DEPENDS)
-	@echo GYM_TEST_DEPEND_OBJS=$(GYM_TEST_DEPEND_OBJS)
+	@echo GYM_TEST_DFILES=$(GYM_TEST_DFILES)
 	@echo GYM_TEST_OBJFILE=$(GYM_TEST_OBJFILE)
 
-%.o: %.c 
+%.o %.d: %.c
 	@echo Compiling $<
-	@$(C_COMPILE) $(C_COMPILE_FLAGS) $<
+	@$(C_COMPILE) -MMD $(C_COMPILE_FLAGS) $<
 
 %: %.o 
 	@echo Linking $@
@@ -63,7 +64,11 @@ FORCE:
 
 clean: FORCE
 	rm -f $(OBJFILES)
+	rm -f $(DFILES)
 
 nuke: clean
 	rm -f $(TARGETS)
+
+
+sinclude $(DFILES)
 
