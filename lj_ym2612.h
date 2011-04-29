@@ -13,6 +13,6 @@ typedef struct LJ_YM2612 LJ_YM2612;
 LJ_YM2612* LJ_YM2612_create(void);
 LJ_YM2612_RESULT LJ_YM2612_destroy(LJ_YM2612* const ym2612);
 
-LJ_YM2612_RESULT LJ_YM2612_setRegister(LJ_YM2612* const ym2612, char port, char reg, char data);
+LJ_YM2612_RESULT LJ_YM2612_setRegister(LJ_YM2612* const ym2612, unsigned char port, unsigned char reg, unsigned char data);
 
 #endif //#ifndef LJ_YM2612_HH

@@ -41,6 +41,7 @@ LJ_GYM_FILE* LJ_GYM_create(const char* const fname);
 LJ_GYM_RESULT LJ_GYM_destroy(LJ_GYM_FILE* const gymFile);
 
 LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const gymInstr);
+//TODO: test reset
 LJ_GYM_RESULT LJ_GYM_reset(LJ_GYM_FILE* const gymFile);
 		
 void LJ_GYM_debugPrint( const LJ_GYM_INSTRUCTION* const gymInstr);

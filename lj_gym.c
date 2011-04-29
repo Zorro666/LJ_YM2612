@@ -39,8 +39,6 @@ static LJ_GYM_RESULT gym_open(LJ_GYM_FILE* const gymFile, const char* const fnam
 		return LJ_GYM_ERROR;
 	}
 
-	gym_clear( gymFile );
-
 	fh = fopen(fname, "rb");
 	if (fh == NULL)
 	{
@@ -68,6 +66,8 @@ LJ_GYM_FILE* LJ_GYM_create(const char* const fname)
 		fprintf(stderr, "LJ_GYM_create:malloc failed for file '%s'\n", fname);
 		return NULL;
 	}
+
+	gym_clear( gymFile );
 
 	result = gym_open(gymFile,fname);
 	if (result == LJ_GYM_ERROR)

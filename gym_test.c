@@ -11,6 +11,7 @@ int main(int argc, char* argv[])
 	int result = LJ_GYM_OK;
 	
 	gymFile = LJ_GYM_create( "test.gym" );
+	ym2612 = LJ_YM2612_create();
 
 	while (result == LJ_GYM_OK)
 	{
