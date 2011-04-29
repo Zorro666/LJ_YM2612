@@ -4,3 +4,4 @@ GYM/
 *.o
 *.d
 gym_test
+*.gym
