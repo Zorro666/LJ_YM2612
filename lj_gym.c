@@ -8,7 +8,7 @@ The GYM file format contains only four different instructions, each represented 
 
 #include <malloc.h>
 
-#include "gym.h"
+#include "lj_gym.h"
 
 ////////////////////////////////////////////////////////////////////
 // 
@@ -16,21 +16,21 @@ The GYM file format contains only four different instructions, each represented 
 // 
 ////////////////////////////////////////////////////////////////////
 
-static const char* const GYM_INSTRUCTIONS[4] = { "NOP", "PORT_0", "PORT_1", "PORT_PSG" };
+static const char* const LJ_GYM_INSTRUCTIONS[4] = { "NOP", "PORT_0", "PORT_1", "PORT_PSG" };
 
-static void gym_clear(GYM_FILE* const gymFile)
+static void gym_clear(LJ_GYM_FILE* const gymFile)
 {
 	gymFile->fh = 0;
 	gymFile->pos = 0;
 }
 
-static GYM_RESULT gym_open(GYM_FILE* const gymFile, const char* const fname)
+static LJ_GYM_RESULT gym_open(LJ_GYM_FILE* const gymFile, const char* const fname)
 {
 	FILE* fh = NULL;
 	if ( gymFile == NULL )
 	{
 		fprintf(stderr, "gym_open:gymFile is NULL trying to open file '%s'\n", fname);
-		return GYM_ERROR;
+		return LJ_GYM_ERROR;
 	}
 
 	gym_clear( gymFile );
@@ -39,12 +39,12 @@ static GYM_RESULT gym_open(GYM_FILE* const gymFile, const char* const fname)
 	if (fh == NULL)
 	{
 		fprintf(stderr, "gym_open:Failed to open file '%s'\n", fname);
-		return GYM_ERROR;
+		return LJ_GYM_ERROR;
 	}
 	gymFile->fh = fh;
 	gymFile->pos = 0;
 
-	return GYM_OK;
+	return LJ_GYM_OK;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -53,20 +53,20 @@ static GYM_RESULT gym_open(GYM_FILE* const gymFile, const char* const fname)
 // 
 ////////////////////////////////////////////////////////////////////
 
-GYM_FILE* GYM_create(const char* const fname)
+LJ_GYM_FILE* LJ_GYM_create(const char* const fname)
 {
 	int result = 0;
-	GYM_FILE* gymFile = malloc(sizeof(GYM_FILE));
+	LJ_GYM_FILE* gymFile = malloc(sizeof(LJ_GYM_FILE));
 	if (gymFile == NULL)
 	{
-		fprintf(stderr, "GYM_create:malloc failed for file '%s'\n", fname);
+		fprintf(stderr, "LJ_GYM_create:malloc failed for file '%s'\n", fname);
 		return NULL;
 	}
 
 	result = gym_open(gymFile,fname);
 	if (result == -1)
 	{
-		fprintf(stderr, "GYM_create:gym_open failed for file '%s'\n", fname);
+		fprintf(stderr, "LJ_GYM_create:gym_open failed for file '%s'\n", fname);
 		free(gymFile);
 		return NULL;
 	}
@@ -74,14 +74,14 @@ GYM_FILE* GYM_create(const char* const fname)
 	return gymFile;
 }
 
-GYM_RESULT GYM_destroy(GYM_FILE* const gymFile)
+LJ_GYM_RESULT LJ_GYM_destroy(LJ_GYM_FILE* const gymFile)
 {
 	if (gymFile == NULL)
 	{
-		return GYM_OK;
+		return LJ_GYM_OK;
 	}
 	free(gymFile);
-	return GYM_OK;
+	return LJ_GYM_OK;
 }
 
 /*
@@ -91,7 +91,7 @@ The GYM file format contains only four different instructions, each represented 
 0x02 R D  write data D on YM port 1, register R
 0x03 D    write on PSG port the data D
 */
-GYM_RESULT GYM_read(GYM_FILE* const gymFile, GYM_INSTRUCTION* const gymInstr)
+LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const gymInstr)
 {
 	size_t numRead;
 	unsigned char cmd = 0;
@@ -100,17 +100,17 @@ GYM_RESULT GYM_read(GYM_FILE* const gymFile, GYM_INSTRUCTION* const gymInstr)
 	numRead = fread(&cmd, sizeof(cmd), 1, gymFile->fh);
 	if (numRead != 1)
 	{
-		fprintf(stderr, "GYM_read: failed to read cmd byte pos:%d\n", pos);
-		return GYM_ERROR;
+		fprintf(stderr, "LJ_GYM_read: failed to read cmd byte pos:%d\n", pos);
+		return LJ_GYM_ERROR;
 	}
-	if (cmd == GYM_NOP)
+	if (cmd == LJ_GYM_NOP)
 	{
 		gymInstr->pos = pos;
 		gymInstr->cmd = cmd;
 		gymFile->pos += 1;
-		return GYM_OK;
+		return LJ_GYM_OK;
 	}
-	if ((cmd == GYM_WRITE_PORT_0) || (cmd == GYM_WRITE_PORT_1))
+	if ((cmd == LJ_GYM_WRITE_PORT_0) || (cmd == LJ_GYM_WRITE_PORT_1))
 	{
 		unsigned char R = 0;
 		unsigned char D = 0;
@@ -118,15 +118,15 @@ GYM_RESULT GYM_read(GYM_FILE* const gymFile, GYM_INSTRUCTION* const gymInstr)
 		numRead = fread(&R, sizeof(R), 1, gymFile->fh);
 		if (numRead != 1)
 		{
-			fprintf(stderr, "GYM_read: failed to read R byte cmd:%d pos:%d\n", cmd, pos);
-			return GYM_ERROR;
+			fprintf(stderr, "LJ_GYM_read: failed to read R byte cmd:%d pos:%d\n", cmd, pos);
+			return LJ_GYM_ERROR;
 		}
 
 		numRead = fread(&D, sizeof(D), 1, gymFile->fh);
 		if (numRead != 1)
 		{
-			fprintf(stderr, "GYM_read: failed to read D byte cmd:%d pos:%d\n", cmd, pos);
-			return GYM_ERROR;
+			fprintf(stderr, "LJ_GYM_read: failed to read D byte cmd:%d pos:%d\n", cmd, pos);
+			return LJ_GYM_ERROR;
 		}
 
 		gymInstr->pos = pos;
@@ -134,55 +134,55 @@ GYM_RESULT GYM_read(GYM_FILE* const gymFile, GYM_INSTRUCTION* const gymInstr)
 		gymInstr->R = R;
 		gymInstr->D = D;
 		gymFile->pos += 3;
-		return GYM_OK;
+		return LJ_GYM_OK;
 	}
-	if (cmd == GYM_WRITE_PORT_PSG)
+	if (cmd == LJ_GYM_WRITE_PORT_PSG)
 	{
 		unsigned char D = 0;
 
 		numRead = fread(&D, sizeof(D), 1, gymFile->fh);
 		if (numRead != 1)
 		{
-			fprintf(stderr, "GYM_read: failed to read D byte cmd:%d pos:%d\n", cmd, pos);
-			return GYM_ERROR;
+			fprintf(stderr, "LJ_GYM_read: failed to read D byte cmd:%d pos:%d\n", cmd, pos);
+			return LJ_GYM_ERROR;
 		}
 
 		gymInstr->pos = pos;
 		gymInstr->cmd = cmd;
 		gymInstr->D = D;
 		gymFile->pos += 2;
-		return GYM_OK;
+		return LJ_GYM_OK;
 	}
 
-	fprintf(stderr, "GYM_read: unknown cmd:%d pos:%d\n", cmd, pos);
-	return GYM_ERROR;
+	fprintf(stderr, "LJ_GYM_read: unknown cmd:%d pos:%d\n", cmd, pos);
+	return LJ_GYM_ERROR;
 }
 
-GYM_RESULT GYM_reset(GYM_FILE* const gymFile)
+LJ_GYM_RESULT LJ_GYM_reset(LJ_GYM_FILE* const gymFile)
 {
 	gymFile->pos = 0;
 	int result = fseek(gymFile->fh, 0, SEEK_SET);
 	if (result != 0)
 	{
-		fprintf(stderr, "GYM_reset: failed to seek to start:%d", result);
-		return GYM_ERROR;
+		fprintf(stderr, "LJ_GYM_reset: failed to seek to start:%d", result);
+		return LJ_GYM_ERROR;
 	}
-	return GYM_OK;
+	return LJ_GYM_OK;
 }
 
-void GYM_debugPrint(const GYM_INSTRUCTION* const gymInstr)
+void LJ_GYM_debugPrint(const LJ_GYM_INSTRUCTION* const gymInstr)
 {
 	const int pos = gymInstr->pos;
 	const int cmd = gymInstr->cmd;
 
-	printf("GYM:%d cmd:%d %s", pos, cmd, GYM_INSTRUCTIONS[cmd]);
-	if ((cmd == GYM_WRITE_PORT_0) || (cmd == GYM_WRITE_PORT_1))
+	printf("GYM:%d cmd:%d %s", pos, cmd, LJ_GYM_INSTRUCTIONS[cmd]);
+	if ((cmd == LJ_GYM_WRITE_PORT_0) || (cmd == LJ_GYM_WRITE_PORT_1))
 	{
 		const int R = gymInstr->R;
 		const int D = gymInstr->D;
 		printf(" REG:0x%X DATA:0x%X", R, D);
 	}
-	if (cmd == GYM_WRITE_PORT_PSG)
+	if (cmd == LJ_GYM_WRITE_PORT_PSG)
 	{
 		const int D = gymInstr->D;
 		printf(" DATA:0x%X", D);

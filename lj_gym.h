@@ -1,5 +1,5 @@
-#ifndef GYM_HH
-#define GYM_HH
+#ifndef LJ_GYM_HH
+#define LJ_GYM_HH
 
 /*
 The GYM file format contains only four different instructions, each represented by one byte with 0 to 2 bytes of arguments:
@@ -11,38 +11,38 @@ The GYM file format contains only four different instructions, each represented 
 
 #include <stdio.h>
 
-typedef struct GYM_FILE
+typedef struct LJ_GYM_FILE
 {
 	FILE* fh;
 	int pos;
-} GYM_FILE;
+} LJ_GYM_FILE;
 
-typedef enum GYM_RESULT { 
-	GYM_OK = 0,
-	GYM_ERROR = -1
-} GYM_RESULT;
+typedef enum LJ_GYM_RESULT { 
+	LJ_GYM_OK = 0,
+	LJ_GYM_ERROR = -1
+} LJ_GYM_RESULT;
 
-typedef enum GYM_COMMAND { 
-	GYM_NOP = 0, 
-	GYM_WRITE_PORT_0 = 1, 
-	GYM_WRITE_PORT_1 = 2, 
-	GYM_WRITE_PORT_PSG = 3
-} GYM_COMMAND;
+typedef enum LJ_GYM_COMMAND { 
+	LJ_GYM_NOP = 0, 
+	LJ_GYM_WRITE_PORT_0 = 1, 
+	LJ_GYM_WRITE_PORT_1 = 2, 
+	LJ_GYM_WRITE_PORT_PSG = 3
+} LJ_GYM_COMMAND;
 
-typedef struct GYM_INSTRUCTION
+typedef struct LJ_GYM_INSTRUCTION
 {
 	int pos;
-	GYM_COMMAND cmd;
+	LJ_GYM_COMMAND cmd;
 	unsigned char R;
 	unsigned char D;
-} GYM_INSTRUCTION;
+} LJ_GYM_INSTRUCTION;
 
-GYM_FILE* GYM_create(const char* const fname);
-GYM_RESULT GYM_destroy(GYM_FILE* const gymFile);
+LJ_GYM_FILE* LJ_GYM_create(const char* const fname);
+LJ_GYM_RESULT LJ_GYM_destroy(LJ_GYM_FILE* const gymFile);
 
-GYM_RESULT GYM_read(GYM_FILE* const gymFile, GYM_INSTRUCTION* const gymInstr);
-GYM_RESULT GYM_reset(GYM_FILE* const gymFile);
+LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const gymInstr);
+LJ_GYM_RESULT LJ_GYM_reset(LJ_GYM_FILE* const gymFile);
 		
-void GYM_debugPrint( const GYM_INSTRUCTION* const gymInstr);
+void LJ_GYM_debugPrint( const LJ_GYM_INSTRUCTION* const gymInstr);
 
-#endif // #ifndef GYM_HH
+#endif // #ifndef LJ_GYM_HH
