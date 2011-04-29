@@ -1,6 +1,6 @@
-GYM_LOADER_DEPENDS:=gym.c
+GYM_TEST_DEPENDS:=gym.c
 
-PROJECTS:=gym_loader\
+PROJECTS:=gym_test\
 
 all: $(PROJECTS)
 
@@ -42,17 +42,19 @@ test:
 	@echo TARGETS=$(TARGETS)
 	@echo SRCFILES=$(SRCFILES)
 	@echo OBJFILES=$(OBJFILES)
-	@echo GYM_LOADER_SRCFILES=$(GYM_LOADER_SRCFILES)
-	@echo GYM_LOADER_OBJFILES=$(GYM_LOADER_OBJFILES)
-	@echo GYM_LOADER_DEPENDS=$(GYM_LOADER_DEPENDS)
-	@echo GYM_LOADER_DEPEND_OBJS=$(GYM_LOADER_DEPEND_OBJS)
-	@echo GYM_LOADER_OBJFILE=$(GYM_LOADER_OBJFILE)
+	@echo GYM_TEST_SRCFILES=$(GYM_TEST_SRCFILES)
+	@echo GYM_TEST_OBJFILES=$(GYM_TEST_OBJFILES)
+	@echo GYM_TEST_DEPENDS=$(GYM_TEST_DEPENDS)
+	@echo GYM_TEST_DEPEND_OBJS=$(GYM_TEST_DEPEND_OBJS)
+	@echo GYM_TEST_OBJFILE=$(GYM_TEST_OBJFILE)
 
-%.o: %.c
-	$(C_COMPILE) $(C_COMPILE_FLAGS) $<
+%.o: %.c 
+	@echo Compiling $<
+	@$(C_COMPILE) $(C_COMPILE_FLAGS) $<
 
-%: %.o
-	$(LINK) $(LINK_FLAGS) -o $@ $<
+%: %.o 
+	@echo Linking $@
+	@$(LINK) $(LINK_FLAGS) -o $@ $^
 
 .PHONY: all clean nuke format
 .SUFFIXES:            # Delete the default suffixes
