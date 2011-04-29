@@ -1,2 +1,5 @@
 GYM/
 *.swp
+*.swo
+*.o
+gym_loader
