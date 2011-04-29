@@ -16,6 +16,12 @@ The GYM file format contains only four different instructions, each represented 
 // 
 ////////////////////////////////////////////////////////////////////
 
+struct LJ_GYM_FILE
+{
+	FILE* fh;
+	int pos;
+};
+
 static const char* const LJ_GYM_INSTRUCTIONS[4] = { "NOP", "PORT_0", "PORT_1", "PORT_PSG" };
 
 static void gym_clear(LJ_GYM_FILE* const gymFile)
@@ -55,7 +61,7 @@ static LJ_GYM_RESULT gym_open(LJ_GYM_FILE* const gymFile, const char* const fnam
 
 LJ_GYM_FILE* LJ_GYM_create(const char* const fname)
 {
-	int result = 0;
+	int result = LJ_GYM_ERROR;
 	LJ_GYM_FILE* gymFile = malloc(sizeof(LJ_GYM_FILE));
 	if (gymFile == NULL)
 	{
@@ -64,7 +70,7 @@ LJ_GYM_FILE* LJ_GYM_create(const char* const fname)
 	}
 
 	result = gym_open(gymFile,fname);
-	if (result == -1)
+	if (result == LJ_GYM_ERROR)
 	{
 		fprintf(stderr, "LJ_GYM_create:gym_open failed for file '%s'\n", fname);
 		free(gymFile);
@@ -93,10 +99,17 @@ The GYM file format contains only four different instructions, each represented 
 */
 LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const gymInstr)
 {
-	size_t numRead;
+	size_t numRead = 0;
 	unsigned char cmd = 0;
-	const int pos = gymFile->pos;
+	int pos = 0;
 
+	if (gymFile == NULL)
+	{
+		fprintf(stderr, "LJ_GYM_read:gymFile is NULL\n" );
+		return LJ_GYM_ERROR;
+	}
+
+	pos = gymFile->pos;
 	numRead = fread(&cmd, sizeof(cmd), 1, gymFile->fh);
 	if (numRead != 1)
 	{
@@ -160,8 +173,17 @@ LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const 
 
 LJ_GYM_RESULT LJ_GYM_reset(LJ_GYM_FILE* const gymFile)
 {
+	int result = LJ_GYM_ERROR;
+
+	if (gymFile == NULL)
+	{
+		fprintf(stderr, "LJ_GYM_reset:gymFile is NULL\n" );
+		return LJ_GYM_ERROR;
+	}
+
 	gymFile->pos = 0;
-	int result = fseek(gymFile->fh, 0, SEEK_SET);
+
+	result = fseek(gymFile->fh, 0, SEEK_SET);
 	if (result != 0)
 	{
 		fprintf(stderr, "LJ_GYM_reset: failed to seek to start:%d", result);
@@ -172,8 +194,17 @@ LJ_GYM_RESULT LJ_GYM_reset(LJ_GYM_FILE* const gymFile)
 
 void LJ_GYM_debugPrint(const LJ_GYM_INSTRUCTION* const gymInstr)
 {
-	const int pos = gymInstr->pos;
-	const int cmd = gymInstr->cmd;
+	int pos;
+	int cmd;
+
+	if (gymInstr == NULL)
+	{
+		fprintf(stderr, "LJ_GYM_debugPrint:gymInstr is NULL\n" );
+		return;
+	}
+
+	pos = gymInstr->pos;
+	cmd = gymInstr->cmd;
 
 	printf("GYM:%d cmd:%d %s", pos, cmd, LJ_GYM_INSTRUCTIONS[cmd]);
 	if ((cmd == LJ_GYM_WRITE_PORT_0) || (cmd == LJ_GYM_WRITE_PORT_1))

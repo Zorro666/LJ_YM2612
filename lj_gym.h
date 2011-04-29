@@ -11,31 +11,31 @@ The GYM file format contains only four different instructions, each represented 
 
 #include <stdio.h>
 
-typedef struct LJ_GYM_FILE
-{
-	FILE* fh;
-	int pos;
-} LJ_GYM_FILE;
+// Forward declarations
+typedef struct LJ_GYM_FILE LJ_GYM_FILE;
+typedef struct LJ_GYM_INSTRUCTION LJ_GYM_INSTRUCTION;
+typedef enum LJ_GYM_RESULT LJ_GYM_RESULT;
+typedef enum LJ_GYM_COMMAND LJ_GYM_COMMAND;
 
-typedef enum LJ_GYM_RESULT { 
+enum LJ_GYM_RESULT { 
 	LJ_GYM_OK = 0,
 	LJ_GYM_ERROR = -1
-} LJ_GYM_RESULT;
+};
 
-typedef enum LJ_GYM_COMMAND { 
+enum LJ_GYM_COMMAND { 
 	LJ_GYM_NOP = 0, 
 	LJ_GYM_WRITE_PORT_0 = 1, 
 	LJ_GYM_WRITE_PORT_1 = 2, 
 	LJ_GYM_WRITE_PORT_PSG = 3
-} LJ_GYM_COMMAND;
+};
 
-typedef struct LJ_GYM_INSTRUCTION
+struct LJ_GYM_INSTRUCTION
 {
 	int pos;
 	LJ_GYM_COMMAND cmd;
 	unsigned char R;
 	unsigned char D;
-} LJ_GYM_INSTRUCTION;
+};
 
 LJ_GYM_FILE* LJ_GYM_create(const char* const fname);
 LJ_GYM_RESULT LJ_GYM_destroy(LJ_GYM_FILE* const gymFile);
