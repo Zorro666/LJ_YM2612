@@ -1,4 +1,4 @@
-GYM_TEST_DEPENDS:=gym.c
+GYM_TEST_DEPENDS:=lj_gym.c lj_ym2612.c
 
 PROJECTS:=gym_test\
 
@@ -49,7 +49,7 @@ test:
 	@echo GYM_TEST_DFILES=$(GYM_TEST_DFILES)
 	@echo GYM_TEST_OBJFILE=$(GYM_TEST_OBJFILE)
 
-%.o %.d: %.c
+%.o: %.c
 	@echo Compiling $<
 	@$(C_COMPILE) -MMD $(C_COMPILE_FLAGS) $<
 
