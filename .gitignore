@@ -2,4 +2,5 @@ GYM/
 *.swp
 *.swo
 *.o
+*.d
 gym_test
