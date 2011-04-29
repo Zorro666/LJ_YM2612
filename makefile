@@ -5,7 +5,7 @@ PROJECTS:=gym_test\
 all: $(PROJECTS)
 
 C_COMPILE:=gcc -c
-C_COMPILE_FLAGS:=-g -Wall
+C_COMPILE_FLAGS:=-g -Wall -Werror
 
 LINK:=gcc
 LINK_FLAGS:=-g
