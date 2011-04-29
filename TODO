@@ -1,0 +1,21 @@
+TEST: LJ_GYM_reset
+Register set per slot
+3 channels per slot
+4 operators per channel
+
+error handling for unknown/unsupported register (be nice to make it say UNKNOWN REGISTER)
+
+output wave so it can be plotted
+have real time graph plotting thingy
+
+get basic tone generation working e.g. EG value
+get basic amplitude working e.g. AG value
+
+
+implement operators
+implement the DAC
+implement ADSR
+implement LFO
+implement SSG
+implement timers
+implement ch 3 and 6 special frequency mode
