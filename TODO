@@ -1,7 +1,16 @@
 TEST: LJ_GYM_reset
-Register set per slot
-3 channels per slot
-4 operators per channel
+Add generation function to make output
+save output as RAW file
+save output as WAV file
+
+Not sure about this way:
+* Register set per port
+* 3 channels per port
+* 4 operators per channel
+
+Perhaps just:
+* 6 channels
+* global state for LFO, SSG, DAC, Timers
 
 error handling for unknown/unsupported register (be nice to make it say UNKNOWN REGISTER)
 
