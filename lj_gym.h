@@ -17,6 +17,8 @@ typedef struct LJ_GYM_INSTRUCTION LJ_GYM_INSTRUCTION;
 typedef enum LJ_GYM_RESULT LJ_GYM_RESULT;
 typedef enum LJ_GYM_COMMAND LJ_GYM_COMMAND;
 
+typedef unsigned char LJ_GYM_UINT8;
+
 enum LJ_GYM_RESULT { 
 	LJ_GYM_OK = 0,
 	LJ_GYM_ERROR = -1
@@ -33,8 +35,8 @@ struct LJ_GYM_INSTRUCTION
 {
 	int pos;
 	LJ_GYM_COMMAND cmd;
-	unsigned char R;
-	unsigned char D;
+	LJ_GYM_UINT8 R;
+	LJ_GYM_UINT8 D;
 };
 
 LJ_GYM_FILE* LJ_GYM_create(const char* const fname);

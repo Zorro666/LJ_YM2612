@@ -29,13 +29,13 @@ static const char* LJ_YM2612_REGISTER_NAMES[LJ_YM2612_NUM_REGISTERS];
 
 struct LJ_YM2612_PORT
 {
-	char regs[LJ_YM2612_NUM_REGISTERS];
+	LJ_YM_UINT8 regs[LJ_YM2612_NUM_REGISTERS];
 };
 
 struct LJ_YM2612
 {
 	LJ_YM2612_PORT ports[LJ_YM2612_NUM_PORTS];
-	unsigned char validRegisters[LJ_YM2612_NUM_REGISTERS];
+	LJ_YM_UINT8 validRegisters[LJ_YM2612_NUM_REGISTERS];
 };
 
 static void ym2612_portClear(LJ_YM2612_PORT* const port)
@@ -144,11 +144,11 @@ LJ_YM2612_RESULT LJ_YM2612_destroy(LJ_YM2612* const ym2612)
 	return result;
 }
 
-LJ_YM2612_RESULT LJ_YM2612_setRegister(LJ_YM2612* const ym2612, unsigned char port, unsigned char reg, unsigned char data)
+LJ_YM2612_RESULT LJ_YM2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, LJ_YM_UINT8 reg, LJ_YM_UINT8 data)
 {
-	unsigned int parameter = 0;
-	//unsigned int channel = 0;
-	//unsigned int slot = 0;
+	LJ_YM_UINT32 parameter = 0;
+	//LJ_YM_UINT32 channel = 0;
+	//LJ_YM_UINT32 slot = 0;
 
 	if (ym2612 == NULL)
 	{

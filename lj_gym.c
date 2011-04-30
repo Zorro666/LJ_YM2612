@@ -100,7 +100,7 @@ The GYM file format contains only four different instructions, each represented 
 LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const gymInstr)
 {
 	size_t numRead = 0;
-	unsigned char cmd = 0;
+	LJ_GYM_UINT8 cmd = 0;
 	int pos = 0;
 
 	if (gymFile == NULL)
@@ -125,8 +125,8 @@ LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const 
 	}
 	if ((cmd == LJ_GYM_WRITE_PORT_0) || (cmd == LJ_GYM_WRITE_PORT_1))
 	{
-		unsigned char R = 0;
-		unsigned char D = 0;
+		LJ_GYM_UINT8 R = 0;
+		LJ_GYM_UINT8 D = 0;
 
 		numRead = fread(&R, sizeof(R), 1, gymFile->fh);
 		if (numRead != 1)
@@ -151,7 +151,7 @@ LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const 
 	}
 	if (cmd == LJ_GYM_WRITE_PORT_PSG)
 	{
-		unsigned char D = 0;
+		LJ_GYM_UINT8 D = 0;
 
 		numRead = fread(&D, sizeof(D), 1, gymFile->fh);
 		if (numRead != 1)
