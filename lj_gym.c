@@ -20,6 +20,7 @@ struct LJ_GYM_FILE
 {
 	FILE* fh;
 	int pos;
+	int cmdCount;
 };
 
 static const char* const LJ_GYM_INSTRUCTIONS[4] = { "NOP", "PORT_0", "PORT_1", "PORT_PSG" };
@@ -28,6 +29,7 @@ static void gym_clear(LJ_GYM_FILE* const gymFile)
 {
 	gymFile->fh = 0;
 	gymFile->pos = 0;
+	gymFile->cmdCount = 0;
 }
 
 static LJ_GYM_RESULT gym_open(LJ_GYM_FILE* const gymFile, const char* const fname)
@@ -47,6 +49,7 @@ static LJ_GYM_RESULT gym_open(LJ_GYM_FILE* const gymFile, const char* const fnam
 	}
 	gymFile->fh = fh;
 	gymFile->pos = 0;
+	gymFile->cmdCount = 0;
 
 	return LJ_GYM_OK;
 }
@@ -102,6 +105,7 @@ LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const 
 	size_t numRead = 0;
 	LJ_GYM_UINT8 cmd = 0;
 	int pos = 0;
+	int cmdCount = 0;
 
 	if (gymFile == NULL)
 	{
@@ -110,6 +114,7 @@ LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const 
 	}
 
 	pos = gymFile->pos;
+	cmdCount = gymFile->cmdCount;
 	numRead = fread(&cmd, sizeof(cmd), 1, gymFile->fh);
 	if (numRead != 1)
 	{
@@ -119,8 +124,10 @@ LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const 
 	if (cmd == LJ_GYM_NOP)
 	{
 		gymInstr->pos = pos;
+		gymInstr->cmdCount = cmdCount;
 		gymInstr->cmd = cmd;
 		gymFile->pos += 1;
+		gymFile->cmdCount += 1;
 		return LJ_GYM_OK;
 	}
 	if ((cmd == LJ_GYM_WRITE_PORT_0) || (cmd == LJ_GYM_WRITE_PORT_1))
@@ -143,10 +150,12 @@ LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const 
 		}
 
 		gymInstr->pos = pos;
+		gymInstr->cmdCount = cmdCount;
 		gymInstr->cmd = cmd;
 		gymInstr->R = R;
 		gymInstr->D = D;
 		gymFile->pos += 3;
+		gymFile->cmdCount += 1;
 		return LJ_GYM_OK;
 	}
 	if (cmd == LJ_GYM_WRITE_PORT_PSG)
@@ -161,9 +170,11 @@ LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const 
 		}
 
 		gymInstr->pos = pos;
+		gymInstr->cmdCount = cmdCount;
 		gymInstr->cmd = cmd;
 		gymInstr->D = D;
 		gymFile->pos += 2;
+		gymFile->cmdCount += 1;
 		return LJ_GYM_OK;
 	}
 
@@ -196,6 +207,7 @@ void LJ_GYM_debugPrint(const LJ_GYM_INSTRUCTION* const gymInstr)
 {
 	int pos;
 	int cmd;
+	int cmdCount;
 
 	if (gymInstr == NULL)
 	{
@@ -205,8 +217,9 @@ void LJ_GYM_debugPrint(const LJ_GYM_INSTRUCTION* const gymInstr)
 
 	pos = gymInstr->pos;
 	cmd = gymInstr->cmd;
+	cmdCount = gymInstr->cmdCount;
 
-	printf("GYM:%d cmd:%d %s", pos, cmd, LJ_GYM_INSTRUCTIONS[cmd]);
+	printf("GYM:%d pos:%d cmd:%d %s", cmdCount, pos, cmd, LJ_GYM_INSTRUCTIONS[cmd]);
 	if ((cmd == LJ_GYM_WRITE_PORT_0) || (cmd == LJ_GYM_WRITE_PORT_1))
 	{
 		const int R = gymInstr->R;

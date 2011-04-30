@@ -14,11 +14,17 @@ typedef unsigned char LJ_YM_UINT8;
 typedef unsigned short LJ_YM_UINT16;
 typedef unsigned int LJ_YM_UINT32;
 
-typedef short LJ_INT16;
+typedef short LJ_YM_INT16;
 
 LJ_YM2612* LJ_YM2612_create(void);
 LJ_YM2612_RESULT LJ_YM2612_destroy(LJ_YM2612* const ym2612);
 
+//TODO TEST THIS FUNCTION - just a wrapper for setRegister
+LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, LJ_YM_UINT8 data);
+
+//Deprecate this function and use the write function instead
 LJ_YM2612_RESULT LJ_YM2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, LJ_YM_UINT8 reg, LJ_YM_UINT8 data);
+
+LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles, LJ_YM_INT16* output[2]);
 
 #endif //#ifndef LJ_YM2612_HH

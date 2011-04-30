@@ -36,6 +36,9 @@ struct LJ_YM2612
 {
 	LJ_YM2612_PORT ports[LJ_YM2612_NUM_PORTS];
 	LJ_YM_UINT8 validRegisters[LJ_YM2612_NUM_REGISTERS];
+
+	LJ_YM_INT16 dacValue;
+	int dacEnable;
 };
 
 static void ym2612_portClear(LJ_YM2612_PORT* const port)
@@ -50,6 +53,10 @@ static void ym2612_portClear(LJ_YM2612_PORT* const port)
 static void ym2612_clear(LJ_YM2612* const ym2612)
 {
 	int i;
+
+	ym2612->dacValue = 0;
+	ym2612->dacEnable = 0x0;
+
 	for (i=0; i<LJ_YM2612_NUM_PORTS; i++)
 	{
 		LJ_YM2612_PORT* const port = &(ym2612->ports[i]);
@@ -60,6 +67,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 		ym2612->validRegisters[i] = 0;
 		LJ_YM2612_REGISTER_NAMES[i] = "UNKNOWN";
 	}
+	
 	//Known specific registers (only need explicit listing for the system type parameters which aren't per channel settings
 	ym2612->validRegisters[LJ_KEY_ONOFF] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_KEY_ONOFF] = "KEY_ONOFF";
@@ -172,7 +180,55 @@ LJ_YM2612_RESULT LJ_YM2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port
 	}
 
 	ym2612->ports[port].regs[reg] = data;
-	printf( "YM2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
+	printf( "LJ_YM2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
+
+	if (reg == LJ_DAC_EN)
+	{
+		ym2612->dacEnable = 0xFFFF * ((data & 0x80) >> 4);
+	}
+	else if (reg == LJ_DAC)
+	{
+		ym2612->dacValue = data;
+	}
+
+	return LJ_YM2612_OK;
+}
+
+LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, LJ_YM_UINT8 data)
+{
+	//Need to store address - then use address on data write (1 address per port)
+	return LJ_YM2612_ERROR;
+}
+
+LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles, LJ_YM_INT16* output[2])
+{
+	LJ_YM_INT16* outputLeft = output[0];
+	LJ_YM_INT16* outputRight = output[1];
+	LJ_YM_INT16 dacValue = 0;
+	int sample;
+
+	if (ym2612 == NULL)
+	{
+		fprintf(stderr, "LJ_YM2612_generateOutput:ym2612 is NULL\n");
+		return LJ_YM2612_ERROR;
+	}
+
+	//Global state update - LFO, DAC, SSG
+	dacValue = ym2612->dacValue & ym2612->dacEnable;
+
+	//For each cycle
+	//Loop over channels updating them, mix them, then output them into the buffer
+	for (sample=0; sample < numCycles; sample++)
+	{
+		LJ_YM_INT16 mixedLeft = 0;
+		LJ_YM_INT16 mixedRight = 0;
+
+		mixedLeft += dacValue;
+		mixedRight += dacValue;
+
+		outputLeft[sample] = mixedLeft;
+		outputRight[sample] = mixedRight;
+	}
 
 	return LJ_YM2612_OK;
 }

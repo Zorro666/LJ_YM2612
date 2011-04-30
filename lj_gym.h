@@ -34,6 +34,7 @@ enum LJ_GYM_COMMAND {
 struct LJ_GYM_INSTRUCTION
 {
 	int pos;
+	int cmdCount;
 	LJ_GYM_COMMAND cmd;
 	LJ_GYM_UINT8 R;
 	LJ_GYM_UINT8 D;

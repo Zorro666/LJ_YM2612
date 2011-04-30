@@ -16,12 +16,16 @@ int main(int argc, char* argv[])
 	LJ_YM_INT16* outputs[2];
 	outputs[0] = malloc(1024 * sizeof(LJ_YM_INT16));
 	outputs[1] = malloc(1024 * sizeof(LJ_YM_INT16));
-	int numCycles = 128;
 
+	FILE* outFileH = fopen("output.raw","wb");
+
+	int numCycles = 128;
+	int cmdCount;
 
 	gymFile = LJ_GYM_create( "test.gym" );
 	ym2612 = LJ_YM2612_create();
 
+	cmdCount = 0;
 	while (result == LJ_GYM_OK)
 	{
 		result = LJ_GYM_read(gymFile, &gymInstruction);
@@ -32,18 +36,37 @@ int main(int argc, char* argv[])
 			{
 				result = LJ_YM2612_setRegister(ym2612, 0, gymInstruction.R, gymInstruction.D);
 			}
-			if (gymInstruction.cmd == LJ_GYM_WRITE_PORT_1)
+			else if (gymInstruction.cmd == LJ_GYM_WRITE_PORT_1)
 			{
 				result = LJ_YM2612_setRegister(ym2612, 1, gymInstruction.R, gymInstruction.D);
 			}
+			if (result == LJ_YM2612_ERROR)
+			{
+				fprintf(stderr,"GYM:%d ERROR processing command\n",cmdCount);
+			}
+			if (result == LJ_YM2612_OK)
+			{
+				result = LJ_YM2612_generateOutput(ym2612, numCycles, outputs);
+				if (result == LJ_YM2612_OK)
+				{
+					int sample;
+					for (sample = 0; sample < numCycles; sample++)
+					{
+						LJ_YM_INT16* outputLeft = outputs[0];
+						LJ_YM_INT16* outputRight = outputs[1];
+
+						// LR LR LR LR LR LR
+						fwrite(outputLeft+sample, sizeof(LJ_YM_INT16), 1, outFileH);
+						fwrite(outputRight+sample, sizeof(LJ_YM_INT16), 1, outFileH);
+					}
+				}
+			}
+			cmdCount++;
 		}
-		if (result == LJ_GYM_OK)
-		{
-			result = LJ_YM2612_generateOutput(ym2612, numCycles, outputs);
-		}
-	};
+	}
 
 	LJ_GYM_destroy(gymFile);
 	LJ_YM2612_destroy(ym2612);
+
 	return -1;
 }
