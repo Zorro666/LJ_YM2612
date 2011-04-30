@@ -3,6 +3,8 @@ Add generation function to make output
 save output as RAW file
 save output as WAV file
 
+Add write API call as a wrapper to set register
+
 Not sure about this way:
 * Register set per port
 * 3 channels per port
@@ -40,3 +42,5 @@ implement LFO
 implement SSG
 implement timers
 implement ch 3 and 6 special frequency mode
+
+Add read API call 
