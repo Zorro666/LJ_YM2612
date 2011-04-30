@@ -3,5 +3,7 @@ GYM/
 *.swo
 *.o
 *.d
-gym_test
 *.gym
+gym_test
+output.raw
+temp.txt
