@@ -11,6 +11,7 @@ typedef enum LJ_VGM_RESULT LJ_VGM_RESULT;
 typedef enum LJ_VGM_COMMAND LJ_VGM_COMMAND;
 
 typedef unsigned char LJ_VGM_UINT8;
+typedef unsigned int LJ_VGM_UINT32;
 
 enum LJ_VGM_RESULT { 
 	LJ_VGM_OK = 0,
@@ -18,7 +19,7 @@ enum LJ_VGM_RESULT {
 };
 
 enum LJ_VGM_COMMAND { 
-	LJ_VGM_GameGear_PSG = 0x4F, 
+	LJ_VGM_GAMEGEAR_PSG = 0x4F, 
 	LJ_VGM_SN764xx_PSG = 0x50, 
 	LJ_VGM_YM2413_WRITE =0x51, 
 	LJ_VGM_YM2612_WRITE_PORT_0 = 0x52,
@@ -31,7 +32,7 @@ enum LJ_VGM_COMMAND {
 	LJ_VGM_DATA_BLOCK_START = 0x67,
 	LJ_VGM_WAIT_N_SAMPLES = 0x70,
 	LJ_VGM_YM2612_WRITE_DATA = 0x80,
-	LJ_VGM_SEEK_OFFSET = 0xe0,
+	LJ_VGM_DATA_SEEK_OFFSET = 0xe0,
 };
 
 struct LJ_VGM_INSTRUCTION
@@ -41,6 +42,12 @@ struct LJ_VGM_INSTRUCTION
 	LJ_VGM_COMMAND cmd;
 	LJ_VGM_UINT8 R;
 	LJ_VGM_UINT8 D;
+
+	LJ_VGM_UINT8 dataType;
+	LJ_VGM_UINT32 dataNum;
+	LJ_VGM_UINT32 dataSeekOffset;
+
+	LJ_VGM_UINT32 waitSamples;
 };
 
 LJ_VGM_FILE* LJ_VGM_create(const char* const fname);

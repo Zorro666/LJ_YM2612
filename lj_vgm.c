@@ -139,10 +139,11 @@ All unknown types must be skipped by the player.
 // 
 ////////////////////////////////////////////////////////////////////
 
-typedef unsigned int LJ_VGM_UINT32;
 typedef unsigned short LJ_VGM_UINT16;
 
-#define LJ_VGM_NUM_INSTRUCTIONS (0xE0+1)
+#define LJ_VGM_NUM_INSTRUCTIONS (0xFF)
+
+#define LJ_VGM_DATA_YM2612 (0)
 
 /*
 The format starts with a 64 byte header:
@@ -182,9 +183,17 @@ struct LJ_VGM_FILE
 	int cmdCount;
 	int dataStart;
 	LJ_VGM_HEADER header;
+
+	LJ_VGM_UINT8* data;
+	LJ_VGM_UINT8 dataType;
+	LJ_VGM_UINT32 dataNum;
+	LJ_VGM_UINT32 dataSeekOffset;
+	LJ_VGM_UINT32 dataCurrentOffset;
+
+	LJ_VGM_UINT32 waitSamples;
 };
 
-static const char* LJ_VGM_INSTRUCTIONS[LJ_VGM_NUM_INSTRUCTIONS];
+static const char* LJ_VGM_instruction[LJ_VGM_NUM_INSTRUCTIONS];
 int LJ_VGM_validInstruction[LJ_VGM_NUM_INSTRUCTIONS];
 
 /*
@@ -204,6 +213,12 @@ int LJ_VGM_validInstruction[LJ_VGM_NUM_INSTRUCTIONS];
 0x8n       		: YM2612 port 0 address 2A write from the data bank, then wait n samples; n can range from 0 to 15. 
 				  Note that the wait is n, NOT n+1.
 0xe0 dddddddd 	: seek to offset dddddddd (Intel byte order) in PCM data bank
+
+0x30..0x4e dd          : one operand, reserved for future use
+0x55..0x5f dd dd       : two operands, reserved for future use
+0xa0..0xbf dd dd       : two operands, reserved for future use
+0xc0..0xdf dd dd dd    : three operands, reserved for future use
+0xe1..0xff dd dd dd dd : four operands, reserved for future use
 */
 
 static void vgm_clear(LJ_VGM_FILE* const vgmFile)
@@ -218,25 +233,64 @@ static void vgm_init(LJ_VGM_FILE* const vgmFile)
 	for (i=0; i<LJ_VGM_NUM_INSTRUCTIONS; i++)
 	{
 		LJ_VGM_validInstruction[i] = 0;
-		LJ_VGM_INSTRUCTIONS[i]= "UNKNOWN";
+		LJ_VGM_instruction[i]= "UNKNOWN";
 	}
 	
-	LJ_VGM_validInstructions[LJ_VGM_DATA_BLOCK_START] = 1;
-	LJ_VGM_INSTRUCTIONS[LJ_VGM_DATA_BLOCK_START]= "DATA_BLOCK_START";
+	//LJ_VGM_DATA_BLOCK_START = 0x67,
+	LJ_VGM_validInstruction[LJ_VGM_DATA_BLOCK_START] = 1;
+	LJ_VGM_instruction[LJ_VGM_DATA_BLOCK_START]= "DATA_BLOCK_START";
+
+	//LJ_VGM_YM2612_WRITE_PORT_0 = 0x52,
+	LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_PORT_0] = 1;
+	LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_PORT_0]= "YM2612_WRITE_PORT_0";
+
+	//LJ_VGM_YM2612_WRITE_PORT_1 = 0x53,
+	LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_PORT_1] = 1;
+	LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_PORT_1]= "YM2612_WRITE_PORT_1";
+
+	//LJ_VGM_DATA_SEEK_OFFSET = 0xe0,
+	LJ_VGM_validInstruction[LJ_VGM_DATA_SEEK_OFFSET] = 1;
+	LJ_VGM_instruction[LJ_VGM_DATA_SEEK_OFFSET]= "DATA_SEEK_OFFSET";
+
+	//LJ_VGM_YM2612_WRITE_DATA = 0x80 -> 0x8F,
+	for (i=0; i<15; i++)
+	{
+		LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_DATA+i] = 1;
+		LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_DATA+i]= "YM2612_WRITE_DATA";
+	}
+
+	//LJ_VGM_WAIT_N_SAMPLES = 0x70 -> 0x7F,
+	for (i=0; i<15; i++)
+	{
+		LJ_VGM_validInstruction[LJ_VGM_WAIT_N_SAMPLES+i] = 1;
+		LJ_VGM_instruction[LJ_VGM_WAIT_N_SAMPLES+i]= "WAIT_N_SAMPLES";
+	}
+
+	//LJ_VGM_GAMEGEAR_PSG = 0x4F, 
+	LJ_VGM_validInstruction[LJ_VGM_GAMEGEAR_PSG] = 1;
+	LJ_VGM_instruction[LJ_VGM_GAMEGEAR_PSG]= "GAMEGEAR_PSG";
+
+	//LJ_VGM_SN764xx_PSG = 0x50, 
+	LJ_VGM_validInstruction[LJ_VGM_SN764xx_PSG] = 1;
+	LJ_VGM_instruction[LJ_VGM_SN764xx_PSG]= "SN764xx_PSG";
+
+	//LJ_VGM_WAIT_SAMPLES = 0x61,
+	LJ_VGM_validInstruction[LJ_VGM_WAIT_SAMPLES] = 1;
+	LJ_VGM_instruction[LJ_VGM_WAIT_SAMPLES]= "WAIT_SAMPLES";
+
 /*
-	LJ_VGM_GameGear_PSG = 0x4F, 
 	LJ_VGM_SN764xx_PSG = 0x50, 
 	LJ_VGM_YM2413_WRITE =0x51, 
-	LJ_VGM_YM2612_WRITE_PORT_0 = 0x52,
-	LJ_VGM_YM2612_WRITE_PORT_1 = 0x53,
 	LJ_VGM_YM2151_WRITE = 0x54,
-	LJ_VGM_WAIT_SAMPLES = 0x61,
 	LJ_VGM_WAIT_60th = 0x62,
 	LJ_VGM_WAIT_50th = 0x63,
 	LJ_VGM_END_SOUND_DATA = 0x66,
-	LJ_VGM_WAIT_N_SAMPLES = 0x70,
-	LJ_VGM_YM2612_WRITE_DATA = 0x80,
-	LJ_VGM_SEEK_OFFSET = 0xe0,
+
+0x30..0x4e dd          : one operand, reserved for future use
+0x55..0x5f dd dd       : two operands, reserved for future use
+0xa0..0xbf dd dd       : two operands, reserved for future use
+0xc0..0xdf dd dd dd    : three operands, reserved for future use
+0xe1..0xff dd dd dd dd : four operands, reserved for future use
 */
 
 	vgm_clear(vgmFile);
@@ -300,6 +354,7 @@ static LJ_VGM_RESULT vgm_open(LJ_VGM_FILE* const vgmFile, const char* const fnam
 	}
 	dataStart += (0x40-0xC);
 	vgmFile->dataStart = dataStart;
+	vgmFile->pos = dataStart;
 
 	result = fseek(vgmFile->fh, dataStart, SEEK_SET);
 	if (result != 0)
@@ -347,18 +402,16 @@ LJ_VGM_RESULT LJ_VGM_destroy(LJ_VGM_FILE* const vgmFile)
 		return LJ_VGM_OK;
 	}
 	fclose(vgmFile->fh);
+
+	free(vgmFile->data);
+
 	vgm_clear(vgmFile);
+
 	free(vgmFile);
+
 	return LJ_VGM_OK;
 }
 
-/*
-The VGM file format contains only four different instructions, each represented by one byte with 0 to 2 bytes of arguments:
-0x00      Do nothing for 1/60th of a second (NOP)
-0x01 R D  write data D on YM port 0, register R
-0x02 R D  write data D on YM port 1, register R
-0x03 D    write on PSG port the data D
-*/
 LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const vgmInstr)
 {
 	size_t numRead = 0;
@@ -380,18 +433,76 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 		fprintf(stderr, "LJ_VGM_read: failed to read cmd byte pos:%d\n", pos);
 		return LJ_VGM_ERROR;
 	}
-#if 0
-	if (cmd == LJ_VGM_NOP)
+
+	if (LJ_VGM_validInstruction[cmd] == 0)
 	{
-		vgmInstr->pos = pos;
-		vgmInstr->cmdCount = cmdCount;
-		vgmInstr->cmd = cmd;
-		vgmFile->pos += 1;
+		fprintf(stderr, "LJ_VGM_read: unknown cmd:0x%X pos:%d\n", cmd, pos);
+		return LJ_VGM_ERROR;
+	}
+
+	if (cmd == LJ_VGM_DATA_BLOCK_START)
+	{
+		LJ_VGM_UINT8 endSoundData = 0;
+		//The data block format is: 0x67 0x66 tt ss ss ss ss (data)
+		numRead = fread(&endSoundData, sizeof(endSoundData), 1, vgmFile->fh);
+		if (numRead != 1)
+		{
+			fprintf(stderr, "LJ_VGM_read: failed to read END_SOUND_DATA cmd byte pos:%d\n", pos);
+			return LJ_VGM_ERROR;
+		}
+		if (endSoundData != LJ_VGM_END_SOUND_DATA)
+		{
+			fprintf(stderr, "LJ_VGM_read: invalid cmd byte expecting END_SOUND_DATA got:0x%X pos:%d\n", endSoundData, pos);
+			return LJ_VGM_ERROR;
+		}
+		numRead = fread(&vgmFile->dataType, sizeof(vgmFile->dataType), 1, vgmFile->fh);
+		if (numRead != 1)
+		{
+			fprintf(stderr, "LJ_VGM_read: failed to read dataType byte pos:%d\n", pos);
+			return LJ_VGM_ERROR;
+		}
+		if (vgmFile->dataType != LJ_VGM_DATA_YM2612)
+		{
+			fprintf(stderr, "LJ_VGM_read: invalid dataType expecting 0x00 got:0x%X pos:%d\n", vgmFile->dataType, pos);
+			return LJ_VGM_ERROR;
+		}
+		numRead = fread(&vgmFile->dataNum, sizeof(vgmFile->dataNum), 1, vgmFile->fh);
+		if (numRead != 1)
+		{
+			fprintf(stderr, "LJ_VGM_read: failed to read dataNum bytes pos:%d\n", pos);
+			return LJ_VGM_ERROR;
+		}
+		vgmFile->data = malloc(vgmFile->dataNum);
+		if (vgmFile->data == NULL)
+		{
+			fprintf(stderr, "LJ_VGM_read: failed to allocate data array size:%d pos:%d\n", vgmFile->dataNum, pos);
+			return LJ_VGM_ERROR;
+		}
+		numRead = fread(vgmFile->data, 1, vgmFile->dataNum, vgmFile->fh);
+		if (numRead != vgmFile->dataNum)
+		{
+			fprintf(stderr, "LJ_VGM_read: failed to read dataNum:%d bytes numRead:%d pos:%d\n", vgmFile->dataNum, numRead, pos);
+			return LJ_VGM_ERROR;
+		}
+
+		vgmFile->pos += 7 + vgmFile->dataNum;
 		vgmFile->cmdCount += 1;
+		
+		vgmFile->dataSeekOffset = 0;
+		vgmFile->dataCurrentOffset = 0;
+
+		vgmInstr->pos = pos;
+		vgmInstr->cmd = cmd;
+		vgmInstr->cmdCount = cmdCount;
+
+		vgmInstr->dataSeekOffset = vgmFile->dataSeekOffset;
+
 		return LJ_VGM_OK;
 	}
-	if ((cmd == LJ_VGM_WRITE_PORT_0) || (cmd == LJ_VGM_WRITE_PORT_1))
+	else if ((cmd == LJ_VGM_YM2612_WRITE_PORT_0) || (cmd == LJ_VGM_YM2612_WRITE_PORT_1))
 	{
+		//0x52 aa dd 		: YM2612 port 0, write value dd to register aa
+		//0x53 aa dd 		: YM2612 port 1, write value dd to register aa
 		LJ_VGM_UINT8 R = 0;
 		LJ_VGM_UINT8 D = 0;
 
@@ -409,37 +520,153 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 			return LJ_VGM_ERROR;
 		}
 
+		vgmFile->pos += 3;
+		vgmFile->cmdCount += 1;
+
 		vgmInstr->pos = pos;
 		vgmInstr->cmdCount = cmdCount;
 		vgmInstr->cmd = cmd;
+
 		vgmInstr->R = R;
 		vgmInstr->D = D;
-		vgmFile->pos += 3;
-		vgmFile->cmdCount += 1;
+
 		return LJ_VGM_OK;
 	}
-	if (cmd == LJ_VGM_WRITE_PORT_PSG)
+	else if (cmd == LJ_VGM_DATA_SEEK_OFFSET)
 	{
-		LJ_VGM_UINT8 D = 0;
-
-		numRead = fread(&D, sizeof(D), 1, vgmFile->fh);
+		//0xe0 dddddddd 	: seek to offset dddddddd (Intel byte order) in PCM data bank
+		numRead = fread(&vgmFile->dataSeekOffset, sizeof(vgmFile->dataSeekOffset), 1, vgmFile->fh);
 		if (numRead != 1)
 		{
-			fprintf(stderr, "LJ_VGM_read: failed to read D byte cmd:%d pos:%d\n", cmd, pos);
+			fprintf(stderr, "LJ_VGM_read: failed to read data seek offset pos:%d\n", pos);
 			return LJ_VGM_ERROR;
 		}
 
+		vgmFile->pos += 5;
+		vgmFile->cmdCount += 1;
+
+		vgmFile->dataCurrentOffset = 0;
+
 		vgmInstr->pos = pos;
 		vgmInstr->cmdCount = cmdCount;
 		vgmInstr->cmd = cmd;
-		vgmInstr->D = D;
-		vgmFile->pos += 2;
-		vgmFile->cmdCount += 1;
+
+		vgmInstr->dataSeekOffset = vgmFile->dataSeekOffset;
+
 		return LJ_VGM_OK;
 	}
-#endif // #if 0
+	else if ((cmd >> 4) == 0x8)
+	{
+		//0x8n  : YM2612 port 0 address 2A write from the data bank, then wait n samples; n can range from 0 to 15. 
+		LJ_VGM_UINT8 waitSamples = cmd & 0xF;
 
-	fprintf(stderr, "LJ_VGM_read: unknown cmd:0x%X pos:%d\n", cmd, pos);
+		vgmFile->pos += 1;
+		vgmFile->cmdCount += 1;
+
+		vgmFile->waitSamples = waitSamples;
+
+		vgmInstr->pos = pos;
+		vgmInstr->cmdCount = cmdCount;
+		vgmInstr->cmd = LJ_VGM_YM2612_WRITE_DATA;
+
+		vgmInstr->dataSeekOffset = vgmFile->dataSeekOffset;
+		vgmInstr->waitSamples = vgmFile->waitSamples;
+
+		vgmInstr->R = 0x2A;
+		vgmInstr->D = vgmFile->data[vgmFile->dataCurrentOffset];
+
+		vgmFile->dataCurrentOffset += 1;
+
+		return LJ_VGM_OK;
+	}
+	else if ((cmd >> 4) == 0x7)
+	{
+		//0x7n : wait n+1 samples, n can range from 0 to 15.
+		LJ_VGM_UINT8 waitSamples = cmd & 0xF;
+
+		vgmFile->pos += 1;
+		vgmFile->cmdCount += 1;
+
+		vgmFile->waitSamples = waitSamples + 1;
+
+		vgmInstr->pos = pos;
+		vgmInstr->cmdCount = cmdCount;
+		vgmInstr->cmd = LJ_VGM_WAIT_N_SAMPLES;
+
+		vgmInstr->waitSamples = vgmFile->waitSamples;
+
+		return LJ_VGM_OK;
+	}
+	else if (cmd == LJ_VGM_GAMEGEAR_PSG)
+	{
+		// 0x4f dd : Game Gear PSG stereo, write dd to port 0x06
+		LJ_VGM_UINT8 D = 0;
+		numRead = fread(&D, sizeof(D), 1, vgmFile->fh);
+		if (numRead != 1)
+		{
+			fprintf(stderr, "LJ_VGM_read: failed to read D byte pos:%d\n", pos);
+			return LJ_VGM_ERROR;
+		}
+
+		vgmFile->pos += 2;
+		vgmFile->cmdCount += 1;
+
+		vgmInstr->pos = pos;
+		vgmInstr->cmd = cmd;
+		vgmInstr->cmdCount = cmdCount;
+
+		vgmInstr->D = D;
+
+		return LJ_VGM_OK;
+	}
+	else if (cmd == LJ_VGM_SN764xx_PSG)
+	{
+		//0x50 dd : PSG (SN76489/SN76496) write value dd
+		LJ_VGM_UINT8 D = 0;
+		numRead = fread(&D, sizeof(D), 1, vgmFile->fh);
+		if (numRead != 1)
+		{
+			fprintf(stderr, "LJ_VGM_read: failed to read D byte pos:%d\n", pos);
+			return LJ_VGM_ERROR;
+		}
+
+		vgmFile->pos += 2;
+		vgmFile->cmdCount += 1;
+
+		vgmInstr->pos = pos;
+		vgmInstr->cmd = cmd;
+		vgmInstr->cmdCount = cmdCount;
+
+		vgmInstr->D = D;
+
+		return LJ_VGM_OK;
+	}
+	else if (cmd == LJ_VGM_WAIT_SAMPLES)
+	{
+		//0x61 nn nn 		: Wait n samples, n can range from 0 to 65535 (approx 1.49 seconds). 
+		LJ_VGM_UINT16 waitSamples;
+		numRead = fread(&waitSamples, sizeof(waitSamples), 1, vgmFile->fh);
+		if (numRead != 1)
+		{
+			fprintf(stderr, "LJ_VGM_read: failed to read waitSamples offset pos:%d\n", pos);
+			return LJ_VGM_ERROR;
+		}
+
+		vgmFile->pos += 3;
+		vgmFile->cmdCount += 1;
+
+		vgmFile->waitSamples = waitSamples;
+
+		vgmInstr->pos = pos;
+		vgmInstr->cmdCount = cmdCount;
+		vgmInstr->cmd = cmd;
+
+		vgmInstr->waitSamples = vgmFile->waitSamples;
+
+		return LJ_VGM_OK;
+	}
+
+	fprintf(stderr, "LJ_VGM_read: unhandled cmd:0x%X '%s' pos:%d\n", cmd, LJ_VGM_instruction[cmd], pos);
 	return LJ_VGM_ERROR;
 }
 
@@ -480,19 +707,44 @@ void LJ_VGM_debugPrint(const LJ_VGM_INSTRUCTION* const vgmInstr)
 	cmd = vgmInstr->cmd;
 	cmdCount = vgmInstr->cmdCount;
 
-	printf("VGM:%d pos:%d cmd:%d %s", cmdCount, pos, cmd, LJ_VGM_INSTRUCTIONS[cmd]);
-	if ((cmd == LJ_VGM_YM2612_WRITE_PORT_0) || (cmd == LJ_VGM_YM2612_WRITE_PORT_1))
+	printf("VGM:%d pos:%d cmd:0x%X %s", cmdCount, pos, cmd, LJ_VGM_instruction[cmd]);
+	if (cmd == LJ_VGM_DATA_BLOCK_START)
+	{
+		printf(" dataType:0x%X dataNum:%d", vgmInstr->dataType, vgmInstr->dataNum);
+	}
+	else if ((cmd == LJ_VGM_YM2612_WRITE_PORT_0) || (cmd == LJ_VGM_YM2612_WRITE_PORT_1))
 	{
 		const int R = vgmInstr->R;
 		const int D = vgmInstr->D;
 		printf(" REG:0x%X DATA:0x%X", R, D);
 	}
-#if 0
-	if (cmd == LJ_VGM_WRITE_PORT_PSG)
+	else if (cmd == LJ_VGM_DATA_SEEK_OFFSET)
+	{
+		printf(" offset:%d", vgmInstr->dataSeekOffset);
+	}
+	else if (cmd == LJ_VGM_YM2612_WRITE_DATA)
+	{
+		const int R = vgmInstr->R;
+		const int D = vgmInstr->D;
+		printf(" REG:0x%X DATA:0x%X waitSamples:%d", R, D, vgmInstr->waitSamples);
+	}
+	else if (cmd == LJ_VGM_GAMEGEAR_PSG)
 	{
 		const int D = vgmInstr->D;
 		printf(" DATA:0x%X", D);
 	}
-#endif // #if 0
+	else if (cmd == LJ_VGM_SN764xx_PSG)
+	{
+		const int D = vgmInstr->D;
+		printf(" DATA:0x%X", D);
+	}
+	else if (cmd == LJ_VGM_WAIT_N_SAMPLES)
+	{
+		printf(" waitSamples:%d", vgmInstr->waitSamples);
+	}
+	else if (cmd == LJ_VGM_WAIT_SAMPLES)
+	{
+		printf(" waitSamples:%d", vgmInstr->waitSamples);
+	}
 	printf("\n");
 }
