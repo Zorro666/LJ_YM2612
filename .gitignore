@@ -1,9 +1,15 @@
 GYM/
+VGM/
 *.swp
 *.swo
 *.o
 *.d
 *.gym
+*.vgm
+*.raw
+*.pcm
+*.wav
 gym_test
+gym_test2
 output.raw
 temp.txt
