@@ -1,4 +1,7 @@
-TEST: LJ_GYM_reset
+Finish VGM parser:
+* wait samples
+* end of data
+
 Add generation function to make output
 save output as RAW file
 save output as WAV file
@@ -27,7 +30,6 @@ LJ_LR_AMS_PMS = 0xB4,
 
 implement a tick function
 implement an output function
-implement support for the DAC output
 
 output wave so it can be plotted
 have real time graph plotting thingy
