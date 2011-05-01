@@ -15,6 +15,9 @@ typedef struct LJ_YM2612_PORT LJ_YM2612_PORT;
 #define LJ_YM2612_NUM_REGISTERS (0xB6+1)
 #define LJ_YM2612_NUM_PORTS (2)
 
+// Random guess - needs to be in sync with how the envelope amplitude works also to match up
+#define DAC_SHIFT (6)
+
 enum LJ_YM2612_REGISTERS {
 		LJ_KEY_ONOFF = 0x28,
 		LJ_DAC = 0x2A,
@@ -38,7 +41,7 @@ struct LJ_YM2612
 	LJ_YM_UINT8 validRegisters[LJ_YM2612_NUM_REGISTERS];
 
 	LJ_YM_INT16 dacValue;
-	int dacEnable;
+	LJ_YM_UINT16 dacEnable;
 };
 
 static void ym2612_portClear(LJ_YM2612_PORT* const port)
@@ -184,11 +187,12 @@ LJ_YM2612_RESULT LJ_YM2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port
 
 	if (reg == LJ_DAC_EN)
 	{
-		ym2612->dacEnable = 0xFFFF * ((data & 0x80) >> 4);
+		ym2612->dacEnable = 0xFFFF * ((data & 0x80) >> 7);
 	}
 	else if (reg == LJ_DAC)
 	{
-		ym2612->dacValue = data;
+		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) << DAC_SHIFT;
+		//printf( "dacValue:%d data:0x%X\n", ym2612->dacValue,data);
 	}
 
 	return LJ_YM2612_OK;
@@ -215,6 +219,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 	//Global state update - LFO, DAC, SSG
 	dacValue = ym2612->dacValue & ym2612->dacEnable;
+	//dacValue = ym2612->dacValue;
 
 	//For each cycle
 	//Loop over channels updating them, mix them, then output them into the buffer
