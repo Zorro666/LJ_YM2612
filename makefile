@@ -1,6 +1,8 @@
 GYM_TEST_DEPENDS:=lj_gym.c lj_ym2612.c
+GYM_TEST2_DEPENDS:=lj_gym.c fm2612.c
 
 PROJECTS:=gym_test\
+		  gym_test2\
 
 all: $(PROJECTS)
 
@@ -8,7 +10,7 @@ C_COMPILE:=gcc -c
 C_COMPILE_FLAGS:=-g -Wall -Werror
 
 LINK:=gcc
-LINK_FLAGS:=-g
+LINK_FLAGS:=-g -lm
 
 define upperString
 $(shell echo $1 | tr [a-z] [A-Z] )
