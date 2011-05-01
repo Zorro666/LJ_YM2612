@@ -12,7 +12,7 @@
 typedef enum LJ_YM2612_REGISTERS LJ_YM2612_REGISTERS;
 typedef struct LJ_YM2612_PORT LJ_YM2612_PORT;
 
-#define LJ_YM2612_NUM_REGISTERS (0xB6+1)
+#define LJ_YM2612_NUM_REGISTERS (0xFF)
 #define LJ_YM2612_NUM_PORTS (2)
 
 // Random guess - needs to be in sync with how the envelope amplitude works also to match up
@@ -29,6 +29,7 @@ enum LJ_YM2612_REGISTERS {
 };
 
 static const char* LJ_YM2612_REGISTER_NAMES[LJ_YM2612_NUM_REGISTERS];
+static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 
 struct LJ_YM2612_PORT
 {
@@ -38,7 +39,6 @@ struct LJ_YM2612_PORT
 struct LJ_YM2612
 {
 	LJ_YM2612_PORT ports[LJ_YM2612_NUM_PORTS];
-	LJ_YM_UINT8 validRegisters[LJ_YM2612_NUM_REGISTERS];
 
 	LJ_YM_INT16 dacValue;
 	LJ_YM_UINT16 dacEnable;
@@ -67,36 +67,36 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	}
 	for (i=0; i<LJ_YM2612_NUM_REGISTERS; i++)
 	{
-		ym2612->validRegisters[i] = 0;
+		LJ_YM2612_validRegisters[i] = 0;
 		LJ_YM2612_REGISTER_NAMES[i] = "UNKNOWN";
 	}
 	
 	//Known specific registers (only need explicit listing for the system type parameters which aren't per channel settings
-	ym2612->validRegisters[LJ_KEY_ONOFF] = 1;
+	LJ_YM2612_validRegisters[LJ_KEY_ONOFF] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_KEY_ONOFF] = "KEY_ONOFF";
 
-	ym2612->validRegisters[LJ_DAC] = 1;
+	LJ_YM2612_validRegisters[LJ_DAC] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_DAC] = "DAC";
 
-	ym2612->validRegisters[LJ_DAC_EN] = 1;
+	LJ_YM2612_validRegisters[LJ_DAC_EN] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_DAC_EN] = "DAC_EN";
 
-	ym2612->validRegisters[LJ_FREQLSB] = 1;
+	LJ_YM2612_validRegisters[LJ_FREQLSB] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_FREQLSB] = "FREQ(LSB)";
 
-	ym2612->validRegisters[LJ_BLOCK_FREQMSB] = 1;
+	LJ_YM2612_validRegisters[LJ_BLOCK_FREQMSB] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_BLOCK_FREQMSB] = "BLOCK_FREQ(MSB)";
 
-	ym2612->validRegisters[LJ_FEEDBACK_ALGO] = 1;
+	LJ_YM2612_validRegisters[LJ_FEEDBACK_ALGO] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_FEEDBACK_ALGO] = "FEEDBACK_ALGO";
 
-	ym2612->validRegisters[LJ_LR_AMS_PMS] = 1;
+	LJ_YM2612_validRegisters[LJ_LR_AMS_PMS] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_LR_AMS_PMS] = "LR_AMS_PMS";
 
 	//For parameters mark all the associated registers as valid
 	for (i=0; i<LJ_YM2612_NUM_REGISTERS; i++)
 	{
-		if (ym2612->validRegisters[i] == 1)
+		if (LJ_YM2612_validRegisters[i] == 1)
 		{
 			//Found a valid register
 			//0x20 = system which is specific set of registers
@@ -117,7 +117,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 				for (j=0; j<3; j++)
 				{
 					const char* const regBaseName = LJ_YM2612_REGISTER_NAMES[regBase];
-					ym2612->validRegisters[regBase+j] = 1;
+					LJ_YM2612_validRegisters[regBase+j] = 1;
 					LJ_YM2612_REGISTER_NAMES[regBase+j] = regBaseName;
 				}
 			}
@@ -176,7 +176,7 @@ LJ_YM2612_RESULT LJ_YM2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port
 	// convert from register to parameter
 	parameter = (reg & 0xF0) >> 4;
 
-	if (ym2612->validRegisters[reg] == 0)
+	if (LJ_YM2612_validRegisters[reg] == 0)
 	{
 		fprintf(stderr, "LJ_YM2612_setRegister:unknown register:0x%X port:%d data:0x%X\n", reg, port, data);
 		return LJ_YM2612_ERROR;
