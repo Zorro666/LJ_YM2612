@@ -11,5 +11,7 @@ VGM/
 *.wav
 gym_test
 gym_test2
+vgm_test
+vgm_test2
 output.raw
 temp.txt
