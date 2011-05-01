@@ -17,9 +17,9 @@ int main(int argc, char* argv[])
 	outputs[0] = malloc(1024 * sizeof(LJ_YM_INT16));
 	outputs[1] = malloc(1024 * sizeof(LJ_YM_INT16));
 
-	FILE* outFileH = fopen("output.raw","wb");
+	FILE* outFileH = fopen("gym_test.pcm","wb");
 
-	int numCycles = 128;
+	int numCycles = 1;
 	int cmdCount;
 
 	gymFile = LJ_GYM_create( "test.gym" );
@@ -43,6 +43,7 @@ int main(int argc, char* argv[])
 			if (result == LJ_YM2612_ERROR)
 			{
 				fprintf(stderr,"GYM:%d ERROR processing command\n",cmdCount);
+				result = LJ_YM2612_OK;
 			}
 			if (result == LJ_YM2612_OK)
 			{
@@ -62,6 +63,10 @@ int main(int argc, char* argv[])
 				}
 			}
 			cmdCount++;
+			if (cmdCount == -1000)
+			{
+				result = LJ_YM2612_ERROR;
+			}
 		}
 	}
 
