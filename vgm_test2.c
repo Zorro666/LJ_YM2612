@@ -9,8 +9,8 @@ int main(int argc, char* argv[])
 {
 	int result = LJ_VGM_OK;
 
-	LJ_VGM_FILE* gymFile = NULL;
-	LJ_VGM_INSTRUCTION gymInstruction;
+	LJ_VGM_FILE* vgmFile = NULL;
+	LJ_VGM_INSTRUCTION vgmInstruction;
 
 	void* ym2612 = NULL;
 
@@ -18,31 +18,36 @@ int main(int argc, char* argv[])
 	outputs[0] = malloc(1024 * sizeof(FMSAMPLE));
 	outputs[1] = malloc(1024 * sizeof(FMSAMPLE));
 
-	FILE* outFileH = fopen("gym_test2.pcm","wb");
+	FILE* outFileH = fopen("vgm_test2.pcm","wb");
 
 	int numCycles = 1;
 	int cmdCount;
 
-	gymFile = LJ_VGM_create( "test.gym" );
+	vgmFile = LJ_VGM_create( "test.vgm" );
 	ym2612 = ym2612_init(NULL, NULL, 0, 0, NULL, NULL);
 	ym2612_reset_chip(ym2612);
 
 	cmdCount = 0;
 	while (result == LJ_VGM_OK)
 	{
-		result = LJ_VGM_read(gymFile, &gymInstruction);
+		result = LJ_VGM_read(vgmFile, &vgmInstruction);
 		if (result == LJ_VGM_OK)
 		{
-			LJ_VGM_debugPrint( &gymInstruction);
-			if (gymInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_0)
+			LJ_VGM_debugPrint( &vgmInstruction);
+			if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_0)
 			{
-				ym2612_write(ym2612, 0x4000, gymInstruction.R);
-				ym2612_write(ym2612, 0x4001, gymInstruction.D);
+				ym2612_write(ym2612, 0x4000, vgmInstruction.R);
+				ym2612_write(ym2612, 0x4001, vgmInstruction.D);
 			}
-			else if (gymInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_1)
+			else if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_1)
 			{
-				ym2612_write(ym2612, 0x4002, gymInstruction.R);
-				ym2612_write(ym2612, 0x4003, gymInstruction.D);
+				ym2612_write(ym2612, 0x4002, vgmInstruction.R);
+				ym2612_write(ym2612, 0x4003, vgmInstruction.D);
+			}
+			else if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_DATA)
+			{
+				ym2612_write(ym2612, 0x4000, vgmInstruction.R);
+				ym2612_write(ym2612, 0x4001, vgmInstruction.D);
 			}
 			if (result == LJ_VGM_OK)
 			{
@@ -65,7 +70,7 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	LJ_VGM_destroy(gymFile);
+	LJ_VGM_destroy(vgmFile);
 	ym2612_shutdown(ym2612);
 
 	return -1;

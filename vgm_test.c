@@ -40,6 +40,10 @@ int main(int argc, char* argv[])
 			{
 				result = LJ_YM2612_setRegister(ym2612, 1, vgmInstruction.R, vgmInstruction.D);
 			}
+			else if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_DATA)
+			{
+				result = LJ_YM2612_setRegister(ym2612, 0, vgmInstruction.R, vgmInstruction.D);
+			}
 			if (result == LJ_YM2612_ERROR)
 			{
 				fprintf(stderr,"VGM:%d ERROR processing command\n",cmdCount);
