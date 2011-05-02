@@ -1,13 +1,24 @@
-Finish VGM parser:
-* wait samples
-* end of data
+High Priority:
+VGM:expose header info
+YM2612:add write API call as a wrapper to set register
+YM2612:debug settings, output raw, printf output
+TEST_APP:-debug option
+YM2612:design choice
+YM2612:get basic tone generation working e.g. EG value
+YM2612:get basic amplitude working e.g. AG value
+YM2612:implement the test program from the docs
 
-Add generation function to make output
-save output as RAW file
-save output as WAV file
+Medium Priority:
+VGM:read all of data into memory and read from memory instead of a few bytes at a time
 
-Add write API call as a wrapper to set register
+Low Priority:
+VGM:support the loop settings in the header
+YM2612:save output as WAV file
+TEST_APP:save output as WAV file
 
+Future Stuff:
+
+YM2612: Design
 Not sure about this way:
 * Register set per port
 * 3 channels per port
@@ -17,21 +28,15 @@ Perhaps just:
 * 6 channels
 * global state for LFO, SSG, DAC, Timers
 
-error handling for unknown/unsupported register (be nice to make it say UNKNOWN REGISTER)
+YM2612: error handling for unknown/unsupported register (be nice to make it say UNKNOWN REGISTER)
 
-Implement support for these registers:
+YM2612: Implement support for these registers:
 LJ_KEY_ONOFF = 0x28,
-LJ_DAC = 0x2A,
-LJ_DAC_EN = 0x2B,
 LJ_FREQLSB = 0xA0,
 LJ_BLOCK_FREQMSB = 0xA4,
 LJ_FEEDBACK_ALGO = 0xB0,
 LJ_LR_AMS_PMS = 0xB4,
 
-implement a tick function
-implement an output function
-
-output wave so it can be plotted
 have real time graph plotting thingy
 
 get basic tone generation working e.g. EG value
@@ -45,4 +50,4 @@ implement SSG
 implement timers
 implement ch 3 and 6 special frequency mode
 
-Add read API call 
+YM2612:add read API call 
