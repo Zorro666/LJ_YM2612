@@ -13,6 +13,8 @@ typedef enum LJ_VGM_COMMAND LJ_VGM_COMMAND;
 typedef unsigned char LJ_VGM_UINT8;
 typedef unsigned int LJ_VGM_UINT32;
 
+typedef int LJ_VGM_INT32;
+
 enum LJ_VGM_RESULT { 
 	LJ_VGM_OK = 0,
 	LJ_VGM_ERROR = -1
@@ -47,7 +49,8 @@ struct LJ_VGM_INSTRUCTION
 	LJ_VGM_UINT32 dataNum;
 	LJ_VGM_UINT32 dataSeekOffset;
 
-	LJ_VGM_UINT32 waitSamples;
+	LJ_VGM_INT32 waitSamples;
+	LJ_VGM_INT32 waitSamplesData;
 };
 
 LJ_VGM_FILE* LJ_VGM_create(const char* const fname);

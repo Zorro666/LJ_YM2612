@@ -278,13 +278,15 @@ static void vgm_init(LJ_VGM_FILE* const vgmFile)
 	LJ_VGM_validInstruction[LJ_VGM_WAIT_SAMPLES] = 1;
 	LJ_VGM_instruction[LJ_VGM_WAIT_SAMPLES]= "WAIT_SAMPLES";
 
+	//LJ_VGM_END_SOUND_DATA = 0x66,
+	LJ_VGM_validInstruction[LJ_VGM_END_SOUND_DATA] = 1;
+	LJ_VGM_instruction[LJ_VGM_END_SOUND_DATA]= "END_SOUND_DATA";
 /*
 	LJ_VGM_SN764xx_PSG = 0x50, 
 	LJ_VGM_YM2413_WRITE =0x51, 
 	LJ_VGM_YM2151_WRITE = 0x54,
 	LJ_VGM_WAIT_60th = 0x62,
 	LJ_VGM_WAIT_50th = 0x63,
-	LJ_VGM_END_SOUND_DATA = 0x66,
 
 0x30..0x4e dd          : one operand, reserved for future use
 0x55..0x5f dd dd       : two operands, reserved for future use
@@ -403,6 +405,10 @@ LJ_VGM_RESULT LJ_VGM_destroy(LJ_VGM_FILE* const vgmFile)
 	}
 	fclose(vgmFile->fh);
 
+	printf("VGM:numSamples:%d\n", vgmFile->header.numSamples);
+	printf("VGM:loopOffset:%d\n", vgmFile->header.loopOffset);
+	printf("VGM:numLoops:%d\n", vgmFile->header.numLoops);
+
 	free(vgmFile->data);
 
 	vgm_clear(vgmFile);
@@ -439,6 +445,8 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 		fprintf(stderr, "LJ_VGM_read: unknown cmd:0x%X pos:%d\n", cmd, pos);
 		return LJ_VGM_ERROR;
 	}
+
+	vgmInstr->waitSamples = 0;
 
 	if (cmd == LJ_VGM_DATA_BLOCK_START)
 	{
@@ -571,6 +579,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 
 		vgmInstr->dataSeekOffset = vgmFile->dataSeekOffset;
 		vgmInstr->waitSamples = vgmFile->waitSamples;
+		vgmInstr->waitSamplesData = vgmFile->waitSamples;
 
 		vgmInstr->R = 0x2A;
 		vgmInstr->D = vgmFile->data[vgmFile->dataCurrentOffset];
@@ -594,6 +603,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 		vgmInstr->cmd = LJ_VGM_WAIT_N_SAMPLES;
 
 		vgmInstr->waitSamples = vgmFile->waitSamples;
+		vgmInstr->waitSamplesData = vgmFile->waitSamples;
 
 		return LJ_VGM_OK;
 	}
@@ -662,6 +672,19 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 		vgmInstr->cmd = cmd;
 
 		vgmInstr->waitSamples = vgmFile->waitSamples;
+		vgmInstr->waitSamplesData = vgmFile->waitSamples;
+
+		return LJ_VGM_OK;
+	}
+	else if (cmd == LJ_VGM_END_SOUND_DATA)
+	{
+		//0x66 : end of sound data
+		vgmFile->pos += 1;
+		vgmFile->cmdCount += 1;
+
+		vgmInstr->pos = pos;
+		vgmInstr->cmdCount = cmdCount;
+		vgmInstr->cmd = cmd;
 
 		return LJ_VGM_OK;
 	}
@@ -726,7 +749,7 @@ void LJ_VGM_debugPrint(const LJ_VGM_INSTRUCTION* const vgmInstr)
 	{
 		const int R = vgmInstr->R;
 		const int D = vgmInstr->D;
-		printf(" REG:0x%X DATA:0x%X waitSamples:%d", R, D, vgmInstr->waitSamples);
+		printf(" REG:0x%X DATA:0x%X waitSamplesData:%d waitSamples:%d", R, D, vgmInstr->waitSamplesData, vgmInstr->waitSamples);
 	}
 	else if (cmd == LJ_VGM_GAMEGEAR_PSG)
 	{
@@ -740,11 +763,12 @@ void LJ_VGM_debugPrint(const LJ_VGM_INSTRUCTION* const vgmInstr)
 	}
 	else if (cmd == LJ_VGM_WAIT_N_SAMPLES)
 	{
-		printf(" waitSamples:%d", vgmInstr->waitSamples);
+		printf(" waitSamplesData:%d waitSamples:%d", vgmInstr->waitSamplesData, vgmInstr->waitSamples);
 	}
 	else if (cmd == LJ_VGM_WAIT_SAMPLES)
 	{
-		printf(" waitSamples:%d", vgmInstr->waitSamples);
+		printf(" waitSamplesData:%d waitSamples:%d", vgmInstr->waitSamplesData, vgmInstr->waitSamples);
 	}
+
 	printf("\n");
 }
