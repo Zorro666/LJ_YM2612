@@ -11,6 +11,10 @@ int main(int argc, char* argv[])
 	LJ_VGM_FILE* vgmFile = NULL;
 	LJ_VGM_INSTRUCTION vgmInstruction;
 
+	int numCycles = 1;
+	int sampleCount;
+	int waitCount;
+
 	LJ_YM2612* ym2612 = NULL;
 
 	LJ_YM_INT16* outputs[2];
@@ -19,40 +23,66 @@ int main(int argc, char* argv[])
 
 	FILE* outFileH = fopen("vgm_test.pcm","wb");
 
-	int numCycles = 1;
-	int cmdCount;
-
 	vgmFile = LJ_VGM_create( "test.vgm" );
 	ym2612 = LJ_YM2612_create();
 
-	cmdCount = 0;
+	sampleCount = 0;
+	waitCount = 0;
+	vgmInstruction.waitSamples = 0;
 	while (result == LJ_VGM_OK)
 	{
-		result = LJ_VGM_read(vgmFile, &vgmInstruction);
+		if (vgmInstruction.waitSamples < 0)
+		{
+			vgmInstruction.waitSamples = 0;
+		}
+		if (vgmInstruction.waitSamples == 0)
+		{
+			result = LJ_VGM_read(vgmFile, &vgmInstruction);
+			if (result == LJ_VGM_OK)
+			{
+				if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_0)
+				{
+					result = LJ_YM2612_setRegister(ym2612, 0, vgmInstruction.R, vgmInstruction.D);
+				}
+				else if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_1)
+				{
+					result = LJ_YM2612_setRegister(ym2612, 1, vgmInstruction.R, vgmInstruction.D);
+				}
+				else if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_DATA)
+				{
+					result = LJ_YM2612_setRegister(ym2612, 0, vgmInstruction.R, vgmInstruction.D);
+					waitCount += vgmInstruction.waitSamples;
+				}
+				else if (vgmInstruction.cmd == LJ_VGM_WAIT_N_SAMPLES)
+				{
+					waitCount += vgmInstruction.waitSamples;
+				}
+				else if (vgmInstruction.cmd == LJ_VGM_WAIT_SAMPLES)
+				{
+					waitCount += vgmInstruction.waitSamples;
+				}
+				if (result == LJ_YM2612_ERROR)
+				{
+					fprintf(stderr,"VGM:%d ERROR processing command\n",sampleCount);
+					result = LJ_YM2612_OK;
+				}
+			}
+		}
 		if (result == LJ_VGM_OK)
 		{
 			LJ_VGM_debugPrint( &vgmInstruction);
-			if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_0)
+		}
+		if (vgmInstruction.cmd == LJ_VGM_END_SOUND_DATA)
+		{
+			break;
+		}
+		if (vgmInstruction.waitSamples > 0)
+		{
+			if (result == LJ_VGM_OK)
 			{
-				result = LJ_YM2612_setRegister(ym2612, 0, vgmInstruction.R, vgmInstruction.D);
-			}
-			else if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_1)
-			{
-				result = LJ_YM2612_setRegister(ym2612, 1, vgmInstruction.R, vgmInstruction.D);
-			}
-			else if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_DATA)
-			{
-				result = LJ_YM2612_setRegister(ym2612, 0, vgmInstruction.R, vgmInstruction.D);
-			}
-			if (result == LJ_YM2612_ERROR)
-			{
-				fprintf(stderr,"VGM:%d ERROR processing command\n",cmdCount);
-				result = LJ_YM2612_OK;
-			}
-			if (result == LJ_YM2612_OK)
-			{
+				sampleCount++;
 				result = LJ_YM2612_generateOutput(ym2612, numCycles, outputs);
-				if (result == LJ_YM2612_OK)
+				if (result == LJ_VGM_OK)
 				{
 					int sample;
 					for (sample = 0; sample < numCycles; sample++)
@@ -66,13 +96,16 @@ int main(int argc, char* argv[])
 					}
 				}
 			}
-			cmdCount++;
-			if (cmdCount == -1000)
-			{
-				result = LJ_YM2612_ERROR;
-			}
+		}
+		vgmInstruction.waitSamples--;
+		if (sampleCount == -1000)
+		{
+			result = LJ_YM2612_ERROR;
 		}
 	}
+
+	printf("Sample Count = %d\n", sampleCount);
+	printf("Wait Count = %d\n", waitCount);
 
 	LJ_VGM_destroy(vgmFile);
 	LJ_YM2612_destroy(ym2612);
