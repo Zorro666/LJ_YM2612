@@ -2287,6 +2287,7 @@ void ym2612_update_one(void *chip, FMSAMPLE **buffer, int length)
 		lt += ((out_fm[5]>>0) & OPN->pan[10]);
 		rt += ((out_fm[5]>>0) & OPN->pan[11]);
 
+#if 0
 		//DAC output only
 		if( F2612->dacen )
 		{
@@ -2298,6 +2299,7 @@ void ym2612_update_one(void *chip, FMSAMPLE **buffer, int length)
 			lt = 0;
 			rt = 0;
 		}
+#endif // #if 0
 
 //      Limit( lt, MAXOUT, MINOUT );
 //      Limit( rt, MAXOUT, MINOUT );
