@@ -42,6 +42,23 @@ int main(int argc, char* argv[])
 			{
 				if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_0)
 				{
+					result = LJ_YM2612_write(ym2612, 0x4000, vgmInstruction.R);
+					result = LJ_YM2612_write(ym2612, 0x4001, vgmInstruction.D);
+				}
+				else if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_1)
+				{
+					result = LJ_YM2612_write(ym2612, 0x4002, vgmInstruction.R);
+					result = LJ_YM2612_write(ym2612, 0x4003, vgmInstruction.D);
+				}
+				else if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_DATA)
+				{
+					result = LJ_YM2612_write(ym2612, 0x4000, vgmInstruction.R);
+					result = LJ_YM2612_write(ym2612, 0x4001, vgmInstruction.D);
+					waitCount += vgmInstruction.waitSamples;
+				}
+#if 0
+				if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_0)
+				{
 					result = LJ_YM2612_setRegister(ym2612, 0, vgmInstruction.R, vgmInstruction.D);
 				}
 				else if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_1)
@@ -53,6 +70,7 @@ int main(int argc, char* argv[])
 					result = LJ_YM2612_setRegister(ym2612, 0, vgmInstruction.R, vgmInstruction.D);
 					waitCount += vgmInstruction.waitSamples;
 				}
+#endif
 				else if (vgmInstruction.cmd == LJ_VGM_WAIT_N_SAMPLES)
 				{
 					waitCount += vgmInstruction.waitSamples;

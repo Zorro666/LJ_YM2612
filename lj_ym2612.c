@@ -34,11 +34,12 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 struct LJ_YM2612_PORT
 {
 	LJ_YM_UINT8 regs[LJ_YM2612_NUM_REGISTERS];
+	LJ_YM_UINT8 regAddress;
 };
 
 struct LJ_YM2612
 {
-	LJ_YM2612_PORT ports[LJ_YM2612_NUM_PORTS];
+	LJ_YM2612_PORT port[LJ_YM2612_NUM_PORTS];
 
 	LJ_YM_INT16 dacValue;
 	LJ_YM_UINT16 dacEnable;
@@ -51,6 +52,7 @@ static void ym2612_portClear(LJ_YM2612_PORT* const port)
 	{
 		port->regs[i] = 0x0;
 	}
+	port->regAddress = 0;
 }
 
 static void ym2612_clear(LJ_YM2612* const ym2612)
@@ -62,7 +64,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 
 	for (i=0; i<LJ_YM2612_NUM_PORTS; i++)
 	{
-		LJ_YM2612_PORT* const port = &(ym2612->ports[i]);
+		LJ_YM2612_PORT* const port = &(ym2612->port[i]);
 		ym2612_portClear(port);
 	}
 	for (i=0; i<LJ_YM2612_NUM_REGISTERS; i++)
@@ -129,6 +131,49 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	}
 }
 
+LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, LJ_YM_UINT8 reg, LJ_YM_UINT8 data)
+{
+	LJ_YM_UINT32 parameter = 0;
+	//LJ_YM_UINT32 channel = 0;
+	//LJ_YM_UINT32 slot = 0;
+
+	if (ym2612 == NULL)
+	{
+		fprintf(stderr, "ym2612_setRegister:ym2612 is NULL\n");
+		return LJ_YM2612_ERROR;
+	}
+
+	if (port >= LJ_YM2612_NUM_PORTS)
+	{
+		fprintf(stderr, "ym2612_setRegister:invalid port:%d max:%d \n",port, LJ_YM2612_NUM_PORTS);
+		return LJ_YM2612_ERROR;
+	}
+
+	// convert from register to parameter
+	parameter = (reg & 0xF0) >> 4;
+
+	if (LJ_YM2612_validRegisters[reg] == 0)
+	{
+		fprintf(stderr, "ym2612_setRegister:unknown register:0x%X port:%d data:0x%X\n", reg, port, data);
+		return LJ_YM2612_ERROR;
+	}
+
+	ym2612->port[port].regs[reg] = data;
+	printf( "ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
+
+	if (reg == LJ_DAC_EN)
+	{
+		ym2612->dacEnable = 0xFFFF * ((data & 0x80) >> 7);
+	}
+	else if (reg == LJ_DAC)
+	{
+		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) << DAC_SHIFT;
+		//printf( "dacValue:%d data:0x%X\n", ym2612->dacValue,data);
+	}
+
+	return LJ_YM2612_OK;
+}
+
 ////////////////////////////////////////////////////////////////////
 // 
 // External data & functions
@@ -153,55 +198,6 @@ LJ_YM2612_RESULT LJ_YM2612_destroy(LJ_YM2612* const ym2612)
 	int result = LJ_YM2612_ERROR;
 
 	return result;
-}
-
-LJ_YM2612_RESULT LJ_YM2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, LJ_YM_UINT8 reg, LJ_YM_UINT8 data)
-{
-	LJ_YM_UINT32 parameter = 0;
-	//LJ_YM_UINT32 channel = 0;
-	//LJ_YM_UINT32 slot = 0;
-
-	if (ym2612 == NULL)
-	{
-		fprintf(stderr, "LJ_YM2612_setRegister:ym2612 is NULL\n");
-		return LJ_YM2612_ERROR;
-	}
-
-	if (port >= LJ_YM2612_NUM_PORTS)
-	{
-		fprintf(stderr, "LJ_YM2612_setRegister:invalid port:%d max:%d \n",port, LJ_YM2612_NUM_PORTS);
-		return LJ_YM2612_ERROR;
-	}
-
-	// convert from register to parameter
-	parameter = (reg & 0xF0) >> 4;
-
-	if (LJ_YM2612_validRegisters[reg] == 0)
-	{
-		fprintf(stderr, "LJ_YM2612_setRegister:unknown register:0x%X port:%d data:0x%X\n", reg, port, data);
-		return LJ_YM2612_ERROR;
-	}
-
-	ym2612->ports[port].regs[reg] = data;
-	printf( "LJ_YM2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
-
-	if (reg == LJ_DAC_EN)
-	{
-		ym2612->dacEnable = 0xFFFF * ((data & 0x80) >> 7);
-	}
-	else if (reg == LJ_DAC)
-	{
-		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) << DAC_SHIFT;
-		//printf( "dacValue:%d data:0x%X\n", ym2612->dacValue,data);
-	}
-
-	return LJ_YM2612_OK;
-}
-
-LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, LJ_YM_UINT8 data)
-{
-	//Need to store address - then use address on data write (1 address per port)
-	return LJ_YM2612_ERROR;
 }
 
 LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles, LJ_YM_INT16* output[2])
@@ -237,3 +233,161 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 	return LJ_YM2612_OK;
 }
+
+LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, LJ_YM_UINT8 data)
+{
+	int result = LJ_YM2612_ERROR;
+
+	// PORT 0: R = 0x4000, D = 0x4001
+	// PORT 1: R = 0x4002, D = 0x4003
+	if (ym2612 == NULL)
+	{
+		fprintf(stderr, "LJ_YM2612_write:ym2612 is NULL\n");
+		return LJ_YM2612_ERROR;
+	}
+
+	if (address == 0x4000)
+	{
+		ym2612->port[0].regAddress = data;
+		return LJ_YM2612_OK;
+	}
+	else if (address == 0x4001)
+	{
+		LJ_YM_UINT8 reg = ym2612->port[0].regAddress;
+		result = ym2612_setRegister(ym2612, 0, reg, data);
+		return result;
+	}
+	else if (address == 0x4002)
+	{
+		ym2612->port[1].regAddress = data;
+		return LJ_YM2612_OK;
+	}
+	else if (address == 0x4003)
+	{
+		LJ_YM_UINT8 reg = ym2612->port[1].regAddress;
+		result = ym2612_setRegister(ym2612, 1, reg, data);
+		return result;
+	}
+
+	return LJ_YM2612_ERROR;
+}
+
+/*
+Programmable Sound Generator (PSG)
+(This information from a Genesis manual, but it's a standard
+chip, so the info is probably public knowledge)
+
+The PSG contains four sound channels, consisting of three tone
+generators and a noise generator. Each of the four channels has
+an independent volume control (attenuator). The PSG is
+controlled through output port $7F.
+
+TONE GENERATOR FREQUENCY
+
+The frequency (pitch) of a tone generator is set by a 10-bit
+value. This value is counted down until it reaches zero, at
+which time the tone output toggles and the 10-bit value is
+reloaded into the counter. Thus, higher 10-bit numbers produce
+lower frequencies.
+
+To load a new frequency value into one of the tone generators,
+you write a pair of bytes to I/O location $7F according to the
+following format:
+
+
+First byte:     1   R2  R1  R0  d3  d2  d1  d0
+Second byte:    0   0   d9  d8  d7  d6  d5  d4
+
+
+The R2:R1:R0 field selects the tone channel as follows:
+
+
+R2 R1 R0    Tone Chan.
+----------------------
+0  0  0     #1
+0  1  0     #2
+1  0  0     #3
+
+
+10-bit data is (msb)    d9 d8 d7 d6 d5 d4 d3 d2 d1 d0   (lsb)
+
+
+NOISE GENERATOR CONTROL
+
+The noise generator uses three control bits to select the
+"character" of the noise sound. A bit called "FB" (Feedback)
+produces periodic noise of "white" noise:
+
+
+FB  Noise type
+
+0   Periodic (like low-frequency tone)
+1   White (hiss)
+
+
+The frequency of the noise is selected by two bits NF1:NF0
+according to the following table:
+
+
+NF1 NF0 Noise Generator Clock Source
+
+0   0   Clock/2 [Higher pitch, "less coarse"]
+0   1   Clock/4
+1   0   Clock/8 [Lower pitch, "more coarse"]
+1   1   Tone Generator #3
+
+
+NOTE:   "Clock" is fixed in frequency. It is a crystal controlled
+oscillator signal connected to the PSG.
+
+When NF1:NF0 is 11, Tone Generator #3 supplies the noise clock
+source. This allows the noise to be "swept" in frequency. This
+effect might be used for a jet engine runup, for example.
+
+To load these noise generator control bits, write the following
+byte to I/O port $7F:
+
+Out($7F): 1  1  1  0  0  FB  NF1  NF0
+
+
+ATTENUATORS
+
+Four attenuators adjust the volume of the three tone generators
+and the noise channel. Four bits A3:A2:A1:A0 control the
+attenuation as follows:
+
+
+A3 A2 A1 A0     Attenuation
+0  0  0  0       0 db   (maximum volume)
+0  0  0  1       2 db   NOTE: a higher attenuation results
+.  .  .  .       . .          in a quieter sound.
+1  1  1  0      28 db
+1  1  1  1      -Off-
+
+The attenuators are set for the four channels by writing the
+following bytes to I/O location $7F:
+
+
+Tone generator #1:    1  0  0  1  A3  A2  A1  A0
+Tone generator #2:    1  0  1  1  A3  A2  A1  A0
+Tone generator #3:    1  1  0  1  A3  A2  A1  A0
+Noise generator:      1  1  1  1  A3  A2  A1  A0
+
+
+EXAMPLE
+
+When the MK3 is powered on, the following code is executed:
+
+        LD      HL,CLRTB        ;clear table
+        LD      C,PSG_PRT       ;PSG port is $7F
+        LD      B,4             ;load 4 bytes
+        OTIR
+        (etc.)
+    
+CLRTB   defb    $9F, $BF, $DF, $FF
+
+This code turns the four sound channels off. It's a good idea to
+also execute this code when the PAUSE button is pressed, so that
+the sound does not stay on continuously for the pause interval.
+*/
+

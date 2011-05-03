@@ -34,11 +34,13 @@ int main(int argc, char* argv[])
 			LJ_GYM_debugPrint( &gymInstruction);
 			if (gymInstruction.cmd == LJ_GYM_WRITE_PORT_0)
 			{
-				result = LJ_YM2612_setRegister(ym2612, 0, gymInstruction.R, gymInstruction.D);
+				result = LJ_YM2612_write(ym2612, 0x4000, gymInstruction.R);
+				result = LJ_YM2612_write(ym2612, 0x4001, gymInstruction.D);
 			}
 			else if (gymInstruction.cmd == LJ_GYM_WRITE_PORT_1)
 			{
-				result = LJ_YM2612_setRegister(ym2612, 1, gymInstruction.R, gymInstruction.D);
+				result = LJ_YM2612_write(ym2612, 0x4002, gymInstruction.R);
+				result = LJ_YM2612_write(ym2612, 0x4003, gymInstruction.D);
 			}
 			if (result == LJ_YM2612_ERROR)
 			{
