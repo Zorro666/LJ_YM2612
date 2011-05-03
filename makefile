@@ -1,7 +1,7 @@
 GYM_TEST_DEPENDS:=lj_gym.c lj_ym2612.c
 GYM_TEST2_DEPENDS:=lj_gym.c fm2612.c
-VGM_TEST_DEPENDS:=lj_vgm.c lj_ym2612.c
-VGM_TEST2_DEPENDS:=lj_vgm.c fm2612.c
+VGM_TEST_DEPENDS:=lj_vgm.c lj_ym2612.c lj_wav_file.c
+VGM_TEST2_DEPENDS:=lj_vgm.c fm2612.c lj_wav_file.c
 
 PROJECTS:=\
 		  gym_test\
