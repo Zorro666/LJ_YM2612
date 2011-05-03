@@ -203,13 +203,18 @@ void * ym2612_init(void *param, device_t *device, int baseclock, int rate,
                FM_TIMERHANDLER TimerHandler,FM_IRQHANDLER IRQHandler);
 void ym2612_shutdown(void *chip);
 void ym2612_reset_chip(void *chip);
+void ym2612_set_flags(void *chip, UINT32 flags);
 void ym2612_update_one(void *chip, FMSAMPLE **buffer, int length);
 
 int ym2612_write(void *chip, int a,unsigned char v);
 unsigned char ym2612_read(void *chip,int a);
 int ym2612_timer_over(void *chip, int c );
 void ym2612_postload(void *chip);
-#endif /* (BUILD_YM2612||BUILD_YM3438) */
 
+#define YM2612_DEBUG	(1<<0)
+#define YM2612_NODAC	(1<<1)
+#define YM2612_NOFM 	(1<<2)
+
+#endif /* (BUILD_YM2612||BUILD_YM3438) */
 
 #endif /* __FM_H__ */

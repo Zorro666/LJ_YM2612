@@ -7,14 +7,29 @@
 #include <string.h>
 
 // Globals for vgm_test_main.c
-void* device_ym2612_create()
+void* device_ym2612_create(const unsigned int flags)
 {
 	const int clock = 7670453;
 	const int rate = 44100;
+	UINT32 ymFlags = 0;
 
 	//ym2612_init(void *param, device_t *device, int clock, int rate, FM_TIMERHANDLER timer_handler,FM_IRQHANDLER IRQHandler)
-	void* ym2612 = ym2612_init(NULL, NULL, clock, rate, NULL, NULL);
+	void* ym2612 = ym2612_init( NULL, NULL, clock, rate, NULL, NULL);
 	ym2612_reset_chip(ym2612);
+
+	if (flags & DEVICE_YM2612_DEBUG)
+	{
+		ymFlags |= YM2612_DEBUG;
+	}
+	if (flags & DEVICE_YM2612_NODAC)
+	{
+		ymFlags |= YM2612_NODAC;
+	}
+	if (flags & DEVICE_YM2612_NOFM)
+	{
+		ymFlags |= YM2612_NOFM;
+	}
+	ym2612_set_flags(ym2612, ymFlags);
 
 	return ym2612;
 }

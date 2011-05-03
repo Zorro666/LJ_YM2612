@@ -1,11 +1,27 @@
 #include "lj_ym2612.h"
+#include "vgm_test_main.h"
 
 #include <string.h>
 
 // Globals for vgm_test_main.c
-void* device_ym2612_create()
+void* device_ym2612_create(const unsigned int flags)
 {
 	LJ_YM2612* ym2612 = LJ_YM2612_create();
+	unsigned int ymFlags = 0x0;
+
+	if (flags & DEVICE_YM2612_DEBUG)
+	{
+		ymFlags |= LJ_YM2612_DEBUG;
+	}
+	if (flags & DEVICE_YM2612_NODAC)
+	{
+		ymFlags |= LJ_YM2612_NODAC;
+	}
+	if (flags & DEVICE_YM2612_NOFM)
+	{
+		ymFlags |= LJ_YM2612_NOFM;
+	}
+	LJ_YM2612_setFlags(ym2612, ymFlags);
 	return ym2612;
 }
 

@@ -43,6 +43,7 @@ struct LJ_YM2612
 
 	LJ_YM_INT16 dacValue;
 	LJ_YM_UINT16 dacEnable;
+	LJ_YM_UINT32 flags;
 };
 
 static void ym2612_portClear(LJ_YM2612_PORT* const port)
@@ -159,7 +160,10 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, L
 	}
 
 	ym2612->port[port].regs[reg] = data;
-	printf( "ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
+	if (ym2612->flags & LJ_YM2612_DEBUG)
+	{
+		printf( "ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
+	}
 
 	if (reg == LJ_DAC_EN)
 	{
@@ -168,7 +172,6 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, L
 	else if (reg == LJ_DAC)
 	{
 		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) << DAC_SHIFT;
-		//printf( "dacValue:%d data:0x%X\n", ym2612->dacValue,data);
 	}
 
 	return LJ_YM2612_OK;
@@ -193,11 +196,29 @@ LJ_YM2612* LJ_YM2612_create(void)
 	return ym2612;
 }
 
+LJ_YM2612_RESULT LJ_YM2612_setFlags(LJ_YM2612* const ym2612, const unsigned int flags)
+{
+	if (ym2612 == NULL)
+	{
+		fprintf(stderr, "LJ_YM2612_setFlags:ym2612 is NULL\n");
+		return LJ_YM2612_ERROR;
+	}
+
+	ym2612->flags = flags;
+	return LJ_YM2612_OK;
+}
+
 LJ_YM2612_RESULT LJ_YM2612_destroy(LJ_YM2612* const ym2612)
 {
-	int result = LJ_YM2612_ERROR;
+	if (ym2612 == NULL)
+	{
+		fprintf(stderr, "LJ_YM2612_destroy:ym2612 is NULL\n");
+		return LJ_YM2612_ERROR;
+	}
+	ym2612_clear(ym2612);
+	free(ym2612);
 
-	return result;
+	return LJ_YM2612_OK;
 }
 
 LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles, LJ_YM_INT16* output[2])
@@ -215,7 +236,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 	//Global state update - LFO, DAC, SSG
 	dacValue = ym2612->dacValue & ym2612->dacEnable;
-	//dacValue = ym2612->dacValue;
+	if (ym2612->flags & LJ_YM2612_NODAC)
+	{
+		dacValue = 0x0;
+	}
 
 	//For each cycle
 	//Loop over channels updating them, mix them, then output them into the buffer

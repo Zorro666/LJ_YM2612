@@ -253,14 +253,14 @@ static void vgm_init(LJ_VGM_FILE* const vgmFile)
 	LJ_VGM_instruction[LJ_VGM_DATA_SEEK_OFFSET]= "DATA_SEEK_OFFSET";
 
 	//LJ_VGM_YM2612_WRITE_DATA = 0x80 -> 0x8F,
-	for (i=0; i<15; i++)
+	for (i=0; i<16; i++)
 	{
 		LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_DATA+i] = 1;
 		LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_DATA+i]= "YM2612_WRITE_DATA";
 	}
 
 	//LJ_VGM_WAIT_N_SAMPLES = 0x70 -> 0x7F,
-	for (i=0; i<15; i++)
+	for (i=0; i<16; i++)
 	{
 		LJ_VGM_validInstruction[LJ_VGM_WAIT_N_SAMPLES+i] = 1;
 		LJ_VGM_instruction[LJ_VGM_WAIT_N_SAMPLES+i]= "WAIT_N_SAMPLES";
@@ -281,12 +281,19 @@ static void vgm_init(LJ_VGM_FILE* const vgmFile)
 	//LJ_VGM_END_SOUND_DATA = 0x66,
 	LJ_VGM_validInstruction[LJ_VGM_END_SOUND_DATA] = 1;
 	LJ_VGM_instruction[LJ_VGM_END_SOUND_DATA]= "END_SOUND_DATA";
+
+	//LJ_VGM_WAIT_60th = 0x62,
+	LJ_VGM_validInstruction[LJ_VGM_WAIT_60th] = 1;
+	LJ_VGM_instruction[LJ_VGM_WAIT_60th]= "WAIT_60th";
+
+	//LJ_VGM_WAIT_50th = 0x63,
+	LJ_VGM_validInstruction[LJ_VGM_WAIT_50th] = 1;
+	LJ_VGM_instruction[LJ_VGM_WAIT_50th]= "WAIT_50th";
+
 /*
 	LJ_VGM_SN764xx_PSG = 0x50, 
 	LJ_VGM_YM2413_WRITE =0x51, 
 	LJ_VGM_YM2151_WRITE = 0x54,
-	LJ_VGM_WAIT_60th = 0x62,
-	LJ_VGM_WAIT_50th = 0x63,
 
 0x30..0x4e dd          : one operand, reserved for future use
 0x55..0x5f dd dd       : two operands, reserved for future use
@@ -688,6 +695,40 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 
 		return LJ_VGM_OK;
 	}
+	else if (cmd == LJ_VGM_WAIT_60th)
+	{
+		//0x62 : wait 735 samples (60th of a second), a shortcut for 0x61 0xdf 0x02
+		vgmFile->pos += 1;
+		vgmFile->cmdCount += 1;
+
+		vgmFile->waitSamples = 735;
+
+		vgmInstr->pos = pos;
+		vgmInstr->cmdCount = cmdCount;
+		vgmInstr->cmd = cmd;
+
+		vgmInstr->waitSamples = vgmFile->waitSamples;
+		vgmInstr->waitSamplesData = vgmFile->waitSamples;
+
+		return LJ_VGM_OK;
+	}
+	else if (cmd == LJ_VGM_WAIT_50th)
+	{
+		//0x63 : wait 882 samples (50th of a second), a shortcut for 0x61 0x72 0x03
+		vgmFile->pos += 1;
+		vgmFile->cmdCount += 1;
+
+		vgmFile->waitSamples = 882;
+
+		vgmInstr->pos = pos;
+		vgmInstr->cmdCount = cmdCount;
+		vgmInstr->cmd = cmd;
+
+		vgmInstr->waitSamples = vgmFile->waitSamples;
+		vgmInstr->waitSamplesData = vgmFile->waitSamples;
+
+		return LJ_VGM_OK;
+	}
 
 	fprintf(stderr, "LJ_VGM_read: unhandled cmd:0x%X '%s' pos:%d\n", cmd, LJ_VGM_instruction[cmd], pos);
 	return LJ_VGM_ERROR;
@@ -766,6 +807,14 @@ void LJ_VGM_debugPrint(const LJ_VGM_INSTRUCTION* const vgmInstr)
 		printf(" waitSamplesData:%d waitSamples:%d", vgmInstr->waitSamplesData, vgmInstr->waitSamples);
 	}
 	else if (cmd == LJ_VGM_WAIT_SAMPLES)
+	{
+		printf(" waitSamplesData:%d waitSamples:%d", vgmInstr->waitSamplesData, vgmInstr->waitSamples);
+	}
+	else if (cmd == LJ_VGM_WAIT_60th)
+	{
+		printf(" waitSamplesData:%d waitSamples:%d", vgmInstr->waitSamplesData, vgmInstr->waitSamples);
+	}
+	else if (cmd == LJ_VGM_WAIT_50th)
 	{
 		printf(" waitSamplesData:%d waitSamples:%d", vgmInstr->waitSamplesData, vgmInstr->waitSamples);
 	}

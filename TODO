@@ -1,21 +1,16 @@
 High Priority:
 VGM:expose header info
-YM2612:debug settings, output raw, printf output, DAC on/off, FM on/off
-TEST_APP:-debug option
-TEST_APP:-mono/-stereo option
-TEST_APP:filename on the command line
+TEST_APP: VGM debug on/off
+
 YM2612:design choice
 YM2612:get basic tone generation working e.g. EG value
 YM2612:get basic amplitude working e.g. AG value
 YM2612:implement the test program from the docs
-TEST_APP:save output as WAV file
 
 Medium Priority:
 VGM:read all of data into memory and read from memory instead of a few bytes at a time
 
 Low Priority:
-VGM:support the loop settings in the header
-YM2612:save output as WAV file
 VGM:zlib support for compressed files
 
 Future Stuff:
@@ -50,6 +45,9 @@ YM2612:implement operators
 TEST_APP:have real time graph plotting thingy
 
 Low Priority:
+VGM:support the loop settings in the header
+TEST_APP: number of loops on command line
+
 YM2612:implement ch 3 and 6 special frequency mode
 YM2612:implement LFO
 YM2612:implement SSG

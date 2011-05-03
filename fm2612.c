@@ -689,6 +689,7 @@ typedef struct
 	/* dac output (YM2612) */
 	int			dacen;
 	INT32		dacout;
+	UINT32		flags;
 } YM2612;
 
 /* log output level */
@@ -2238,7 +2239,12 @@ void ym2612_update_one(void *chip, FMSAMPLE **buffer, int length)
 		chan_calc(F2612, OPN, cch[3]);
 		chan_calc(F2612, OPN, cch[4]);
 		if( F2612->dacen )
-			*cch[5]->connect4 += F2612->dacout;
+		{
+			if ((F2612->flags & YM2612_NODAC) == 0x0)
+			{
+				*cch[5]->connect4 += F2612->dacout;
+			}
+		}
 		else
 			chan_calc(F2612, OPN, cch[5]);
 
@@ -2258,6 +2264,20 @@ void ym2612_update_one(void *chip, FMSAMPLE **buffer, int length)
 			advance_eg_channel(OPN, &cch[3]->SLOT[SLOT1]);
 			advance_eg_channel(OPN, &cch[4]->SLOT[SLOT1]);
 			advance_eg_channel(OPN, &cch[5]->SLOT[SLOT1]);
+		}
+
+		if (F2612->flags & YM2612_NOFM )
+		{
+			out_fm[0] = 0;
+			out_fm[1] = 0;
+			out_fm[2] = 0;
+			out_fm[3] = 0;
+			out_fm[4] = 0;
+			out_fm[5] = 0;
+			if ((F2612->flags & YM2612_NODAC) == 0x0)
+			{
+				out_fm[5] = F2612->dacout;
+			}
 		}
 
 		if (out_fm[0] > 8191) out_fm[0] = 8191;
@@ -2286,20 +2306,6 @@ void ym2612_update_one(void *chip, FMSAMPLE **buffer, int length)
 		rt += ((out_fm[4]>>0) & OPN->pan[9]);
 		lt += ((out_fm[5]>>0) & OPN->pan[10]);
 		rt += ((out_fm[5]>>0) & OPN->pan[11]);
-
-#if 0
-		//DAC output only
-		if( F2612->dacen )
-		{
-			lt = F2612->dacout;
-			rt = F2612->dacout;
-		}
-		else
-		{
-			lt = 0;
-			rt = 0;
-		}
-#endif // #if 0
 
 //      Limit( lt, MAXOUT, MINOUT );
 //      Limit( rt, MAXOUT, MINOUT );
@@ -2460,6 +2466,14 @@ void ym2612_reset_chip(void *chip)
 	/* DAC mode clear */
 	F2612->dacen = 0;
 	F2612->dacout = 0;
+
+	F2612->flags = 0x0;
+}
+
+void ym2612_set_flags(void *chip, UINT32 flags)
+{
+	YM2612 *F2612 = (YM2612 *)chip;
+	F2612->flags = flags;
 }
 
 /* YM2612 write */
