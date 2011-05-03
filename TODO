@@ -1,6 +1,5 @@
 High Priority:
 VGM:expose header info
-YM2612:add write API call as a wrapper to set register
 YM2612:debug settings, output raw, printf output
 TEST_APP:-debug option
 YM2612:design choice
@@ -18,6 +17,7 @@ TEST_APP:save output as WAV file
 
 Future Stuff:
 
+High Priority:
 YM2612: Design
 Not sure about this way:
 * Register set per port
@@ -28,8 +28,6 @@ Perhaps just:
 * 6 channels
 * global state for LFO, SSG, DAC, Timers
 
-YM2612: error handling for unknown/unsupported register (be nice to make it say UNKNOWN REGISTER)
-
 YM2612: Implement support for these registers:
 LJ_KEY_ONOFF = 0x28,
 LJ_FREQLSB = 0xA0,
@@ -37,17 +35,20 @@ LJ_BLOCK_FREQMSB = 0xA4,
 LJ_FEEDBACK_ALGO = 0xB0,
 LJ_LR_AMS_PMS = 0xB4,
 
-have real time graph plotting thingy
+YM2612:get basic tone generation working e.g. EG value
+YM2612:get basic amplitude working e.g. AG value
 
-get basic tone generation working e.g. EG value
-get basic amplitude working e.g. AG value
+Medium Priority:
+YM2612: error handling for unknown/unsupported register (be nice to make it say UNKNOWN REGISTER)
 
-implement operators
-implement the DAC
-implement ADSR
-implement LFO
-implement SSG
-implement timers
-implement ch 3 and 6 special frequency mode
+YM2612:implement ADSR
+YM2612:implement operators
 
+TEST_APP:have real time graph plotting thingy
+
+Low Priority:
+YM2612:implement ch 3 and 6 special frequency mode
+YM2612:implement LFO
+YM2612:implement SSG
+YM2612:implement timers
 YM2612:add read API call 
