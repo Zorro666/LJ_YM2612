@@ -15,6 +15,9 @@ int main(int argc, char* argv[])
 	int numCycles = 1;
 	int sampleCount;
 	int waitCount;
+	int debug = 0;
+	int mono = 1;
+	int stereo = 0;
 
 	void* ym2612 = NULL;
 
@@ -22,12 +25,21 @@ int main(int argc, char* argv[])
 
 	LJ_WAV_FILE* wavFile = NULL;
 
-	const int OUTPUT_NUM_CHANNELS = 2;
+	int outputNumChannels = 2;
 	const int OUTPUT_NUM_BYTES_PER_CHANNEL = 2;
 	const int OUTPUT_SAMPLE_RATE = 44100;
 	const char* const wavOutputName = getWavOutputName( "vgm_test" );
 
-	wavFile = LJ_WAV_create( wavOutputName, LJ_WAV_FORMAT_PCM, OUTPUT_NUM_CHANNELS, OUTPUT_SAMPLE_RATE, OUTPUT_NUM_BYTES_PER_CHANNEL );
+	if (mono == 1)
+	{
+		outputNumChannels = 1;
+	}
+	else if (stereo == 1)
+	{
+		outputNumChannels = 2;
+	}
+
+	wavFile = LJ_WAV_create( wavOutputName, LJ_WAV_FORMAT_PCM, outputNumChannels, OUTPUT_SAMPLE_RATE, OUTPUT_NUM_BYTES_PER_CHANNEL );
 	if (wavFile == NULL)
 	{
 		return -1;
@@ -103,7 +115,10 @@ int main(int argc, char* argv[])
 		}
 		if (result == LJ_VGM_OK)
 		{
-			LJ_VGM_debugPrint( &vgmInstruction);
+			if (debug == 1)
+			{
+				LJ_VGM_debugPrint( &vgmInstruction);
+			}
 		}
 		if (vgmInstruction.cmd == LJ_VGM_END_SOUND_DATA)
 		{
@@ -125,7 +140,10 @@ int main(int argc, char* argv[])
 
 						// LR LR LR LR LR LR
 						LJ_WAV_FILE_writeChannel(wavFile, outputLeft+sample);
-						LJ_WAV_FILE_writeChannel(wavFile, outputRight+sample);
+						if (stereo == 1)
+						{
+							LJ_WAV_FILE_writeChannel(wavFile, outputRight+sample);
+						}
 					}
 				}
 			}

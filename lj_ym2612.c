@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <malloc.h>
+#include <math.h>
 
 ////////////////////////////////////////////////////////////////////
 // 
@@ -159,7 +160,11 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, L
 	}
 
 	ym2612->port[port].regs[reg] = data;
-	printf( "ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
+	int debug = 0;
+	if (debug == 1)
+	{
+		printf( "ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
+	}
 
 	if (reg == LJ_DAC_EN)
 	{
@@ -168,7 +173,6 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, L
 	else if (reg == LJ_DAC)
 	{
 		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) << DAC_SHIFT;
-		//printf( "dacValue:%d data:0x%X\n", ym2612->dacValue,data);
 	}
 
 	return LJ_YM2612_OK;
@@ -215,7 +219,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 	//Global state update - LFO, DAC, SSG
 	dacValue = ym2612->dacValue & ym2612->dacEnable;
-	//dacValue = ym2612->dacValue;
+	static int tVal = 0;
 
 	//For each cycle
 	//Loop over channels updating them, mix them, then output them into the buffer
@@ -224,11 +228,29 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		LJ_YM_INT16 mixedLeft = 0;
 		LJ_YM_INT16 mixedRight = 0;
 
-		mixedLeft += dacValue;
-		mixedRight += dacValue;
+		// Fvalue = (144 * freq * 2^20 / masterClock) / 2^(B-1)
+		// e.g. D = 293.7Hz F = 692.8 B=4
+		// freq = F * 2^(B-1) * masterClock / ( 144 * 2^20 )
+		const int clock = 7670453;
+		const int rate = 44100;
+		const float baseRate = ( 1.0f * clock ) / ( 144.0f * 1024.0f * 1024.0f * rate);
+
+		const float regMultiplier = 692.8f * 8.0f;
+		const float channelDelta = regMultiplier * baseRate;
+		const float theta = tVal * channelDelta;
+		const float sinVal = sinf(2.0f * M_PI * theta);
+		int fmLevel = (int)(sinVal * 8192.0f);
+
+		mixedLeft += fmLevel;
+		mixedRight += fmLevel;
+
+		//mixedLeft += dacValue;
+		//mixedRight += dacValue;
 
 		outputLeft[sample] = mixedLeft;
 		outputRight[sample] = mixedRight;
+
+		tVal += 1;
 	}
 
 	return LJ_YM2612_OK;
