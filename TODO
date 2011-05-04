@@ -1,9 +1,11 @@
 High Priority:
+YM2612:get basic tone generation working : KEY ON/OFF + FNUM+BLK value
+YM2612:add a table for sin
+YM2612:***design choice***: 3 channels per port not so nice, be nicer with 6 channels but not match the hardware
+
 VGM:expose header info
 TEST_APP: VGM debug on/off
 
-YM2612:design choice
-YM2612:get basic tone generation working e.g. EG value
 YM2612:get basic amplitude working e.g. AG value
 YM2612:implement the test program from the docs
 
