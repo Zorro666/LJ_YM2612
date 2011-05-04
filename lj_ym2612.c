@@ -4,6 +4,33 @@
 #include <malloc.h>
 #include <math.h>
 
+/* 
+Registers
+		D7		D6		D5		D4		D3			D2			D1		D0
+22H										LFO enable	LFO frequency
+24H		Timer 		A 			MSBs
+25H 	#######################################################	Timer A LSBs
+26H		Timer 		B
+27H		Ch3 mode		Reset B	Reset A	Enable B	Enable A	Load B	Load A
+28H		Slot    						###########	Channel
+29H	
+2AH		DAC
+2BH		DAC en	###########################################################
+30H+	#######	DT1						MUL
+40H+	#######	TL
+50H+	RS				#######	AR
+60H+	AM		#######	D1R
+70H+	###############	D2R
+80H+	D1L								RR
+90H+	###############################	SSG-EG
+A0H+	Frequency 		number 			LSB
+A4H+	###############	Block						Frequency Number MSB
+A8H+	Ch3 supplementary frequency number
+ACH+	#######	Ch3 supplementary block				Ch3 supplementary frequency number
+B0H+	#######	Feedback							Algorithm
+B4H+	L		R		AMS				###########	FMS
+*/
+
 ////////////////////////////////////////////////////////////////////
 // 
 // Internal data & functions
@@ -52,7 +79,6 @@ struct LJ_YM2612_CHANNEL
 struct LJ_YM2612_PORT
 {
 	LJ_YM_UINT8 reg[LJ_YM2612_NUM_REGISTERS];
-	LJ_YM_UINT8 regAddress;
 	LJ_YM2612_CHANNEL channel[3];
 	LJ_YM_UINT8 id;
 };
@@ -65,18 +91,18 @@ struct LJ_YM2612
 	LJ_YM_UINT16 dacEnable;
 	LJ_YM_UINT32 flags;
 	float baseFreqScale;
+	LJ_YM_UINT8 regAddress;
+	LJ_YM_UINT8 slotWriteAddr;	
 };
 
 static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channel, LJ_YM_UINT8 slotOnOff)
 {
 	if (slotOnOff & 0xF)
 	{
-		printf( "ym2612:channelKeyOnOff ON id:%d\n",channel->id);
 		channel->volume = (1<<13);
 	}
 	else
 	{
-		printf( "ym2612:channelKeyOnOff OFF id:%d\n",channel->id);
 		channel->volume = 0;
 	}
 }
@@ -131,6 +157,8 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	ym2612->dacEnable = 0x0;
 	ym2612->flags = 0x0;
 	ym2612->baseFreqScale = 0.0f;
+	ym2612->regAddress = 0x0;	
+	ym2612->slotWriteAddr = 0xFF;	
 
 	for (i=0; i<LJ_YM2612_NUM_PORTS; i++)
 	{
@@ -245,18 +273,12 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, L
 	}
 	else if (reg == LJ_KEY_ONOFF)
 	{
-		const int channel = data & 0x03;
-		if (channel != 3)
+		//28H Bits4-7 = Slot Bit 3 unused Bits 0-2 = Channel ID
+		const int channel = data & 0x07;
+		if ((channel & 0x03) != 0x03)
 		{
 			const int slotOnOff = (data >> 4);
-			if ((data & 0x04) == 0)
-			{
-				ym2612_channelKeyOnOff(&ym2612->port[port].channel[channel], slotOnOff);
-			}
-			else
-			{
-				ym2612_channelKeyOnOff(&ym2612->port[1].channel[channel], slotOnOff);
-			}
+			ym2612_channelKeyOnOff(&ym2612->port[port].channel[channel], slotOnOff);
 		}
 	}
 
@@ -369,6 +391,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, LJ_YM_UINT8 data)
 {
 	int result = LJ_YM2612_ERROR;
+	const int port = (address >> 1) & 0x1;
 
 	// PORT 0: R = 0x4000, D = 0x4001
 	// PORT 1: R = 0x4002, D = 0x4003
@@ -378,27 +401,23 @@ LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, 
 		return LJ_YM2612_ERROR;
 	}
 
-	if (address == 0x4000)
+	if ((address == 0x4000) || (address == 0x4002))
 	{
-		ym2612->port[0].regAddress = data;
+		ym2612->regAddress = data;
+		ym2612->slotWriteAddr = port;
 		return LJ_YM2612_OK;
 	}
-	else if (address == 0x4001)
+	else if ((address == 0x4001) || (address == 0x4003))
 	{
-		LJ_YM_UINT8 reg = ym2612->port[0].regAddress;
-		result = ym2612_setRegister(ym2612, 0, reg, data);
-		return result;
-	}
-	else if (address == 0x4002)
-	{
-		ym2612->port[1].regAddress = data;
+		if (ym2612->slotWriteAddr == port)
+		{
+			LJ_YM_UINT8 reg = ym2612->regAddress;
+			result = ym2612_setRegister(ym2612, port, reg, data);
+			//Hmmmm - how does the real chip work
+			ym2612->slotWriteAddr = 0xFF;
+			return result;
+		}
 		return LJ_YM2612_OK;
-	}
-	else if (address == 0x4003)
-	{
-		LJ_YM_UINT8 reg = ym2612->port[1].regAddress;
-		result = ym2612_setRegister(ym2612, 1, reg, data);
-		return result;
 	}
 
 	return LJ_YM2612_ERROR;
