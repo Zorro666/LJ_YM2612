@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <malloc.h>
+#include <stdio.h>
 
 /*
 RIFF_HEADER: little-endian

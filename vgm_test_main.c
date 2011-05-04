@@ -192,7 +192,7 @@ int main(int argc, char* argv[])
 		}
 		if (result == LJ_VGM_OK)
 		{
-			if (debug==1)
+			if (debug == 1)
 			{
 				LJ_VGM_debugPrint( &vgmInstruction);
 			}
