@@ -38,12 +38,13 @@ B4H+	L		R		AMS				###########	FMS
 ////////////////////////////////////////////////////////////////////
 
 typedef enum LJ_YM2612_REGISTERS LJ_YM2612_REGISTERS;
-typedef struct LJ_YM2612_PORT LJ_YM2612_PORT;
+typedef struct LJ_YM2612_PART LJ_YM2612_PART;
 typedef struct LJ_YM2612_CHANNEL LJ_YM2612_CHANNEL;
 
 #define LJ_YM2612_NUM_REGISTERS (0xFF)
-#define LJ_YM2612_NUM_PORTS (2)
-#define LJ_YM2612_NUM_CHANNELS_PER_PORT (3)
+#define LJ_YM2612_NUM_PARTS (2)
+#define LJ_YM2612_NUM_CHANNELS_PER_PART (3)
+#define LJ_YM2612_NUM_CHANNELS_TOTAL (LJ_YM2612_NUM_CHANNELS_PER_PART * LJ_YM2612_NUM_PARTS)
 
 // Random guess - needs to be in sync with how the envelope amplitude works also to match up
 #define DAC_SHIFT (6)
@@ -52,6 +53,7 @@ enum LJ_YM2612_REGISTERS {
 		LJ_DAC = 0x2A,
 		LJ_DAC_EN = 0x2B,
 		LJ_KEY_ONOFF = 0x28,
+		LJ_DETUNE_MULT = 0x30,
 		LJ_FREQLSB = 0xA0,
 		LJ_BLOCK_FREQMSB = 0xA4,
 		//LJ_FEEDBACK_ALGO = 0xB0,
@@ -72,24 +74,29 @@ struct LJ_YM2612_CHANNEL
 	LJ_YM_UINT32 fnum;
 	LJ_YM_UINT32 block;
 	LJ_YM_UINT32 freqDelta;
-	int volume;
-	int volumeDelta;
+	LJ_YM_INT16 volume;
+	LJ_YM_INT16 volumeDelta;
 
-	LJ_YM_UINT32 block_fnum_msb;
+	int flags;
+
+	LJ_YM_UINT8 block_fnumMSB;
+	LJ_YM_UINT8 detune;
+	LJ_YM_UINT8 multiple;
 
 	LJ_YM_UINT8 id;
 };
 
-struct LJ_YM2612_PORT
+struct LJ_YM2612_PART
 {
 	LJ_YM_UINT8 reg[LJ_YM2612_NUM_REGISTERS];
-	LJ_YM2612_CHANNEL channel[3];
+	LJ_YM2612_CHANNEL channel[LJ_YM2612_NUM_CHANNELS_PER_PART];
 	LJ_YM_UINT8 id;
 };
 
 struct LJ_YM2612
 {
-	LJ_YM2612_PORT port[LJ_YM2612_NUM_PORTS];
+	LJ_YM2612_PART part[LJ_YM2612_NUM_PARTS];
+	LJ_YM2612_CHANNEL* channels[LJ_YM2612_NUM_CHANNELS_TOTAL];
 
 	LJ_YM_INT16 dacValue;
 	LJ_YM_UINT16 dacEnable;
@@ -99,14 +106,34 @@ struct LJ_YM2612
 	LJ_YM_UINT8 slotWriteAddr;	
 };
 
+static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* channel, int slot, LJ_YM_UINT8 detuneMult)
+{
+	//TODO: NOT A CHANNEL SETTING THIS IS A SLOT SETTING
+	// Detune = Bits 4-6, Multiple = Bits 0-3
+	const int detune = (detuneMult >> 4) & 0x7;
+	const int multiple = (detuneMult >> 0) & 0xF;
+	channel->detune = detune;
+	//multiple = xN except N=0 then it is x1/2 store it as x2
+	channel->multiple = multiple ? (multiple << 1) : 1;
+	if (channel->flags & LJ_YM2612_DEBUG)
+	{
+		printf("SetDetuneMult channel:%d slot:%d detune:%d mult:%d\n", channel->id, slot, detune, multiple);
+	}
+}
+
 static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* channel, LJ_YM_UINT8 fnumLSB)
 {
-	const int block = (channel->block_fnum_msb >> 3) & 0x7;
-	const int fnumMSB = (channel->block_fnum_msb >> 0) & 0x7;
+	// Block = Bits 3-5, Frequency Number MSB = Bits 0-2 (top 3-bits of frequency number)
+	const int block = (channel->block_fnumMSB >> 3) & 0x7;
+	const int fnumMSB = (channel->block_fnumMSB >> 0) & 0x3;
 	const int fnum = (fnumMSB << 8) + (fnumLSB & 0xFF);
 	channel->block = block;
 	channel->fnum = fnum;
-	//printf( "SetFreqBlock channel:%d block:%d fnum:%d block_fnum_msb:0x%X fnumLSB:0x%X\n", channel->id, block,fnum, channel->block_fnum_msb,fnumLSB);
+	if (channel->flags & LJ_YM2612_DEBUG)
+	{
+		printf("SetFreqBlock channel:%d block:%d fnum:%d block_fnumMSB:0x%X fnumLSB:0x%X\n", 
+				channel->id, block, fnum, channel->block_fnumMSB,fnumLSB);
+	}
 }
 static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channel, LJ_YM_UINT8 slotOnOff)
 {
@@ -128,20 +155,24 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channel)
 	channel->freqDelta = 0;
 	channel->volume = 0;
 	channel->volumeDelta = 0;
-	channel->block_fnum_msb = 0;
+	channel->block_fnumMSB = 0;
+	channel->detune = 0;
+	channel->multiple = 0;
+
+	channel->flags = 0;
 }
 
-static void ym2612_portClear(LJ_YM2612_PORT* const port)
+static void ym2612_partClear(LJ_YM2612_PART* const part)
 {
 	int i;
 	for (i=0; i<LJ_YM2612_NUM_REGISTERS; i++)
 	{
-		port->reg[i] = 0x0;
+		part->reg[i] = 0x0;
 	}
-	for (i=0; i<LJ_YM2612_NUM_CHANNELS_PER_PORT; i++)
+	for (i=0; i<LJ_YM2612_NUM_CHANNELS_PER_PART; i++)
 	{
-		LJ_YM2612_CHANNEL* const channel = &(port->channel[i]);
-		channel->id = port->id*LJ_YM2612_NUM_CHANNELS_PER_PORT+i;
+		LJ_YM2612_CHANNEL* const channel = &(part->channel[i]);
+		channel->id = part->id*LJ_YM2612_NUM_CHANNELS_PER_PART+i;
 		ym2612_channelClear(channel);
 	}
 }
@@ -176,11 +207,21 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	ym2612->regAddress = 0x0;	
 	ym2612->slotWriteAddr = 0xFF;	
 
-	for (i=0; i<LJ_YM2612_NUM_PORTS; i++)
+	for (i=0; i<LJ_YM2612_NUM_PARTS; i++)
 	{
-		LJ_YM2612_PORT* const port = &(ym2612->port[i]);
-		port->id = i;
-		ym2612_portClear(port);
+		LJ_YM2612_PART* const part = &(ym2612->part[i]);
+		part->id = i;
+		ym2612_partClear(part);
+	}
+	for (i=0; i<LJ_YM2612_NUM_PARTS; i++)
+	{
+		int channel;
+		for (channel=0; channel<LJ_YM2612_NUM_CHANNELS_PER_PART; channel++)
+		{
+			const int chan = (i * LJ_YM2612_NUM_CHANNELS_PER_PART) + channel;
+			LJ_YM2612_CHANNEL* const chanPtr = &ym2612->part[i].channel[channel];
+			ym2612->channels[chan] = chanPtr;
+		}
 	}
 	for (i=0; i<LJ_YM2612_NUM_REGISTERS; i++)
 	{
@@ -203,6 +244,9 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 
 	LJ_YM2612_validRegisters[LJ_BLOCK_FREQMSB] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_BLOCK_FREQMSB] = "BLOCK_FREQ(MSB)";
+
+	LJ_YM2612_validRegisters[LJ_DETUNE_MULT] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_DETUNE_MULT] = "DETUNE_MULT";
 
 	//LJ_YM2612_validRegisters[LJ_FEEDBACK_ALGO] = 1;
 	//LJ_YM2612_REGISTER_NAMES[LJ_FEEDBACK_ALGO] = "FEEDBACK_ALGO";
@@ -227,6 +271,14 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 			if ((i >= 0x30) && (i <= 0x90))
 			{
 				//0x30-0x90 = settings per channel per slot (channel = bottom 2 bits of reg, slot = reg / 4)
+				int regBase = (i >> 4) << 4;
+				int j;
+				for (j=0; j<16; j++)
+				{
+					const char* const regBaseName = LJ_YM2612_REGISTER_NAMES[regBase];
+					LJ_YM2612_validRegisters[regBase+j] = 1;
+					LJ_YM2612_REGISTER_NAMES[regBase+j] = regBaseName;
+				}
 			}
 			if ((i >= 0xA0) && (i <= 0xB6))
 			{
@@ -248,7 +300,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	}
 }
 
-LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, LJ_YM_UINT8 reg, LJ_YM_UINT8 data)
+LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, LJ_YM_UINT8 reg, LJ_YM_UINT8 data)
 {
 	LJ_YM_UINT32 parameter = 0;
 	//LJ_YM_UINT32 channel = 0;
@@ -260,9 +312,9 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, L
 		return LJ_YM2612_ERROR;
 	}
 
-	if (port >= LJ_YM2612_NUM_PORTS)
+	if (part >= LJ_YM2612_NUM_PARTS)
 	{
-		fprintf(stderr, "ym2612_setRegister:invalid port:%d max:%d \n",port, LJ_YM2612_NUM_PORTS);
+		fprintf(stderr, "ym2612_setRegister:invalid part:%d max:%d \n",part, LJ_YM2612_NUM_PARTS);
 		return LJ_YM2612_ERROR;
 	}
 
@@ -271,11 +323,11 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, L
 
 	if (LJ_YM2612_validRegisters[reg] == 0)
 	{
-		fprintf(stderr, "ym2612_setRegister:unknown register:0x%X port:%d data:0x%X\n", reg, port, data);
+		fprintf(stderr, "ym2612_setRegister:unknown register:0x%X part:%d data:0x%X\n", reg, part, data);
 		return LJ_YM2612_ERROR;
 	}
 
-	ym2612->port[port].reg[reg] = data;
+	ym2612->part[part].reg[reg] = data;
 	if (ym2612->flags & LJ_YM2612_DEBUG)
 	{
 		printf( "ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
@@ -293,34 +345,57 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, L
 	}
 	else if (reg == LJ_KEY_ONOFF)
 	{
-		// 0x28 Slot = Bits 4-7, Channel ID = Bits 0-2, Port 0 or 1 is Bit 3
+		// 0x28 Slot = Bits 4-7, Channel ID = Bits 0-2, part 0 or 1 is Bit 3
 		const int channel = data & 0x03;
 		if (channel != 0x03)
 		{
 			const int slotOnOff = (data >> 4);
-			const int port = (channel & 0x4) >> 2;
-			LJ_YM2612_CHANNEL* const chan = &ym2612->port[port].channel[channel];
+			const int part = (channel & 0x4) >> 2;
+			LJ_YM2612_CHANNEL* const chan = &ym2612->part[part].channel[channel];
 			ym2612_channelKeyOnOff(chan, slotOnOff);
+		}
+	}
+	else if ((reg >= 0x30) && (reg <= 0x9F))
+	{
+		//0x30-0x90 = settings per channel per slot (channel = bottom 2 bits of reg, slot = reg / 4)
+		const int channel = reg & 0x3;
+		const int slot = (reg >> 2) & 0x3;
+		const int regParameter = reg & 0xF0;
+		LJ_YM2612_CHANNEL* const chan = &ym2612->part[part].channel[channel];
+		if (regParameter == LJ_DETUNE_MULT)
+		{
+			ym2612_channelSetDetuneMult(chan, slot, data);
+			if (ym2612->flags & LJ_YM2612_DEBUG)
+			{
+				printf( "LJ_DETUNE_MULT part:%d channel:%d slot:%d data:0x%X\n", part, channel, slot, data);
+			}
 		}
 	}
 	else if ((reg >= 0xA0) && (reg <= 0xB6))
 	{
 		// 0xA0-0xB0 = settings per channel (channel = bottom 2 bits of reg)
-		const int channel = (reg & 0x3);
-		const int regParameter = (reg >> 2) << 2; // reg & 0xFC
+		const int channel = reg & 0x3;
+		//const int regParameter = (reg >> 2) << 2; // reg & 0xFC
+		const int regParameter = reg & 0xFC;
 
-		LJ_YM2612_CHANNEL* const chan = &ym2612->port[port].channel[channel];
+		LJ_YM2612_CHANNEL* const chan = &ym2612->part[part].channel[channel];
 		if (regParameter == LJ_FREQLSB)
 		{
 			// 0xA0-0xA2 Frequency number LSB = Bits 0-7 (bottom 8 bits of frequency number)
 			ym2612_channelSetFreqBlock(chan,data);
-			//printf( "LJ_FREQLSB port:%d channel:%d data:0x%X\n", port, channel, data);
+			if (ym2612->flags & LJ_YM2612_DEBUG)
+			{
+				printf( "LJ_FREQLSB part:%d channel:%d data:0x%X\n", part, channel, data);
+			}
 		}
 		else if (regParameter == LJ_BLOCK_FREQMSB)
 		{
 			// 0xA4-0xA6 Block = Bits 5-3, Frequency Number MSB = Bits 0-2 (top 3-bits of frequency number)
-			chan->block_fnum_msb = data;
-			printf( "LJ_BLOCK_FREQMSB port:%d channel:%d data:0x%X\n", port, channel, data);
+			chan->block_fnumMSB = data;
+			if (ym2612->flags & LJ_YM2612_DEBUG)
+			{
+				printf( "LJ_BLOCK_FREQMSB part:%d channel:%d data:0x%X\n", part, channel, data);
+			}
 		}
 	}
 
@@ -350,6 +425,7 @@ LJ_YM2612* LJ_YM2612_create(void)
 
 LJ_YM2612_RESULT LJ_YM2612_setFlags(LJ_YM2612* const ym2612, const unsigned int flags)
 {
+	int part;
 	if (ym2612 == NULL)
 	{
 		fprintf(stderr, "LJ_YM2612_setFlags:ym2612 is NULL\n");
@@ -357,6 +433,16 @@ LJ_YM2612_RESULT LJ_YM2612_setFlags(LJ_YM2612* const ym2612, const unsigned int 
 	}
 
 	ym2612->flags = flags;
+
+	for (part = 0; part < LJ_YM2612_NUM_PARTS; part++)
+	{
+		int channel;
+		for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_PER_PART; channel++)
+		{
+			LJ_YM2612_CHANNEL* const chan = &ym2612->part[part].channel[channel];
+			chan->flags = flags;
+		}
+	}
 	return LJ_YM2612_OK;
 }
 
@@ -379,7 +465,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	LJ_YM_INT16* outputRight = output[1];
 	LJ_YM_INT16 dacValue = 0;
 	int sample;
-	int port;
+	int channel;
 	int outputChannelMask = 0xFF;
 	int channelMask = 0x1;
 
@@ -401,8 +487,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		outputChannelMask = (ym2612->flags >> LJ_YM2612_ONECHANNEL_SHIFT) & LJ_YM2612_ONECHANNEL_MASK;
 		outputChannelMask = 1 << outputChannelMask;
 	}
-	outputChannelMask = 2;
-	outputChannelMask = 1 << outputChannelMask;
+	//outputChannelMask = 2;
+	//outputChannelMask = 1 << outputChannelMask;
 
 	static int tVal = 0;
 
@@ -413,43 +499,72 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		LJ_YM_INT16 mixedLeft = 0;
 		LJ_YM_INT16 mixedRight = 0;
 
-		for (port = 0; port < LJ_YM2612_NUM_PORTS; port++)
+		for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_TOTAL; channel++)
 		{
-			int channel;
-			for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_PER_PORT; channel++)
+			LJ_YM2612_CHANNEL* const chan = ym2612->channels[channel];
+
+			const int FNUM = chan->fnum;
+			const int B = chan->block;
+			// F * 2^(B-1)
+			// Could multiply the fnumTable up by (1<<6) then change this to fnumTable >> (7-B)
+			int freqDelta = (LJ_YM2612_fnumTable[FNUM] << B) >> 1;
+
+			// /2 because multiple is stored as x2 of its value
+			freqDelta = (freqDelta * chan->multiple) >> 1;
+
+			const float theta = (tVal * freqDelta) / (1024.0f * 1024.0f);
+			//convert this to a table lookup (1024 entries)
+			const float sinVal = sinf(2.0f * M_PI * theta);
+			int fmLevel = (int)(sinVal * 4096.0f);
+
+			fmLevel = (chan->volume * fmLevel) >> 13;
+
+			if (ym2612->flags & LJ_YM2612_DEBUG)
 			{
-				LJ_YM2612_CHANNEL* const chan = &ym2612->port[port].channel[channel];
-
-				const int FNUM = chan->fnum;
-				const int B = chan->block;
-				// F * 2^(B-1)
-				// Could multiply the fnumTable up by (1<<6) then change this to fnumTable >> (7-B)
-				int freqDelta = (LJ_YM2612_fnumTable[FNUM] << B) >> 1;
-				const float theta = (tVal * freqDelta) / (1024.0f * 1024.0f);
-				//convert this to a table lookup (1024 entries)
-				const float sinVal = sinf(2.0f * M_PI * theta);
-				int fmLevel = (int)(sinVal * 8192.0f);
-
-				fmLevel = (chan->volume * fmLevel) >> 13;
-
 				if (fmLevel != 0)
 				{
-					//printf("Channel:%d FNUM:%d B:%d fmLevel:%d\n", chan->id, FNUM, B, fmLevel);
+					printf("Channel:%d FNUM:%d B:%d fmLevel:%d\n", chan->id, FNUM, B, fmLevel);
 				}
-				if ((channelMask & outputChannelMask) == 0)
-				{
-					fmLevel = 0;
-				}
-
-				mixedLeft += fmLevel;
-				mixedRight += fmLevel;
-
-				channelMask = (channelMask << 1);
 			}
+			if ((channelMask & outputChannelMask) == 0)
+			{
+				fmLevel = 0;
+			}
+
+			if (fmLevel > 8192)
+			{
+				fmLevel = 8192;
+			}
+			if (fmLevel < -8192)
+			{
+				fmLevel = -8192;
+			}
+			mixedLeft += fmLevel;
+			mixedRight += fmLevel;
+
+			channelMask = (channelMask << 1);
 		}
 
 		mixedLeft += dacValue;
 		mixedRight += dacValue;
+
+		if (mixedLeft > 8192)
+		{
+			mixedLeft = 8192;
+		}
+		if (mixedLeft < -8192)
+		{
+			mixedLeft = -8192;
+		}
+		if (mixedRight > 8192)
+		{
+			mixedRight = 8192;
+		}
+		if (mixedRight < -8192)
+		{
+			mixedRight = -8192;
+		}
+
 
 		outputLeft[sample] = mixedLeft;
 		outputRight[sample] = mixedRight;
@@ -458,22 +573,18 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	}
 
 	// Update volumes and frequency position
-	for (port = 0; port < LJ_YM2612_NUM_PORTS; port++)
+	for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_TOTAL; channel++)
 	{
-		int channel;
-		for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_PER_PORT; channel++)
-		{
-			LJ_YM2612_CHANNEL* const chan = &ym2612->port[port].channel[channel];
+		LJ_YM2612_CHANNEL* const chan = ym2612->channels[channel];
 
-			chan->volume += chan->volumeDelta;
-			if (chan->volume < 0)
-			{
-				chan->volume = 0;
-			}
-			if (chan->volume > 8192)
-			{
-				chan->volume = 8192;
-			}
+		chan->volume += chan->volumeDelta;
+		if (chan->volume < 0)
+		{
+			chan->volume = 0;
+		}
+		if (chan->volume > 4096)
+		{
+			chan->volume = 4096;
 		}
 	}
 
@@ -483,10 +594,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, LJ_YM_UINT8 data)
 {
 	int result = LJ_YM2612_ERROR;
-	const int port = (address >> 1) & 0x1;
+	const int part = (address >> 1) & 0x1;
 
-	// PORT 0: R = 0x4000, D = 0x4001
-	// PORT 1: R = 0x4002, D = 0x4003
+	// PART 0: R = 0x4000, D = 0x4001
+	// PART 1: R = 0x4002, D = 0x4003
 	if (ym2612 == NULL)
 	{
 		fprintf(stderr, "LJ_YM2612_write:ym2612 is NULL\n");
@@ -496,15 +607,15 @@ LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, 
 	if ((address == 0x4000) || (address == 0x4002))
 	{
 		ym2612->regAddress = data;
-		ym2612->slotWriteAddr = port;
+		ym2612->slotWriteAddr = part;
 		return LJ_YM2612_OK;
 	}
 	else if ((address == 0x4001) || (address == 0x4003))
 	{
-		if (ym2612->slotWriteAddr == port)
+		if (ym2612->slotWriteAddr == part)
 		{
 			LJ_YM_UINT8 reg = ym2612->regAddress;
-			result = ym2612_setRegister(ym2612, port, reg, data);
+			result = ym2612_setRegister(ym2612, part, reg, data);
 			//Hmmmm - how does the real chip work
 			ym2612->slotWriteAddr = 0xFF;
 			return result;
