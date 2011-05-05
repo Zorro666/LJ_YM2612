@@ -186,6 +186,15 @@ int main(int argc, char* argv[])
 				if (result == LJ_VGM_TEST_ERROR)
 				{
 					fprintf(stderr,"VGM:%d ERROR processing command\n",sampleCount);
+					result = LJ_VGM_TEST_ERROR;
+					if (vgmInstruction.R == 0x22)
+					{
+						result = LJ_VGM_TEST_OK;
+					}
+					if (vgmInstruction.R == 0x27)
+					{
+						result = LJ_VGM_TEST_OK;
+					}
 					result = LJ_VGM_TEST_OK;
 				}
 			}

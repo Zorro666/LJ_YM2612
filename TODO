@@ -1,4 +1,5 @@
 High Priority:
+TEST_APP:-error option
 YM2612:get basic tone generation working : KEY ON/OFF + FNUM+BLK value
 YM2612:add a table for sin
 YM2612:***design choice***: 3 channels per port not so nice, be nicer with 6 channels but not match the hardware

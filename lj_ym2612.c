@@ -106,18 +106,18 @@ static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* channel, LJ_YM_UINT8 f
 	const int fnum = (fnumMSB << 8) + (fnumLSB & 0xFF);
 	channel->block = block;
 	channel->fnum = fnum;
-	printf( "SetFreqBlock channel:%d block:%d fnum:%d block_fnum_msb:0x%X fnumLSB:0x%X\n", channel->id, block,fnum, channel->block_fnum_msb,fnumLSB);
+	//printf( "SetFreqBlock channel:%d block:%d fnum:%d block_fnum_msb:0x%X fnumLSB:0x%X\n", channel->id, block,fnum, channel->block_fnum_msb,fnumLSB);
 }
 static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channel, LJ_YM_UINT8 slotOnOff)
 {
 	if (slotOnOff & 0xF)
 	{
 		channel->volume = 0;
-		channel->volumeDelta = +1024;
+		channel->volumeDelta = +2;
 	}
 	else
 	{
-		channel->volumeDelta = -128;
+		channel->volumeDelta = -1;
 	}
 }
 
@@ -314,7 +314,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 port, L
 		{
 			// 0xA0-0xA2 Frequency number LSB = Bits 0-7 (bottom 8 bits of frequency number)
 			ym2612_channelSetFreqBlock(chan,data);
-			printf( "LJ_FREQLSB port:%d channel:%d data:0x%X\n", port, channel, data);
+			//printf( "LJ_FREQLSB port:%d channel:%d data:0x%X\n", port, channel, data);
 		}
 		else if (regParameter == LJ_BLOCK_FREQMSB)
 		{
@@ -380,6 +380,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	LJ_YM_INT16 dacValue = 0;
 	int sample;
 	int port;
+	int outputChannelMask = 0xFF;
+	int channelMask = 0x1;
 
 	if (ym2612 == NULL)
 	{
@@ -393,6 +395,15 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	{
 		dacValue = 0x0;
 	}
+	if (ym2612->flags & LJ_YM2612_ONECHANNEL)
+	{
+		// channel starts at 0
+		outputChannelMask = (ym2612->flags >> LJ_YM2612_ONECHANNEL_SHIFT) & LJ_YM2612_ONECHANNEL_MASK;
+		outputChannelMask = 1 << outputChannelMask;
+	}
+	outputChannelMask = 2;
+	outputChannelMask = 1 << outputChannelMask;
+
 	static int tVal = 0;
 
 	//For each cycle
@@ -421,8 +432,19 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 				fmLevel = (chan->volume * fmLevel) >> 13;
 
+				if (fmLevel != 0)
+				{
+					//printf("Channel:%d FNUM:%d B:%d fmLevel:%d\n", chan->id, FNUM, B, fmLevel);
+				}
+				if ((channelMask & outputChannelMask) == 0)
+				{
+					fmLevel = 0;
+				}
+
 				mixedLeft += fmLevel;
 				mixedRight += fmLevel;
+
+				channelMask = (channelMask << 1);
 			}
 		}
 
