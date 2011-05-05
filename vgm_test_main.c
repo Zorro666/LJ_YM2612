@@ -36,6 +36,8 @@ int main(int argc, char* argv[])
 	int nofm = 0;
 	int mono = 1;
 	int stereo = 0;
+	int channel = 0;
+	int noerror = 0;
 
 	for (i=1; i<argc; i++)
 	{
@@ -64,6 +66,10 @@ int main(int argc, char* argv[])
 			{
 				nofm = 1;
 			}
+			else if (strcmp(option+1, "noerror") == 0)
+			{
+				noerror = 1;
+			}
 		}
 		else
 		{
@@ -76,6 +82,8 @@ int main(int argc, char* argv[])
 	printf("stereo:%d\n", stereo);
 	printf("nodac:%d\n", nodac);
 	printf("nofm:%d\n", nofm);
+	printf("noerror:%d\n", nofm);
+	printf("channel:%d\n", nofm);
 	printf("\n");
 
 	flags = 0x0;
@@ -90,6 +98,11 @@ int main(int argc, char* argv[])
 	if (nofm == 1)
 	{
 		flags |= DEVICE_YM2612_NOFM;
+	}
+	if (channel > 0)
+	{
+		flags |= DEVICE_YM2612_ONECHANNEL;
+		flags |= (channel << DEVICE_YM2612_ONECHANNEL_SHIFT);
 	}
 
 	ym2612 = device_ym2612_create(flags);
@@ -195,7 +208,10 @@ int main(int argc, char* argv[])
 					{
 						result = LJ_VGM_TEST_OK;
 					}
-					result = LJ_VGM_TEST_OK;
+					if (noerror == 1)
+					{
+						result = LJ_VGM_TEST_OK;
+					}
 				}
 			}
 		}

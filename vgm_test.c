@@ -21,6 +21,11 @@ void* device_ym2612_create(const unsigned int flags)
 	{
 		ymFlags |= LJ_YM2612_NOFM;
 	}
+	if (flags & DEVICE_YM2612_ONECHANNEL)
+	{
+		ymFlags |= LJ_YM2612_ONECHANNEL;
+		ymFlags |= (flags & (DEVICE_YM2612_ONECHANNEL_MASK << DEVICE_YM2612_ONECHANNEL_SHIFT));
+	}
 	LJ_YM2612_setFlags(ym2612, ymFlags);
 	return ym2612;
 }
