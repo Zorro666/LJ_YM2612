@@ -14,6 +14,7 @@ VGM:read all of data into memory and read from memory instead of a few bytes at 
 
 Low Priority:
 VGM:zlib support for compressed files
+VGM:handle the other commands (skip correct amount of data basically)
 
 Future Stuff:
 
