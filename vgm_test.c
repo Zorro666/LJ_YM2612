@@ -2,6 +2,7 @@
 #include "vgm_test_main.h"
 
 #include <string.h>
+#include <stdio.h>
 
 // Globals for vgm_test_main.c
 void* device_ym2612_create(const unsigned int flags)
@@ -23,8 +24,10 @@ void* device_ym2612_create(const unsigned int flags)
 	}
 	if (flags & DEVICE_YM2612_ONECHANNEL)
 	{
+		const int channel = ((flags >> DEVICE_YM2612_ONECHANNEL_SHIFT) & DEVICE_YM2612_ONECHANNEL_MASK);
 		ymFlags |= LJ_YM2612_ONECHANNEL;
-		ymFlags |= (flags & (DEVICE_YM2612_ONECHANNEL_MASK << DEVICE_YM2612_ONECHANNEL_SHIFT));
+		ymFlags |= (channel << LJ_YM2612_ONECHANNEL_SHIFT);
+		printf("flags:0x%X\n", ymFlags);
 	}
 	LJ_YM2612_setFlags(ym2612, ymFlags);
 	return ym2612;

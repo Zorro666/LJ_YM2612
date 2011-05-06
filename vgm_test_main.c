@@ -5,7 +5,9 @@
 #include <malloc.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
+LJ_VGM_RESULT startTestProgram(const char* const testName);
 LJ_VGM_RESULT getNextTestProgramInstruction(LJ_VGM_INSTRUCTION* const vgmInstruction);
 
 int main(int argc, char* argv[])
@@ -27,6 +29,7 @@ int main(int argc, char* argv[])
 	short* outputs[2];
 
 	const char* inputFileName = "test.vgm";
+	const char* testName = "";
 
 	int outputNumChannels = 2;
 	const int OUTPUT_NUM_BYTES_PER_CHANNEL = 2;
@@ -38,7 +41,7 @@ int main(int argc, char* argv[])
 	int nofm = 0;
 	int mono = 1;
 	int stereo = 0;
-	int channel = 0;
+	int channel = -1;
 	int noerror = 0;
 	int test = 0;
 
@@ -73,10 +76,15 @@ int main(int argc, char* argv[])
 			{
 				noerror = 1;
 			}
-			else if (strcmp(option+1, "test") == 0)
+			else if (strncmp(option+1, "channel=", strlen("channel=")) == 0)
+			{
+				channel=atoi(option+1+strlen("channel="));
+			}
+			else if (strncmp(option+1, "test=", strlen("test=")) == 0)
 			{
 				test = 1;
-				inputFileName = "test.vgm";
+				testName = option+1+strlen("test=");
+				inputFileName = "";
 			}
 		}
 		else
@@ -91,9 +99,10 @@ int main(int argc, char* argv[])
 	printf("stereo:%d\n", stereo);
 	printf("nodac:%d\n", nodac);
 	printf("nofm:%d\n", nofm);
-	printf("noerror:%d\n", nofm);
-	printf("channel:%d\n", nofm);
+	printf("noerror:%d\n", noerror);
+	printf("channel:%d\n", channel);
 	printf("test:%d\n", test);
+	printf("testName:'%s'\n", testName);
 	printf("\n");
 
 	flags = 0x0;
@@ -109,47 +118,60 @@ int main(int argc, char* argv[])
 	{
 		flags |= DEVICE_YM2612_NOFM;
 	}
-	if (channel > 0)
+	if (channel >= 0)
 	{
 		flags |= DEVICE_YM2612_ONECHANNEL;
 		flags |= (channel << DEVICE_YM2612_ONECHANNEL_SHIFT);
+		printf("Channel:%d flags:0x%X\n", channel, flags);
 	}
 
 	ym2612 = device_ym2612_create(flags);
 	if (ym2612 == NULL)
 	{
-		fprintf(stderr,"device_ym2612_create() failed\n");
+		fprintf(stderr,"ERROR: device_ym2612_create() failed\n");
 		return -1;
 	}
 
 	outputs[0] = malloc(1024 * sizeof(short));
 	if (outputs[0] == NULL)
 	{
-		fprintf(stderr,"outputs[0] malloc %d failed\n", 1024*sizeof(short));
+		fprintf(stderr,"ERROR: outputs[0] malloc %d failed\n", 1024*sizeof(short));
 		return -1;
 	}
 	outputs[1] = malloc(1024 * sizeof(short));
 	if (outputs[1] == NULL)
 	{
-		fprintf(stderr,"outputs[1] malloc %d failed\n", 1024*sizeof(short));
+		fprintf(stderr,"ERROR: outputs[1] malloc %d failed\n", 1024*sizeof(short));
 		return -1;
 	}
 
 	if (test == 0)
 	{
-		vgmFile = LJ_VGM_create( inputFileName );
+		vgmFile = LJ_VGM_create(inputFileName);
 	}
 	else
 	{
 		vgmFile = LJ_VGM_create( NULL );
+		if (startTestProgram(testName) == LJ_VGM_ERROR)
+		{
+			fprintf(stderr,"ERROR: startTestProgram '%s' program not found\n", testName);
+			return -1;
+		}
 	}
 	if (vgmFile == NULL)
 	{
-		fprintf(stderr,"LJ_VGM_create() failed '%s'\n", inputFileName);
+		fprintf(stderr,"ERROR: LJ_VGM_create() failed '%s'\n", inputFileName);
 		return -1;
 	}
 
-	wavOutputName = getWavOutputName(inputFileName);
+	if (test == 0)
+	{
+		wavOutputName = getWavOutputName(inputFileName);
+	}
+	else
+	{
+		wavOutputName = getWavOutputName(testName);
+	}
 	printf("wavOutputName:'%s'\n", wavOutputName);
 	if (mono == 1) 
 	{
@@ -163,7 +185,7 @@ int main(int argc, char* argv[])
 	wavFile = LJ_WAV_create( wavOutputName, LJ_WAV_FORMAT_PCM, outputNumChannels, OUTPUT_SAMPLE_RATE, OUTPUT_NUM_BYTES_PER_CHANNEL );
 	if (wavFile == NULL)
 	{
-		fprintf(stderr,"LJ_WAV_create() failed '%s'\n", wavOutputName);
+		fprintf(stderr,"ERROR: LJ_WAV_create() failed '%s'\n", wavOutputName);
 		return -1;
 	}
 
@@ -223,7 +245,7 @@ int main(int argc, char* argv[])
 				}
 				if (result == LJ_VGM_TEST_ERROR)
 				{
-					fprintf(stderr,"VGM:%d ERROR processing command\n",sampleCount);
+					fprintf(stderr,"ERROR: VGM:%d ERROR processing command\n",sampleCount);
 					result = LJ_VGM_TEST_ERROR;
 					if (vgmInstruction.R == 0x22)
 					{
@@ -398,18 +420,27 @@ static LJ_VGM_UINT8 pureNoteProgram[] = {
 		0xFF, 0xFF,	// END PROGRAM
 };
 
+static LJ_VGM_UINT8* currentTestInstruction = NULL;
+LJ_VGM_RESULT startTestProgram(const char* const testName)
+{
+	if (strcmp(testName,"pureNote") == 0)
+	{
+		currentTestInstruction = pureNoteProgram;
+		return LJ_VGM_OK;
+	}
+	else if (strcmp(testName,"sample") == 0)
+	{
+		currentTestInstruction = sampleDocProgram;
+		return LJ_VGM_OK;
+	}
+
+	return LJ_VGM_ERROR;
+}
+
 LJ_VGM_RESULT getNextTestProgramInstruction(LJ_VGM_INSTRUCTION* const vgmInstruction)
 {
-	static LJ_VGM_UINT8* currentInstruction = pureNoteProgram;
-
-	const LJ_VGM_UINT8 reg = currentInstruction[0];
-	const LJ_VGM_UINT8 data = currentInstruction[1];
-
-	if (vgmInstruction->dataType == 0x6)
-	{
-		currentInstruction = sampleDocProgram;
-		currentInstruction = pureNoteProgram;
-	}
+	const LJ_VGM_UINT8 reg = currentTestInstruction[0];
+	const LJ_VGM_UINT8 data = currentTestInstruction[1];
 
 	vgmInstruction->dataType = 0;
 	vgmInstruction->dataNum = 0;
@@ -426,7 +457,7 @@ LJ_VGM_RESULT getNextTestProgramInstruction(LJ_VGM_INSTRUCTION* const vgmInstruc
 		vgmInstruction->waitSamples = 44100;
 		vgmInstruction->waitSamplesData = vgmInstruction->waitSamples;
 		vgmInstruction->cmdCount++;
-		currentInstruction += 2;
+		currentTestInstruction += 2;
 	}
 	else if ((reg == 0x00) && (data == 0x01))
 	{
@@ -434,7 +465,7 @@ LJ_VGM_RESULT getNextTestProgramInstruction(LJ_VGM_INSTRUCTION* const vgmInstruc
 		vgmInstruction->waitSamples = 5000;
 		vgmInstruction->waitSamplesData = vgmInstruction->waitSamples;
 		vgmInstruction->cmdCount++;
-		currentInstruction += 2;
+		currentTestInstruction += 2;
 	}
 	else
 	{
@@ -442,7 +473,7 @@ LJ_VGM_RESULT getNextTestProgramInstruction(LJ_VGM_INSTRUCTION* const vgmInstruc
 		vgmInstruction->R = reg;
 		vgmInstruction->D = data;
 		vgmInstruction->cmdCount++;
-		currentInstruction += 2;
+		currentTestInstruction += 2;
 	}
 	return LJ_VGM_OK;
 }
