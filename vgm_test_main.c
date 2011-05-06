@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
+LJ_VGM_RESULT getNextTestProgramInstruction(LJ_VGM_INSTRUCTION* const vgmInstruction);
+
 int main(int argc, char* argv[])
 {
 	int result = LJ_VGM_OK;
@@ -38,6 +40,7 @@ int main(int argc, char* argv[])
 	int stereo = 0;
 	int channel = 0;
 	int noerror = 0;
+	int test = 0;
 
 	for (i=1; i<argc; i++)
 	{
@@ -70,12 +73,18 @@ int main(int argc, char* argv[])
 			{
 				noerror = 1;
 			}
+			else if (strcmp(option+1, "test") == 0)
+			{
+				test = 1;
+				inputFileName = "test.vgm";
+			}
 		}
 		else
 		{
 			inputFileName = argv[i];
 		}
 	}
+
 	printf("inputFileName:'%s'\n", inputFileName);
 	printf("debug:%d\n", debug);
 	printf("mono:%d\n", mono);
@@ -84,6 +93,7 @@ int main(int argc, char* argv[])
 	printf("nofm:%d\n", nofm);
 	printf("noerror:%d\n", nofm);
 	printf("channel:%d\n", nofm);
+	printf("test:%d\n", test);
 	printf("\n");
 
 	flags = 0x0;
@@ -125,7 +135,14 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	vgmFile = LJ_VGM_create( inputFileName );
+	if (test == 0)
+	{
+		vgmFile = LJ_VGM_create( inputFileName );
+	}
+	else
+	{
+		vgmFile = LJ_VGM_create( NULL );
+	}
 	if (vgmFile == NULL)
 	{
 		fprintf(stderr,"LJ_VGM_create() failed '%s'\n", inputFileName);
@@ -152,6 +169,7 @@ int main(int argc, char* argv[])
 
 	sampleCount = 0;
 	waitCount = 0;
+	memset(&vgmInstruction,0x0, sizeof(vgmInstruction));
 	vgmInstruction.waitSamples = 0;
 	while (result == LJ_VGM_OK)
 	{
@@ -161,7 +179,14 @@ int main(int argc, char* argv[])
 		}
 		if (vgmInstruction.waitSamples == 0)
 		{
-			result = LJ_VGM_read(vgmFile, &vgmInstruction);
+			if (test == 0)
+			{
+				result = LJ_VGM_read(vgmFile, &vgmInstruction);
+			}
+			else
+			{
+				result = getNextTestProgramInstruction(&vgmInstruction);
+			}
 			if (result == LJ_VGM_OK)
 			{
 				if (vgmInstruction.cmd == LJ_VGM_YM2612_WRITE_PORT_0)
@@ -269,4 +294,90 @@ int main(int argc, char* argv[])
 	device_ym2612_destroy(ym2612);
 
 	return 0;
+}
+
+LJ_VGM_RESULT getNextTestProgramInstruction(LJ_VGM_INSTRUCTION* const vgmInstruction)
+{
+	static LJ_VGM_UINT8 program[] = {
+		0x22, 0x00,	// LFO off
+		0x27, 0x00,	// Channel 3 mode normal
+		0x28, 0x00,	// All channels off
+		0x28, 0x01,	// All channels off
+		0x28, 0x02,	// All channels off
+		0x28, 0x03,	// All channels off
+		0x28, 0x04,	// All channels off
+		0x28, 0x05,	// All channels off
+		0x28, 0x06,	// All channels off
+		0x2B, 0x00,	// DAC off
+		0x30, 0x71,	// DT1/MUL - channel 0 slot 0
+		0x34, 0x0D,	// DT1/MUL - channel 0 slot 1
+		0x38, 0x33,	// DT1/MUL - channel 0 slot 2
+		0x3C, 0x01,	// DT1/MUL - channel 0 slot 3
+		0x40, 0x23,	// Total Level - channel 0 slot 0
+		0x44, 0x2D,	// Total Level - channel 0 slot 1
+		0x48, 0x26,	// Total Level - channel 0 slot 2
+		0x4C, 0x00,	// Total Level - channel 0 slot 3
+		0x50, 0x5F,	// RS/AR - channel 0 slot 0
+		0x54, 0x99,	// RS/AR - channel 0 slot 1
+		0x58, 0x5F,	// RS/AR - channel 0 slot 2
+		0x5C, 0x94,	// RS/AR - channel 0 slot 3
+		0x60, 0x05,	// AM/D1R - channel 0 slot 0
+		0x64, 0x05,	// AM/D1R - channel 0 slot 1
+		0x68, 0x05,	// AM/D1R - channel 0 slot 2
+		0x6C, 0x07,	// AM/D1R - channel 0 slot 3
+		0x70, 0x02,	// D2R - channel 0 slot 0
+		0x74, 0x02,	// D2R - channel 1 slot 1
+		0x78, 0x02,	// D2R - channel 2 slot 2
+		0x7C, 0x02,	// D2R - channel 3 slot 3
+		0x80, 0x11,	// D1L/RR - channel 0 slot 0
+		0x84, 0x11,	// D1L/RR - channel 0 slot 1
+		0x88, 0x11,	// D1L/RR - channel 0 slot 2
+		0x8C, 0xA6,	// D1L/RR - channel 0 slot 3
+		0x90, 0x00,	// SSG - channel 0 slot 0
+		0x94, 0x00,	// SSG - channel 0 slot 1
+		0x98, 0x00,	// SSG - channel 0 slot 2
+		0x9C, 0x00,	// SSG - channel 0 slot 3
+		0xB0, 0x32,	// Feedback/algorithm
+		0xB4, 0xC0,	// Both speakers on
+		0x28, 0x00,	// Key off
+		0xA4, 0x22,	// Set frequency
+		0xA0, 0x69,	// Set frequency
+		0x28, 0xF0,	// Key on
+		0x00, 0x00,	// OUTPUT SAMPLES
+		0x28, 0x00,	// Key off
+		0x00, 0x00,	// OUTPUT SAMPLES
+		0xFF, 0xFF,	// END PROGRAM
+	};
+
+	static LJ_VGM_UINT8* currentInstruction = program;
+
+	const LJ_VGM_UINT8 reg = currentInstruction[0];
+	const LJ_VGM_UINT8 data = currentInstruction[1];
+
+	vgmInstruction->dataType = 0;
+	vgmInstruction->dataNum = 0;
+	vgmInstruction->dataSeekOffset = 0;
+
+	if ((reg == 0xFF) && (data == 0xFF))
+	{
+		vgmInstruction->cmd = LJ_VGM_END_SOUND_DATA;
+		vgmInstruction->cmdCount++;
+	}
+	else if ((reg == 0x00) && (data == 0x00))
+	{
+		vgmInstruction->cmd = LJ_VGM_WAIT_N_SAMPLES;
+		vgmInstruction->waitSamples = 44100;
+		vgmInstruction->waitSamplesData = vgmInstruction->waitSamples;
+		vgmInstruction->cmdCount++;
+		currentInstruction += 2;
+	}
+	else
+	{
+		vgmInstruction->cmd = LJ_VGM_YM2612_WRITE_PORT_0;
+		vgmInstruction->R = reg;
+		vgmInstruction->D = data;
+		vgmInstruction->cmdCount++;
+		currentInstruction += 2;
+	}
+	return LJ_VGM_OK;
 }
