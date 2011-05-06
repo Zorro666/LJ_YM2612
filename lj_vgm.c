@@ -223,7 +223,7 @@ int LJ_VGM_validInstruction[LJ_VGM_NUM_INSTRUCTIONS];
 
 static void vgm_clear(LJ_VGM_FILE* const vgmFile)
 {
-	memset(vgmFile,sizeof(LJ_VGM_FILE),0);
+	memset(vgmFile, 0x0, sizeof(LJ_VGM_FILE));
 }
 
 static void vgm_init(LJ_VGM_FILE* const vgmFile)
@@ -393,12 +393,15 @@ LJ_VGM_FILE* LJ_VGM_create(const char* const fname)
 
 	vgm_init(vgmFile);
 
-	result = vgm_open(vgmFile,fname);
-	if (result == LJ_VGM_ERROR)
+	if (fname != NULL)
 	{
-		fprintf(stderr, "LJ_VGM_create:vgm_open failed for file '%s'\n", fname);
-		LJ_VGM_destroy(vgmFile);
-		return NULL;
+		result = vgm_open(vgmFile,fname);
+		if (result == LJ_VGM_ERROR)
+		{
+			fprintf(stderr, "LJ_VGM_create:vgm_open failed for file '%s'\n", fname);
+			LJ_VGM_destroy(vgmFile);
+			return NULL;
+		}
 	}
 
 	return vgmFile;
@@ -410,7 +413,10 @@ LJ_VGM_RESULT LJ_VGM_destroy(LJ_VGM_FILE* const vgmFile)
 	{
 		return LJ_VGM_OK;
 	}
-	fclose(vgmFile->fh);
+	if (vgmFile->fh != NULL)
+	{
+		fclose(vgmFile->fh);
+	}
 
 	printf("VGM:numSamples:%d\n", vgmFile->header.numSamples);
 	printf("VGM:loopOffset:%d\n", vgmFile->header.loopOffset);
