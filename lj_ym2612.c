@@ -63,11 +63,21 @@ enum LJ_YM2612_REGISTERS {
 static const char* LJ_YM2612_REGISTER_NAMES[LJ_YM2612_NUM_REGISTERS];
 static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 
-//FNUM = 11-bit
+//FNUM = 11-bit table
 #define LJ_YM2612_FNUM_BITS (11)
 #define LJ_YM2612_NUM_FNUM_ENTRIES (1 << LJ_YM2612_FNUM_BITS)
 #define LJ_YM2612_FNUM_MASK ((1 << LJ_YM2612_FNUM_BITS) - 1)
+
+//FREQ table = 16.16-bit
+#define LJ_YM2612_FREQ_BITS (16)
+#define LJ_YM2612_FREQ_MASK ((1 << LJ_YM2612_FREQ_BITS) - 1)
 static LJ_YM_UINT32 LJ_YM2612_fnumTable[LJ_YM2612_NUM_FNUM_ENTRIES];
+
+//SIN table = 10-bit
+#define LJ_YM2612_SINTABLE_BITS (10)
+#define LJ_YM2612_NUM_SINTABLE_ENTRIES (1 << LJ_YM2612_SINTABLE_BITS)
+#define LJ_YM2612_SINTABLE_MASK ((1 << LJ_YM2612_SINTABLE_BITS) - 1)
+static int LJ_YM2612_sinTable[LJ_YM2612_NUM_SINTABLE_ENTRIES];
 
 struct LJ_YM2612_CHANNEL
 {
@@ -140,7 +150,7 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channel, LJ_YM_UINT8
 	if (slotOnOff & 0xF)
 	{
 		channel->volume = 0;
-		channel->volumeDelta = +2;
+		channel->volumeDelta = +1024;
 	}
 	else
 	{
@@ -192,7 +202,20 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 	for (i = 0; i < LJ_YM2612_NUM_FNUM_ENTRIES; i++)
 	{
 		float freq = ym2612->baseFreqScale * i;
-		LJ_YM2612_fnumTable[i] = freq;
+		// -10 because equation is / 2^10 , the other / 2^10 is in the sin table
+		freq = freq * (1 << (LJ_YM2612_FREQ_BITS - 10));
+
+		LJ_YM_UINT32 intFreq = (LJ_YM_UINT32)(freq);
+		LJ_YM2612_fnumTable[i] = intFreq;
+	}
+
+	const float omegaScale = (2.0f * M_PI / LJ_YM2612_NUM_SINTABLE_ENTRIES);
+	for (i = 0; i < LJ_YM2612_NUM_SINTABLE_ENTRIES; i++)
+	{
+		const float omega = omegaScale * i;
+		const float sinValue = sinf(omega);
+		const int scaledSin = (int)(sinValue * 8192.0f);
+		LJ_YM2612_sinTable[i] = scaledSin;
 	}
 }
 
@@ -512,10 +535,18 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 			// /2 because multiple is stored as x2 of its value
 			freqDelta = (freqDelta * chan->multiple) >> 1;
 
-			const float theta = (tVal * freqDelta) / (1024.0f * 1024.0f);
+			// The / 2^20 is stored in the tables: 1) sin table is 10-bits, 2) in the fnum table value
+			int omega = (tVal * freqDelta);
+			//const float theta = omega * 2.0f * M_PI;
+			omega = ((omega & ~LJ_YM2612_FREQ_MASK) >> LJ_YM2612_FREQ_BITS);
+			const int theta_clamped = (int)(omega);
+
 			//convert this to a table lookup (1024 entries)
-			const float sinVal = sinf(2.0f * M_PI * theta);
-			int fmLevel = (int)(sinVal * 4096.0f);
+			const int scaledSin = LJ_YM2612_sinTable[theta_clamped & LJ_YM2612_SINTABLE_MASK];
+			int fmLevel = scaledSin;
+			
+			//const float sinVal = sinf(theta_clamped);
+			//int fmLevel = (int)(sinVal * 8192.0f);
 
 			fmLevel = (chan->volume * fmLevel) >> 13;
 
@@ -565,7 +596,6 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 			mixedRight = -8192;
 		}
 
-
 		outputLeft[sample] = mixedLeft;
 		outputRight[sample] = mixedRight;
 
@@ -582,9 +612,9 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		{
 			chan->volume = 0;
 		}
-		if (chan->volume > 4096)
+		if (chan->volume > 8192)
 		{
-			chan->volume = 4096;
+			chan->volume = 8192;
 		}
 	}
 
