@@ -147,7 +147,14 @@ int main(int argc, char* argv[])
 
 	if (test == 0)
 	{
-		vgmFile = LJ_VGM_create(inputFileName);
+		char vgmFileName[1024];
+		strcpy(vgmFileName, inputFileName);
+		const char* const ext = strchr(inputFileName, '.');
+		if (ext == NULL)
+		{
+			strcat(vgmFileName, ".vgm");
+		}
+		vgmFile = LJ_VGM_create(vgmFileName);
 	}
 	else
 	{

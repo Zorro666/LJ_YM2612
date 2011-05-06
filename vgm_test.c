@@ -52,7 +52,7 @@ const char* const getWavOutputName(const char* const inputName)
 {
 	static char wavOutputName[256];
 	strncpy(wavOutputName, inputName, 256); 
-	char* ext = strchr(wavOutputName, '.');
+	char* const ext = strchr(wavOutputName, '.');
 	if (ext != NULL)
 	{
 		ext[0] = '\0';
