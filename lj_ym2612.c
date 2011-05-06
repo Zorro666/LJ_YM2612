@@ -120,6 +120,19 @@ struct LJ_YM2612
 	LJ_YM_UINT8 slotWriteAddr;	
 };
 
+static int LJ_YM2612_CLAMP_VOLUME(const int volume) 
+{
+	if (volume > LJ_YM2612_VOLUME_MAX)
+	{
+		return LJ_YM2612_VOLUME_MAX;
+	}
+	if (volume < -LJ_YM2612_VOLUME_MAX)
+	{
+		return -LJ_YM2612_VOLUME_MAX;
+	}
+	return volume;
+}
+
 static void ym2612_channelComputeOmegaDelta(LJ_YM2612_CHANNEL* channel)
 {
 	const int FNUM = channel->fnum;
@@ -512,6 +525,7 @@ LJ_YM2612_RESULT LJ_YM2612_destroy(LJ_YM2612* const ym2612)
 	return LJ_YM2612_OK;
 }
 
+
 LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles, LJ_YM_INT16* output[2])
 {
 	LJ_YM_INT16* outputLeft = output[0];
@@ -572,14 +586,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				fmLevel = 0;
 			}
 
-			if (fmLevel > LJ_YM2612_VOLUME_MAX)
-			{
-				fmLevel = LJ_YM2612_VOLUME_MAX;
-			}
-			if (fmLevel < -LJ_YM2612_VOLUME_MAX)
-			{
-				fmLevel = -LJ_YM2612_VOLUME_MAX;
-			}
+			fmLevel = LJ_YM2612_CLAMP_VOLUME(fmLevel);
+
 			mixedLeft += fmLevel;
 			mixedRight += fmLevel;
 
@@ -589,22 +597,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		mixedLeft += dacValue;
 		mixedRight += dacValue;
 
-		if (mixedLeft > LJ_YM2612_VOLUME_MAX)
-		{
-			mixedLeft = LJ_YM2612_VOLUME_MAX;
-		}
-		if (mixedLeft < -LJ_YM2612_VOLUME_MAX)
-		{
-			mixedLeft = -LJ_YM2612_VOLUME_MAX;
-		}
-		if (mixedRight > LJ_YM2612_VOLUME_MAX)
-		{
-			mixedRight = LJ_YM2612_VOLUME_MAX;
-		}
-		if (mixedRight < -LJ_YM2612_VOLUME_MAX)
-		{
-			mixedRight = -LJ_YM2612_VOLUME_MAX;
-		}
+		mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft);
+		mixedRight = LJ_YM2612_CLAMP_VOLUME(mixedRight);
 
 		outputLeft[sample] = mixedLeft;
 		outputRight[sample] = mixedRight;
