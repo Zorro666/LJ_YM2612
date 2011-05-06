@@ -362,39 +362,39 @@ static LJ_VGM_UINT8 pureNoteProgram[] = {
 		0x34, 0x01,	// DT1/MUL - channel 0 slot 1
 		0x38, 0x01,	// DT1/MUL - channel 0 slot 2
 		0x3C, 0x01,	// DT1/MUL - channel 0 slot 3
-		0x40, 0x00,	// Total Level - channel 0 slot 0
-		0x44, 0xFF,	// Total Level - channel 0 slot 1
-		0x48, 0xFF,	// Total Level - channel 0 slot 2
-		0x4C, 0xFF,	// Total Level - channel 0 slot 3
-		0x50, 0x5F,	// RS/AR - channel 0 slot 0
-		0x54, 0x99,	// RS/AR - channel 0 slot 1
-		0x58, 0x5F,	// RS/AR - channel 0 slot 2
-		0x5C, 0x94,	// RS/AR - channel 0 slot 3
-		0x60, 0x05,	// AM/D1R - channel 0 slot 0
-		0x64, 0x05,	// AM/D1R - channel 0 slot 1
-		0x68, 0x05,	// AM/D1R - channel 0 slot 2
-		0x6C, 0x07,	// AM/D1R - channel 0 slot 3
-		0x70, 0x02,	// D2R - channel 0 slot 0
-		0x74, 0x02,	// D2R - channel 1 slot 1
-		0x78, 0x02,	// D2R - channel 2 slot 2
-		0x7C, 0x02,	// D2R - channel 3 slot 3
-		0x80, 0x11,	// D1L/RR - channel 0 slot 0
-		0x84, 0x11,	// D1L/RR - channel 0 slot 1
-		0x88, 0x11,	// D1L/RR - channel 0 slot 2
-		0x8C, 0xA6,	// D1L/RR - channel 0 slot 3
+		0x40, 0x00,	// Total Level - channel 0 slot 0 (*1)
+		0x44, 0xFF,	// Total Level - channel 0 slot 1 (*0.000001f)
+		0x48, 0xFF,	// Total Level - channel 0 slot 2 (*0.000001f)
+		0x4C, 0xFF,	// Total Level - channel 0 slot 3 (*0.000001f)
+		0x50, 0x1F,	// RS/AR - channel 0 slot 0
+		0x54, 0x1F,	// RS/AR - channel 0 slot 1
+		0x58, 0x1F,	// RS/AR - channel 0 slot 2
+		0x5C, 0x1F,	// RS/AR - channel 0 slot 3
+		0x60, 0x00,	// AM/D1R - channel 0 slot 0
+		0x64, 0x00,	// AM/D1R - channel 0 slot 1
+		0x68, 0x00,	// AM/D1R - channel 0 slot 2
+		0x6C, 0x00,	// AM/D1R - channel 0 slot 3
+		0x70, 0x00,	// D2R - channel 0 slot 0
+		0x74, 0x00,	// D2R - channel 1 slot 1
+		0x78, 0x00,	// D2R - channel 2 slot 2
+		0x7C, 0x00,	// D2R - channel 3 slot 3
+		0x80, 0x0F,	// D1L/RR - channel 0 slot 0
+		0x84, 0x0F,	// D1L/RR - channel 0 slot 1
+		0x88, 0x0F,	// D1L/RR - channel 0 slot 2
+		0x8C, 0x0F,	// D1L/RR - channel 0 slot 3
 		0x90, 0x00,	// SSG - channel 0 slot 0
 		0x94, 0x00,	// SSG - channel 0 slot 1
 		0x98, 0x00,	// SSG - channel 0 slot 2
 		0x9C, 0x00,	// SSG - channel 0 slot 3
-		0xB0, 0x07,	// Feedback/algorithm
+		0xB0, 0x07,	// Feedback/algorithm (FB=0, ALG=7)
 		0xB4, 0xC0,	// Both speakers on
 		0x28, 0x00,	// Key off
 		0xA4, 0x22,	// Set frequency
-		0xA0, 0x69,	// Set frequency
-		0x28, 0xF0,	// Key on
+		0xA0, 0x69,	// Set frequency (BLOCK=4 FREQ=619)
+		0x28, 0x10,	// Key on (slot 0, channel 0)
 		0x00, 0x00,	// OUTPUT SAMPLES
-		0x28, 0x00,	// Key off
-		0x00, 0x00,	// OUTPUT SAMPLES
+		0x28, 0x00,	// Key off (ALL slots, channel 0)
+		0x00, 0x01,	// OUTPUT SAMPLES
 		0xFF, 0xFF,	// END PROGRAM
 };
 
@@ -424,6 +424,14 @@ LJ_VGM_RESULT getNextTestProgramInstruction(LJ_VGM_INSTRUCTION* const vgmInstruc
 	{
 		vgmInstruction->cmd = LJ_VGM_WAIT_N_SAMPLES;
 		vgmInstruction->waitSamples = 44100;
+		vgmInstruction->waitSamplesData = vgmInstruction->waitSamples;
+		vgmInstruction->cmdCount++;
+		currentInstruction += 2;
+	}
+	else if ((reg == 0x00) && (data == 0x01))
+	{
+		vgmInstruction->cmd = LJ_VGM_WAIT_N_SAMPLES;
+		vgmInstruction->waitSamples = 5000;
 		vgmInstruction->waitSamplesData = vgmInstruction->waitSamples;
 		vgmInstruction->cmdCount++;
 		currentInstruction += 2;
