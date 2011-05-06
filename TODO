@@ -1,19 +1,17 @@
 High Priority:
+YM2612:add macro for clamping volumes
 YM2612:support DETUNE
-TEST_APP:implement the test program from the docs
 TEST_APP:no extension on input then add .vgm
-TEST_APP & YM2612:test -channel=n option
 
 Medium Priority:
 YM2612:get basic amplitude working e.g. AG value
 TEST_APP: VGM debug on/off
-YM2612:add a table for sin
-VGM:expose header info
-VGM:read all of data into memory and read from memory instead of a few bytes at a time
 
 Low Priority:
 VGM:zlib support for compressed files
 VGM:handle the other commands (skip correct amount of data basically)
+VGM:read all of data into memory and read from memory instead of a few bytes at a time
+VGM:expose header info
 
 Future Stuff:
 
@@ -31,9 +29,8 @@ YM2612: error handling for unknown/unsupported register (be nice to make it say 
 YM2612:implement ADSR
 YM2612:implement operators
 
-TEST_APP:have real time graph plotting thingy
-
 Low Priority:
+TEST_APP:have real time graph plotting thingy
 VGM:support the loop settings in the header
 TEST_APP: number of loops on command line
 
