@@ -237,9 +237,9 @@ static void ym2612_channelSetTotalLevel(LJ_YM2612_CHANNEL* const channelPtr, con
 
 	// Total Level = Bits 0-6
 	const int TL = (totalLevel >> 0) & 0x7F;
-	// Each 1 is -0.75dB 
-	const float db = -TL * 0.75f;
-	const float scale = powf(10.0f, db/20.0f);
+	// From the docs each step is -0.75dB = x0.9172759 = 2^(-1/8)
+	const float db = -TL / 8.0f;
+	const float scale = powf(2.0f, db);
 	// totalLevel is stored in 16.16
 	const int TLscale = (int)(scale * (float)(1 << 16));
 	slotPtr->totalLevel = TLscale;
