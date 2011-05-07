@@ -64,7 +64,7 @@ const char* const getWavOutputName(const char* const inputName)
 	{
 		ext[0] = '\0';
 	}
-	strcat(wavOutputName, "2");
+	strcat(wavOutputName, "_2");
 	strcat(wavOutputName, ".wav");
 	return wavOutputName;
 }
