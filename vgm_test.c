@@ -5,9 +5,9 @@
 #include <stdio.h>
 
 // Globals for vgm_test_main.c
-void* device_ym2612_create(const unsigned int flags)
+void* device_ym2612_create(const int clockRate, const int outputSampleRate, const unsigned int flags)
 {
-	LJ_YM2612* ym2612 = LJ_YM2612_create();
+	LJ_YM2612* ym2612 = LJ_YM2612_create(clockRate, outputSampleRate);
 	unsigned int ymFlags = 0x0;
 
 	if (flags & DEVICE_YM2612_DEBUG)

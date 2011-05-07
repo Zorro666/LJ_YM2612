@@ -24,6 +24,7 @@ int main(int argc, char* argv[])
 
 	void* ym2612;
 	unsigned int flags;
+	const int YM2612_DEFAULT_CLOCK_RATE = 7670453;
 
 	LJ_WAV_FILE* wavFile;
 	short* outputs[2];
@@ -125,7 +126,7 @@ int main(int argc, char* argv[])
 		printf("Channel:%d flags:0x%X\n", channel, flags);
 	}
 
-	ym2612 = device_ym2612_create(flags);
+	ym2612 = device_ym2612_create(YM2612_DEFAULT_CLOCK_RATE, OUTPUT_SAMPLE_RATE, flags);
 	if (ym2612 == NULL)
 	{
 		fprintf(stderr,"ERROR: device_ym2612_create() failed\n");

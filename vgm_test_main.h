@@ -11,7 +11,7 @@ enum DVICE_YM2612_FLAGS {
 	DEVICE_YM2612_NEXT_DEBUG_THINGY =	(1<<7),
 };
 
-void* device_ym2612_create(const unsigned int flags);
+void* device_ym2612_create(const int clockRate, const int outputSamplerate, const unsigned int flags);
 int device_ym2612_write(void* const ym2612, const int address, const int data);
 int device_ym2612_generateOutput(void* const ym2612, const int numCycles, short* output[2]);
 int device_ym2612_destroy(void* ym2612);

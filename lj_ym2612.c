@@ -80,7 +80,12 @@ static LJ_YM_UINT32 LJ_YM2612_fnumTable[LJ_YM2612_NUM_FNUM_ENTRIES];
 #define LJ_YM2612_SINTABLE_MASK ((1 << LJ_YM2612_SINTABLE_BITS) - 1)
 static int LJ_YM2612_sinTable[LJ_YM2612_NUM_SINTABLE_ENTRIES];
 
-//DETUNE table = see docs : all multiples of (0.529/10.0)
+//DETUNE table = this are integer freq shifts in the frequency integer scale
+// In the docs (YM2608) : the base scale is (0.052982) this equates to: (8*1000*1000/(1*1024*1024))/144
+// For YM2612 (Genesis) it would equate to: (7670453/(1*1024*1024)/144 => 0.050799
+// 144 is the number clock cycles the chip takes to make 1 sample: 
+// 144 = 6 channels x 4 operators x 8 cycles per operator 
+// 144 = 6 channels x 24 cycles per channel
 static const LJ_YM_UINT8 LJ_YM2612_detuneScaleTable[4*32] = {
 //FD=0 : all 0
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
@@ -145,10 +150,16 @@ struct LJ_YM2612
 	LJ_YM2612_PART part[LJ_YM2612_NUM_PARTS];
 	LJ_YM2612_CHANNEL* channels[LJ_YM2612_NUM_CHANNELS_TOTAL];
 
+	float baseFreqScale;
+
+	LJ_YM_UINT32 clockRate;
+	LJ_YM_UINT32 outputSampleRate;
+
+	LJ_YM_UINT32 flags;
+
 	LJ_YM_INT16 dacValue;
 	LJ_YM_UINT16 dacEnable;
-	LJ_YM_UINT32 flags;
-	float baseFreqScale;
+
 	LJ_YM_UINT8 regAddress;
 	LJ_YM_UINT8 slotWriteAddr;	
 };
@@ -284,8 +295,8 @@ static void ym2612_partClear(LJ_YM2612_PART* const part)
 
 static void ym2612_makeData(LJ_YM2612* const ym2612)
 {
-	const int clock = 7670453;
-	const int rate = 44100;
+	const int clock = ym2612->clockRate;
+	const int rate = ym2612->outputSampleRate;
 	int i;
 
 	// Fvalue = (144 * freq * 2^20 / masterClock) / 2^(B-1)
@@ -368,6 +379,8 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	ym2612->baseFreqScale = 0.0f;
 	ym2612->regAddress = 0x0;	
 	ym2612->slotWriteAddr = 0xFF;	
+	ym2612->clockRate = 0;
+	ym2612->outputSampleRate = 0;
 
 	for (i = 0; i < LJ_YM2612_NUM_PARTS; i++)
 	{
@@ -570,7 +583,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 // 
 ////////////////////////////////////////////////////////////////////
 
-LJ_YM2612* LJ_YM2612_create(void)
+LJ_YM2612* LJ_YM2612_create(const int clockRate, const int outputSampleRate)
 {
 	LJ_YM2612* const ym2612 = malloc(sizeof(LJ_YM2612));
 	if (ym2612 == NULL)
@@ -580,6 +593,10 @@ LJ_YM2612* LJ_YM2612_create(void)
 	}
 
 	ym2612_clear(ym2612);
+
+	ym2612->clockRate = clockRate;
+	ym2612->outputSampleRate = outputSampleRate;
+
 	ym2612_makeData(ym2612);
 
 	return ym2612;

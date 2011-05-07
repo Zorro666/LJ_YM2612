@@ -24,9 +24,11 @@ typedef unsigned char LJ_YM_UINT8;
 typedef unsigned short LJ_YM_UINT16;
 typedef unsigned int LJ_YM_UINT32;
 
+#define LJ_YM2612_DEFAULT_CLOCK_RATE (7670453)
+
 typedef short LJ_YM_INT16;
 
-LJ_YM2612* LJ_YM2612_create(void);
+LJ_YM2612* LJ_YM2612_create(const int clockRate, const int outputSampleRate);
 
 LJ_YM2612_RESULT LJ_YM2612_setFlags(LJ_YM2612* const ym2612, const unsigned int flags);
 
