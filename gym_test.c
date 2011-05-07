@@ -21,9 +21,10 @@ int main(int argc, char* argv[])
 
 	int numCycles = 1;
 	int cmdCount;
+	int outputSampleRate = 44100;
 
 	gymFile = LJ_GYM_create( "test.gym" );
-	ym2612 = LJ_YM2612_create();
+	ym2612 = LJ_YM2612_create(LJ_YM2612_DEFAULT_CLOCK_RATE, outputSampleRate);
 
 	cmdCount = 0;
 	while (result == LJ_GYM_OK)
