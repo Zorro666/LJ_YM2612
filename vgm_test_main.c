@@ -506,14 +506,14 @@ static LJ_VGM_UINT8 noteDTProgram[] = {
 		0x28, 0x05,	// All channels off
 		0x28, 0x06,	// All channels off
 		0x2B, 0x00,	// DAC off
-		0x30, 0x31,	// DT1/MUL - channel 0 slot 0 : DT=0 MUL=1
-		0x34, 0x31,	// DT1/MUL - channel 0 slot 1 : DT=0 MUL=1
-		0x38, 0x31,	// DT1/MUL - channel 0 slot 2 : DT=0 MUL=1
-		0x3C, 0x31,	// DT1/MUL - channel 0 slot 3 : DT=0 MUL=1
-		0x40, 0x00,	// Total Level - channel 0 slot 0 (*1)
-		0x44, 0xFF,	// Total Level - channel 0 slot 1 (*0.000001f)
-		0x48, 0xFF,	// Total Level - channel 0 slot 2 (*0.000001f)
-		0x4C, 0xFF,	// Total Level - channel 0 slot 3 (*0.000001f)
+		0x30, 0x31,	// DT1/MUL - channel 0 slot 0 : DT=3 MUL=1 -> *1
+		0x34, 0x31,	// DT1/MUL - channel 0 slot 1 : DT=3 MUL=1 -> *1
+		0x38, 0x31,	// DT1/MUL - channel 0 slot 2 : DT=3 MUL=1 -> *1
+		0x3C, 0x33,	// DT1/MUL - channel 0 slot 3 : DT=3 MUL=3 -> *3
+		0x40, 0xFF,	// Total Level - channel 0 slot 0 (*0.0)
+		0x44, 0xFF,	// Total Level - channel 0 slot 1 (*0.0)
+		0x48, 0xFF,	// Total Level - channel 0 slot 2 (*0.0)
+		0x4C, 0x00,	// Total Level - channel 0 slot 3 (*1.0)
 		0x50, 0x1F,	// RS/AR - channel 0 slot 0
 		0x54, 0x1F,	// RS/AR - channel 0 slot 1
 		0x58, 0x1F,	// RS/AR - channel 0 slot 2
@@ -539,7 +539,7 @@ static LJ_VGM_UINT8 noteDTProgram[] = {
 		0x28, 0x00,	// Key off
 		0xA4, 0x6A,	// Set frequency (BLOCK=7)
 		0xA0, 0x69,	// Set frequency FREQ=???)
-		0x28, 0x10,	// Key on (slot 0, channel 0)
+		0x28, 0x80,	// Key on (slot 3, channel 0)
 		0x00, 0x00,	// OUTPUT SAMPLES
 		0x28, 0x00,	// Key off (ALL slots, channel 0)
 		0x00, 0x01,	// OUTPUT SAMPLES
