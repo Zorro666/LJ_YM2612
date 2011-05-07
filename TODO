@@ -6,11 +6,10 @@ YM2612:work out how the output scale from one modulator is linked to the next on
 Medium Priority:
 YM2612:implement ADSR
 TEST_APP: VGM debug on/off
-YM2612:implement TL using int maths instead of float, powf
+YM2612:implement TL using int maths and a table 2^(TL/8)
 
 Low Priority:
 YM2612:implement operators
-YM2612:work out what 0.75dB means in base 2 / log 2 terms - where does 0.75dB come from - why is it 0.75dB
 
 Future Stuff:
 
