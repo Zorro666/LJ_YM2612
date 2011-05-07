@@ -86,6 +86,7 @@ static int LJ_YM2612_sinTable[LJ_YM2612_NUM_SINTABLE_ENTRIES];
 // 144 is the number clock cycles the chip takes to make 1 sample: 
 // 144 = 6 channels x 4 operators x 8 cycles per operator 
 // 144 = 6 channels x 24 cycles per channel
+// 144 = also the prescaler: YM2612 is 1/6 : one sample for each 24 FM clocks
 static const LJ_YM_UINT8 LJ_YM2612_detuneScaleTable[4*32] = {
 //FD=0 : all 0
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
@@ -302,7 +303,6 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 	// Fvalue = (144 * freq * 2^20 / masterClock) / 2^(B-1)
 	// e.g. D = 293.7Hz F = 692.8 B=4
 	// freq = F * 2^(B-1) * baseFreqScale / ( 2^20 )
-	// 144 = is the prescaler: YM2612 is 1/6 : one sample for each 24 FM clocks
 	// freqScale = (chipClock/sampleRateOutput) / ( 144 );
 	ym2612->baseFreqScale = ((float)clock / (float)rate ) / 144.0f;
 
