@@ -52,10 +52,13 @@ typedef struct LJ_YM2612_SLOT LJ_YM2612_SLOT;
 #define DAC_SHIFT (6)
 
 enum LJ_YM2612_REGISTERS {
+		LJ_LFO_EN_LFO_FREQ = 0x22,
+		LJ_CH2_MODE_TIMER_CONTROL = 0x27,
+		LJ_KEY_ONOFF = 0x28,
 		LJ_DAC = 0x2A,
 		LJ_DAC_EN = 0x2B,
-		LJ_KEY_ONOFF = 0x28,
 		LJ_DETUNE_MULT = 0x30,
+		LJ_TOTAL_LEVEL = 0x40,
 		LJ_FREQLSB = 0xA0,
 		LJ_BLOCK_FREQMSB = 0xA4,
 		//LJ_FEEDBACK_ALGO = 0xB0,
@@ -126,6 +129,7 @@ struct LJ_YM2612_SLOT
 	int omega;
 	LJ_YM_UINT32 omegaDelta;
 	LJ_YM_UINT32 detuneDelta;
+	LJ_YM_UINT32 totalLevel; // 16.16 format
 
 	int volume;
 	int volumeDelta;
@@ -173,6 +177,10 @@ struct LJ_YM2612
 
 	LJ_YM_UINT8 regAddress;
 	LJ_YM_UINT8 slotWriteAddr;	
+
+	LJ_YM_UINT8 ch2Mode;
+	LJ_YM_UINT8 lfoEnable;
+	LJ_YM_UINT8 lfoFreq;
 };
 
 static int LJ_YM2612_CLAMP_VOLUME(const int volume) 
@@ -188,21 +196,21 @@ static int LJ_YM2612_CLAMP_VOLUME(const int volume)
 	return volume;
 }
 
-static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slot, const LJ_YM2612_CHANNEL* const channelPtr)
+static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const LJ_YM2612_CHANNEL* const channelPtr)
 {
-	const int FNUM = slot->fnum;
-	const int B = slot->block;
-	const int MULTIPLE = slot->multiple;
+	const int FNUM = slotPtr->fnum;
+	const int B = slotPtr->block;
+	const int MULTIPLE = slotPtr->multiple;
 
 	// F * 2^(B-1)
 	// Could multiply the fnumTable up by (1<<6) then change this to fnumTable >> (7-B)
 	int omegaDelta = (LJ_YM2612_fnumTable[FNUM] << B) >> 1;
 
 	//detuneDelta from keycode and detune value
-	const int keycode = slot->keycode;
-	const int detune = slot->detune;
+	const int keycode = slotPtr->keycode;
+	const int detune = slotPtr->detune;
 	int detuneTableValue = LJ_YM2612_detuneTable[detune*32+keycode];
-	slot->detuneDelta = detuneTableValue;
+	slotPtr->detuneDelta = detuneTableValue;
 	if (channelPtr->flags & LJ_YM2612_DEBUG)
 	{
 		printf("detuneDelta %d detune:%d FD:%d keycode:%d\n", detuneTableValue, detune, (detune&0x3), keycode);
@@ -220,10 +228,26 @@ static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slot, const LJ_YM
 	// /2 because multiple is stored as x2 of its value
 	omegaDelta = (omegaDelta * MULTIPLE) >> 1;
 
-	slot->omegaDelta = omegaDelta;
+	slotPtr->omegaDelta = omegaDelta;
 }
 
-static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, int slot, LJ_YM_UINT8 detuneMult)
+static void ym2612_channelSetTotalLevel(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 totalLevel)
+{
+	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
+
+	// Total Level = Bits 0-6
+	const int TL = (totalLevel >> 0) & 0x7F;
+	// Each 1 is -0.75dB 
+	const float db = -TL * 0.75f;
+	const float scale = powf(10.0f, db/20.0f);
+	// totalLevel is stored in 16.16
+	const int TLscale = (int)(scale * (float)(1 << 16));
+	slotPtr->totalLevel = TLscale;
+		printf("SetTotalLevel channel:%d slot:%d TL:%d db:%f scale:%f TLscale:%d\n", 
+				   channelPtr->id, slot, TL, db, scale, TLscale);
+}
+
+static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 detuneMult)
 {
 	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
@@ -242,7 +266,7 @@ static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, int
 	}
 }
 
-static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, LJ_YM_UINT8 fnumLSB)
+static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 fnumLSB)
 {
 	int slot;
 	for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
@@ -275,7 +299,7 @@ static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, LJ_Y
 	}
 }
 
-static void ym2612_channelSetBlockFnumMSB(LJ_YM2612_CHANNEL* const channelPtr, LJ_YM_UINT8 data)
+static void ym2612_channelSetBlockFnumMSB(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 data)
 {
 	int slot;
 	for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
@@ -286,7 +310,7 @@ static void ym2612_channelSetBlockFnumMSB(LJ_YM2612_CHANNEL* const channelPtr, L
 	}
 }
 
-static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, LJ_YM_UINT8 slotOnOff)
+static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 slotOnOff)
 {
 	int slot;
 	int slotMask = 0x1;
@@ -299,11 +323,11 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, LJ_YM_UI
 		{
 			slotPtr->omega = 0;
 			slotPtr->volume = 0;
-			slotPtr->volumeDelta = +1024;
+			slotPtr->volumeDelta = +4096;
 		}
 		else
 		{
-			slotPtr->volumeDelta = -1024;
+			slotPtr->volumeDelta = -4096;
 		}
 		slotMask = slotMask << 1;
 	}
@@ -435,6 +459,9 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	ym2612->slotWriteAddr = 0xFF;	
 	ym2612->clockRate = 0;
 	ym2612->outputSampleRate = 0;
+	ym2612->ch2Mode = 0;
+	ym2612->lfoEnable = 0;
+	ym2612->lfoFreq = 0;
 
 	for (i = 0; i < LJ_YM2612_NUM_PARTS; i++)
 	{
@@ -476,6 +503,15 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 
 	LJ_YM2612_validRegisters[LJ_DETUNE_MULT] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_DETUNE_MULT] = "DETUNE_MULT";
+
+	LJ_YM2612_validRegisters[LJ_LFO_EN_LFO_FREQ] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_LFO_EN_LFO_FREQ] = "LFO_END_LFO_FREQ";
+
+	LJ_YM2612_validRegisters[LJ_CH2_MODE_TIMER_CONTROL] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_CH2_MODE_TIMER_CONTROL] = "CH2_MODE_TIMER_CONTROL";
+
+	LJ_YM2612_validRegisters[LJ_TOTAL_LEVEL] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_TOTAL_LEVEL] = "TOTAL_LEVEL";
 
 	//LJ_YM2612_validRegisters[LJ_FEEDBACK_ALGO] = 1;
 	//LJ_YM2612_REGISTER_NAMES[LJ_FEEDBACK_ALGO] = "FEEDBACK_ALGO";
@@ -562,9 +598,24 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 		printf( "ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
 	}
 
-	if (reg == LJ_DAC_EN)
+	if (reg == LJ_LFO_EN_LFO_FREQ)
 	{
-		// 0x2A DAC
+		// 0x22 Bit 3 = LFO enable, Bit 0-2 = LFO frequency
+		const int lfoEnable = (data >> 3) & 0x1;
+		const int lfoFreq = (data >> 0) & 0x7;
+		ym2612->lfoEnable = lfoEnable;
+		ym2612->lfoFreq = lfoFreq;
+	}
+	if (reg == LJ_CH2_MODE_TIMER_CONTROL)
+	{
+		// 0x27 Ch2 Mode = Bits 6-7, 
+		// 0x27 Reset B = Bit 5, Reset A = Bit 4, Enable B = Bit 3, Enable A = Bit 2, Start B = Bit 1, Start A = Bit 0
+		ym2612->ch2Mode = (data >> 6) & 0x3;
+		//ym2612_setTimers(data & 0x1F)
+	}
+	else if (reg == LJ_DAC_EN)
+	{
+		// 0x2A DAC Bits 0-7
 		ym2612->dacEnable = 0xFFFF * ((data & 0x80) >> 7);
 	}
 	else if (reg == LJ_DAC)
@@ -598,6 +649,15 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			{
 				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d data:0x%X\n", part, channel, slot, data);
 			}
+		}
+		else if (regParameter == LJ_TOTAL_LEVEL)
+		{
+			ym2612_channelSetTotalLevel(channelPtr, slot, data);
+			if (ym2612->flags & LJ_YM2612_DEBUG)
+			{
+				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d data:0x%X\n", part, channel, slot, data);
+			}
+			printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d data:0x%X\n", part, channel, slot, data);
 		}
 	}
 	else if ((reg >= 0xA0) && (reg <= 0xB6))
@@ -749,8 +809,11 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				slotOutput = (slotPtr->volume * slotOutput) >> LJ_YM2612_SINTABLE_SCALE_BITS;
 
 				slotOutput = LJ_YM2612_CLAMP_VOLUME(slotOutput);
+
+				// Scale by totalLevel (in 16.16. format) - always < 1.0f
+				slotOutput = (slotOutput * slotPtr->totalLevel) >> 16;
+
 				channelOutput += slotOutput;
-				channelOutput = LJ_YM2612_CLAMP_VOLUME(channelOutput);
 				if (ym2612->flags & LJ_YM2612_DEBUG)
 				{
 					if (slotOutput != 0)
