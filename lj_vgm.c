@@ -230,7 +230,7 @@ static void vgm_init(LJ_VGM_FILE* const vgmFile)
 {
 	int i;
 
-	for (i=0; i<LJ_VGM_NUM_INSTRUCTIONS; i++)
+	for (i = 0; i < LJ_VGM_NUM_INSTRUCTIONS; i++)
 	{
 		LJ_VGM_validInstruction[i] = 0;
 		LJ_VGM_instruction[i]= "UNKNOWN";
@@ -253,14 +253,14 @@ static void vgm_init(LJ_VGM_FILE* const vgmFile)
 	LJ_VGM_instruction[LJ_VGM_DATA_SEEK_OFFSET]= "DATA_SEEK_OFFSET";
 
 	//LJ_VGM_YM2612_WRITE_DATA = 0x80 -> 0x8F,
-	for (i=0; i<16; i++)
+	for (i = 0; i < 16; i++)
 	{
 		LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_DATA+i] = 1;
 		LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_DATA+i]= "YM2612_WRITE_DATA";
 	}
 
 	//LJ_VGM_WAIT_N_SAMPLES = 0x70 -> 0x7F,
-	for (i=0; i<16; i++)
+	for (i = 0; i < 16; i++)
 	{
 		LJ_VGM_validInstruction[LJ_VGM_WAIT_N_SAMPLES+i] = 1;
 		LJ_VGM_instruction[LJ_VGM_WAIT_N_SAMPLES+i]= "WAIT_N_SAMPLES";
