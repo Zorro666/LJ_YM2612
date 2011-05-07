@@ -80,22 +80,55 @@ static LJ_YM_UINT32 LJ_YM2612_fnumTable[LJ_YM2612_NUM_FNUM_ENTRIES];
 #define LJ_YM2612_SINTABLE_MASK ((1 << LJ_YM2612_SINTABLE_BITS) - 1)
 static int LJ_YM2612_sinTable[LJ_YM2612_NUM_SINTABLE_ENTRIES];
 
+//DETUNE table = see docs : all multiples of (0.529/10.0)
+static const LJ_YM_UINT8 LJ_YM2612_detuneScaleTable[4*32] = {
+//FD=0 : all 0
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+//FD=1
+0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 
+2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 7, 8, 8, 8, 8, 
+//FD=2
+1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 
+5, 6, 6, 7, 8, 8, 9,10,11,12,13,14,16,16,16,16, 
+//FD=3
+2, 2, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 7, 
+8, 8, 9,10,11,12,13,14,16,17,19,20,22,22,22,22, 
+};
+
+//Convert detuneScaleTable into a frequency shift (+ and -)
+static int LJ_YM2612_detuneTable[8*32];
+
+// fnum -> keycode table for computing N3 & N4
+// N4 = Fnum Bit 11 
+// N3 = Fnum Bit 11 * (Bit 10 | Bit 9 | Bit 8) | !Bit 11 * Bit 10 * Bit 9 * Bit 8
+// Table = (N4 << 1) | N3
+static const LJ_YM_UINT8 LJ_YM2612_fnumKeycodeTable[16] = {
+0, 0, 0, 0, 0, 0, 0, 1,
+2, 3, 3, 3, 3, 3, 3, 3,
+};
+
+
 #define LJ_YM2612_VOLUME_MAX (8192)
 
 struct LJ_YM2612_CHANNEL
 {
+	//Per Slot
 	LJ_YM_UINT32 fnum;
 	LJ_YM_UINT32 block;
-	LJ_YM_INT16 volume;
-	LJ_YM_INT16 volumeDelta;
-
-	int flags;
 	LJ_YM_UINT32 omega;
 	LJ_YM_UINT32 omegaDelta;
+	LJ_YM_UINT32 detuneDelta;
+
+	LJ_YM_INT16 volume;
+	LJ_YM_INT16 volumeDelta;
 
 	LJ_YM_UINT8 block_fnumMSB;
 	LJ_YM_UINT8 detune;
 	LJ_YM_UINT8 multiple;
+	LJ_YM_UINT8 keycode;
+
+	int flags;
 
 	LJ_YM_UINT8 id;
 };
@@ -144,10 +177,23 @@ static void ym2612_channelComputeOmegaDelta(LJ_YM2612_CHANNEL* channel)
 	// Could multiply the fnumTable up by (1<<6) then change this to fnumTable >> (7-B)
 	int omegaDelta = (LJ_YM2612_fnumTable[FNUM] << B) >> 1;
 
+	//detuneDelta from keycode and detune value
+	const int keycode = channel->keycode;
+	const int detune = channel->detune;
+	int detuneTableValue = LJ_YM2612_detuneTable[detune*32+keycode];
+	channel->detuneDelta = detuneTableValue;
+	if (channel->flags & LJ_YM2612_DEBUG)
+	{
+		printf("detuneDelta %d detune:%d FD:%d keycode:%d\n", detuneTableValue, detune, (detune&0x3), keycode);
+	}
+	
+	omegaDelta += detuneTableValue;
+
 	// /2 because multiple is stored as x2 of its value
 	omegaDelta = (omegaDelta * MULTIPLE) >> 1;
 
 	channel->omegaDelta = omegaDelta;
+
 }
 
 static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* channel, int slot, LJ_YM_UINT8 detuneMult)
@@ -173,16 +219,22 @@ static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* channel, LJ_YM_UINT8 f
 	const int block = (channel->block_fnumMSB >> 3) & 0x7;
 	const int fnumMSB = (channel->block_fnumMSB >> 0) & 0x3;
 	const int fnum = (fnumMSB << 8) + (fnumLSB & 0xFF);
+	// keycode = (block << 2) | (N4 << 1) | (N3 << 0)
+	// N4 = Fnum Bit 11 
+	// N3 = Fnum Bit 11 * (Bit 10 | Bit 9 | Bit 8) | !Bit 11 * Bit 10 * Bit 9 * Bit 8
+	const int keycode = (block << 2) | LJ_YM2612_fnumKeycodeTable[fnum>>7];
+
 	channel->block = block;
 	channel->fnum = fnum;
 	channel->omega = 0;
+	channel->keycode = keycode;
 
 	ym2612_channelComputeOmegaDelta(channel);
 
 	if (channel->flags & LJ_YM2612_DEBUG)
 	{
-		printf("SetFreqBlock channel:%d block:%d fnum:%d block_fnumMSB:0x%X fnumLSB:0x%X\n", 
-				channel->id, block, fnum, channel->block_fnumMSB,fnumLSB);
+		printf("SetFreqBlock channel:%d block:%d fnum:%d 0x%X keycode:%d block_fnumMSB:0x%X fnumLSB:0x%X\n", 
+				channel->id, block, fnum, fnum, keycode, channel->block_fnumMSB, fnumLSB);
 	}
 }
 static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channel, LJ_YM_UINT8 slotOnOff)
@@ -196,7 +248,7 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channel, LJ_YM_UINT8
 	}
 	else
 	{
-		channel->volumeDelta = -1;
+		channel->volumeDelta = -1024;
 	}
 }
 
@@ -218,11 +270,11 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channel)
 static void ym2612_partClear(LJ_YM2612_PART* const part)
 {
 	int i;
-	for (i=0; i<LJ_YM2612_NUM_REGISTERS; i++)
+	for (i = 0; i < LJ_YM2612_NUM_REGISTERS; i++)
 	{
 		part->reg[i] = 0x0;
 	}
-	for (i=0; i<LJ_YM2612_NUM_CHANNELS_PER_PART; i++)
+	for (i = 0; i < LJ_YM2612_NUM_CHANNELS_PER_PART; i++)
 	{
 		LJ_YM2612_CHANNEL* const channel = &(part->channel[i]);
 		channel->id = part->id*LJ_YM2612_NUM_CHANNELS_PER_PART+i;
@@ -239,6 +291,7 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 	// Fvalue = (144 * freq * 2^20 / masterClock) / 2^(B-1)
 	// e.g. D = 293.7Hz F = 692.8 B=4
 	// freq = F * 2^(B-1) * baseFreqScale / ( 2^20 )
+	// 144 = is the prescaler: YM2612 is 1/6 : one sample for each 24 FM clocks
 	// freqScale = (chipClock/sampleRateOutput) / ( 144 );
 	ym2612->baseFreqScale = ((float)clock / (float)rate ) / 144.0f;
 
@@ -246,7 +299,7 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 	{
 		float freq = ym2612->baseFreqScale * i;
 		// Include the sin table size in the (1/2^20)
-		freq = freq * (1 << (LJ_YM2612_FREQ_BITS - (20 - LJ_YM2612_SINTABLE_BITS)));
+		freq = freq * (float)(1 << (LJ_YM2612_FREQ_BITS - (20 - LJ_YM2612_SINTABLE_BITS)));
 
 		LJ_YM_UINT32 intFreq = (LJ_YM_UINT32)(freq);
 		LJ_YM2612_fnumTable[i] = intFreq;
@@ -260,6 +313,49 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 		const int scaledSin = (int)(sinValue * (float)(1 << LJ_YM2612_SINTABLE_SCALE_BITS));
 		LJ_YM2612_sinTable[i] = scaledSin;
 	}
+	//DT1 = -3 -> 3
+#if 0 
+	for (i = 0; i < 4; i++)
+	{
+		int keycode;
+		for (keycode = 0; keycode < 32; keycode++)
+		{
+			int detuneScaleTableValue = LJ_YM2612_detuneScaleTable[i*32+keycode];
+			float detuneMultiple = (float)detuneScaleTableValue * (0.529f/10.0f);
+			int detFPValue = detuneScaleTableValue * (( 529 * (1<<16) / 10000 ));
+			float fpValue = (float)detFPValue / (float)(1<<16);
+			printf("detuneMultiple FD=%d keycode=%d %f (%d) %f\n", i, keycode, detuneMultiple, detuneScaleTableValue,fpValue);
+		}
+	}
+#endif // #if 0 
+	for (i = 0; i < 4; i++)
+	{
+		int keycode;
+		for (keycode = 0; keycode < 32; keycode++)
+		{
+			const int detuneScaleTableValue = LJ_YM2612_detuneScaleTable[i*32+keycode];
+			//This should be including baseFreqScale to put in the same units as fnumTable - so it can be additive to it
+			const float detuneRate = ym2612->baseFreqScale * detuneScaleTableValue;
+			// Include the sin table size in the (1/2^20)
+			const float detuneRateTableValue = detuneRate * (float)(1 << (LJ_YM2612_FREQ_BITS - (20 - LJ_YM2612_SINTABLE_BITS)));
+			
+			int detuneTableValue = (int)(detuneRateTableValue);
+			LJ_YM2612_detuneTable[i*32+keycode] = detuneTableValue;
+			LJ_YM2612_detuneTable[(i+4)*32+keycode] = -detuneTableValue;
+		}
+	}
+/*
+	for (i = 3; i < 4; i++)
+	{
+		int keycode;
+		for (keycode = 0; keycode < 32; keycode++)
+		{
+			const int detuneTable = LJ_YM2612_detuneTable[i*32+keycode];
+			const int detuneScaleTableValue = LJ_YM2612_detuneScaleTable[i*32+keycode];
+			printf("detuneTable FD=%d keycode=%d %d (%d)\n", i, keycode, detuneTable, detuneScaleTableValue);
+		}
+	}
+*/
 }
 
 static void ym2612_clear(LJ_YM2612* const ym2612)
@@ -273,23 +369,23 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	ym2612->regAddress = 0x0;	
 	ym2612->slotWriteAddr = 0xFF;	
 
-	for (i=0; i<LJ_YM2612_NUM_PARTS; i++)
+	for (i = 0; i < LJ_YM2612_NUM_PARTS; i++)
 	{
 		LJ_YM2612_PART* const part = &(ym2612->part[i]);
 		part->id = i;
 		ym2612_partClear(part);
 	}
-	for (i=0; i<LJ_YM2612_NUM_PARTS; i++)
+	for (i = 0; i < LJ_YM2612_NUM_PARTS; i++)
 	{
 		int channel;
-		for (channel=0; channel<LJ_YM2612_NUM_CHANNELS_PER_PART; channel++)
+		for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_PER_PART; channel++)
 		{
 			const int chan = (i * LJ_YM2612_NUM_CHANNELS_PER_PART) + channel;
 			LJ_YM2612_CHANNEL* const chanPtr = &ym2612->part[i].channel[channel];
 			ym2612->channels[chan] = chanPtr;
 		}
 	}
-	for (i=0; i<LJ_YM2612_NUM_REGISTERS; i++)
+	for (i = 0; i < LJ_YM2612_NUM_REGISTERS; i++)
 	{
 		LJ_YM2612_validRegisters[i] = 0;
 		LJ_YM2612_REGISTER_NAMES[i] = "UNKNOWN";
@@ -321,7 +417,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	//LJ_YM2612_REGISTER_NAMES[LJ_LR_AMS_PMS] = "LR_AMS_PMS";
 
 	//For parameters mark all the associated registers as valid
-	for (i=0; i<LJ_YM2612_NUM_REGISTERS; i++)
+	for (i = 0; i < LJ_YM2612_NUM_REGISTERS; i++)
 	{
 		if (LJ_YM2612_validRegisters[i] == 1)
 		{
@@ -339,7 +435,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 				//0x30-0x90 = settings per channel per slot (channel = bottom 2 bits of reg, slot = reg / 4)
 				int regBase = (i >> 4) << 4;
 				int j;
-				for (j=0; j<16; j++)
+				for (j = 0; j < 16; j++)
 				{
 					const char* const regBaseName = LJ_YM2612_REGISTER_NAMES[regBase];
 					LJ_YM2612_validRegisters[regBase+j] = 1;
@@ -351,7 +447,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 				//0xA0-0xB0 = settings per channel (channel = bottom 2 bits of reg)
 				int regBase = (i >> 2) << 2;
 				int j;
-				for (j=0; j<3; j++)
+				for (j = 0; j < 3; j++)
 				{
 					const char* const regBaseName = LJ_YM2612_REGISTER_NAMES[regBase];
 					LJ_YM2612_validRegisters[regBase+j] = 1;
@@ -557,7 +653,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 	//For each cycle
 	//Loop over channels updating them, mix them, then output them into the buffer
-	for (sample=0; sample < numCycles; sample++)
+	for (sample = 0; sample < numCycles; sample++)
 	{
 		LJ_YM_INT16 mixedLeft = 0;
 		LJ_YM_INT16 mixedRight = 0;
