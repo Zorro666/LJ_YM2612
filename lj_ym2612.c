@@ -141,8 +141,8 @@ struct LJ_YM2612_CHANNEL
 	LJ_YM2612_SLOT slot[LJ_YM2612_NUM_SLOTS_PER_CHANNEL];
 
 	// These should go
-	int volume;
-	int volumeDelta;
+	int volumeTotal;
+	int volumeTotalDelta;
 
 	int flags;
 
@@ -188,7 +188,7 @@ static int LJ_YM2612_CLAMP_VOLUME(const int volume)
 	return volume;
 }
 
-static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slot, const LJ_YM2612_CHANNEL* const channel)
+static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slot, const LJ_YM2612_CHANNEL* const channelPtr)
 {
 	const int FNUM = slot->fnum;
 	const int B = slot->block;
@@ -203,23 +203,29 @@ static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slot, const LJ_YM
 	const int detune = slot->detune;
 	int detuneTableValue = LJ_YM2612_detuneTable[detune*32+keycode];
 	slot->detuneDelta = detuneTableValue;
-	if (channel->flags & LJ_YM2612_DEBUG)
+	if (channelPtr->flags & LJ_YM2612_DEBUG)
 	{
 		printf("detuneDelta %d detune:%d FD:%d keycode:%d\n", detuneTableValue, detune, (detune&0x3), keycode);
 	}
 	
 	omegaDelta += detuneTableValue;
 
+	if (omegaDelta < 0)
+	{
+		//Wrap around
+		//omegaDelta += FNUM_MAX;
+		omegaDelta += 1024;
+	}
+
 	// /2 because multiple is stored as x2 of its value
 	omegaDelta = (omegaDelta * MULTIPLE) >> 1;
 
 	slot->omegaDelta = omegaDelta;
-
 }
 
-static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channel, int slot, LJ_YM_UINT8 detuneMult)
+static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, int slot, LJ_YM_UINT8 detuneMult)
 {
-	LJ_YM2612_SLOT* const slotPtr = &(channel->slot[slot]);
+	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
 	// Detune = Bits 4-6, Multiple = Bits 0-3
 	const int detune = (detuneMult >> 4) & 0x7;
@@ -229,19 +235,19 @@ static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channel, int sl
 	//multiple = xN except N=0 then it is x1/2 store it as x2
 	slotPtr->multiple = multiple ? (multiple << 1) : 1;
 
-	ym2612_slotComputeOmegaDelta(slotPtr, channel);
-	if (channel->flags & LJ_YM2612_DEBUG)
+	ym2612_slotComputeOmegaDelta(slotPtr, channelPtr);
+	if (channelPtr->flags & LJ_YM2612_DEBUG)
 	{
-		printf("SetDetuneMult channel:%d slot:%d detune:%d mult:%d\n", channel->id, slot, detune, multiple);
+		printf("SetDetuneMult channel:%d slot:%d detune:%d mult:%d\n", channelPtr->id, slot, detune, multiple);
 	}
 }
 
-static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channel, LJ_YM_UINT8 fnumLSB)
+static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, LJ_YM_UINT8 fnumLSB)
 {
 	int slot;
 	for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 	{
-		LJ_YM2612_SLOT* const slotPtr = &(channel->slot[slot]);
+		LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
 		const LJ_YM_UINT8 block_fnumMSB = slotPtr->block_fnumMSB;
 		//
@@ -259,46 +265,47 @@ static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channel, LJ_YM_U
 		slotPtr->omega = 0;
 		slotPtr->keycode = keycode;
 
-		ym2612_slotComputeOmegaDelta(slotPtr, channel);
+		ym2612_slotComputeOmegaDelta(slotPtr, channelPtr);
 
-		if (channel->flags & LJ_YM2612_DEBUG)
+		if (channelPtr->flags & LJ_YM2612_DEBUG)
 		{
 			printf("SetFreqBlock channel:%d slot:%d block:%d fnum:%d 0x%X keycode:%d block_fnumMSB:0x%X fnumLSB:0x%X\n", 
-					channel->id, slot, block, fnum, fnum, keycode, block_fnumMSB, fnumLSB);
+					channelPtr->id, slot, block, fnum, fnum, keycode, block_fnumMSB, fnumLSB);
 		}
 	}
 }
 
-static void ym2612_channelSetBlockFnumMSB(LJ_YM2612_CHANNEL* const channel, LJ_YM_UINT8 data)
+static void ym2612_channelSetBlockFnumMSB(LJ_YM2612_CHANNEL* const channelPtr, LJ_YM_UINT8 data)
 {
 	int slot;
 	for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 	{
-		LJ_YM2612_SLOT* const slotPtr = &(channel->slot[slot]);
+		LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
 		slotPtr->block_fnumMSB = data;
 	}
 }
 
-static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channel, LJ_YM_UINT8 slotOnOff)
+static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, LJ_YM_UINT8 slotOnOff)
 {
-	if (slotOnOff & 0xF)
+	int slot;
+	int slotMask = 0x1;
+	//Set the start of wave
+	for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 	{
-		int slot;
+		LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
-		channel->volume = 0;
-		channel->volumeDelta = +1024;
-	
-		//Set the start of wave
-		for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
+		if (slotOnOff & slotMask)
 		{
-			LJ_YM2612_SLOT* const slotPtr = &(channel->slot[slot]);
 			slotPtr->omega = 0;
+			slotPtr->volume = 0;
+			slotPtr->volumeDelta = +1024;
 		}
-	}
-	else
-	{
-		channel->volumeDelta = -1024;
+		else
+		{
+			slotPtr->volumeDelta = -1024;
+		}
+		slotMask = slotMask << 1;
 	}
 }
 
@@ -315,15 +322,15 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slot)
 	slot->omegaDelta = 0;
 }
 
-static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channel)
+static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
 {
 	int i;
 	for (i = 0; i < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; i++)
 	{
-		LJ_YM2612_SLOT* const slot = &(channel->slot[i]);
+		LJ_YM2612_SLOT* const slot = &(channelPtr->slot[i]);
 		ym2612_slotClear(slot);
 	}
-	channel->flags = 0;
+	channelPtr->flags = 0;
 }
 
 static void ym2612_partClear(LJ_YM2612_PART* const part)
@@ -335,9 +342,9 @@ static void ym2612_partClear(LJ_YM2612_PART* const part)
 	}
 	for (i = 0; i < LJ_YM2612_NUM_CHANNELS_PER_PART; i++)
 	{
-		LJ_YM2612_CHANNEL* const channel = &(part->channel[i]);
-		channel->id = part->id*LJ_YM2612_NUM_CHANNELS_PER_PART+i;
-		ym2612_channelClear(channel);
+		LJ_YM2612_CHANNEL* const channelPtr = &(part->channel[i]);
+		channelPtr->id = part->id*LJ_YM2612_NUM_CHANNELS_PER_PART+i;
+		ym2612_channelClear(channelPtr);
 	}
 }
 
@@ -692,7 +699,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	LJ_YM_INT16* outputRight = output[1];
 	LJ_YM_INT16 dacValue = 0;
 	int sample;
+
 	int channel;
+	int slot;
+
 	int outputChannelMask = 0xFF;
 	int channelMask = 0x1;
 
@@ -725,32 +735,45 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_TOTAL; channel++)
 		{
 			LJ_YM2612_CHANNEL* const channelPtr = ym2612->channels[channel];
-			LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[0]);
-
-			const int OMEGA = slotPtr->omega;
-			const int phi = ((OMEGA & ~LJ_YM2612_FREQ_MASK) >> LJ_YM2612_FREQ_BITS);
-
-			const int scaledSin = LJ_YM2612_sinTable[phi & LJ_YM2612_SINTABLE_MASK];
-
-			int fmLevel = scaledSin;
-			fmLevel = (channelPtr->volume * fmLevel) >> LJ_YM2612_SINTABLE_SCALE_BITS;
-
-			if (ym2612->flags & LJ_YM2612_DEBUG)
+			int channelOutput = 0;
+			for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 			{
-				if (fmLevel != 0)
+				LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
+
+				const int OMEGA = slotPtr->omega;
+				const int phi = ((OMEGA & ~LJ_YM2612_FREQ_MASK) >> LJ_YM2612_FREQ_BITS);
+
+				const int scaledSin = LJ_YM2612_sinTable[phi & LJ_YM2612_SINTABLE_MASK];
+
+				int slotOutput = scaledSin;
+				slotOutput = (slotPtr->volume * slotOutput) >> LJ_YM2612_SINTABLE_SCALE_BITS;
+
+				slotOutput = LJ_YM2612_CLAMP_VOLUME(slotOutput);
+				channelOutput += slotOutput;
+				channelOutput = LJ_YM2612_CLAMP_VOLUME(channelOutput);
+				if (ym2612->flags & LJ_YM2612_DEBUG)
 				{
-					printf("Channel:%d fmLevel:%d\n", channelPtr->id, fmLevel);
+					if (slotOutput != 0)
+					{
+						printf("Channel:%d Slot:%d slotOutput:%d\n", channelPtr->id, slot, slotOutput);
+					}
 				}
 			}
 			if ((channelMask & outputChannelMask) == 0)
 			{
-				fmLevel = 0;
+				channelOutput = 0;
 			}
 
-			fmLevel = LJ_YM2612_CLAMP_VOLUME(fmLevel);
+			if (ym2612->flags & LJ_YM2612_DEBUG)
+			{
+				if (channelOutput != 0)
+				{
+					printf("Channel:%d channelOutput:%d\n", channelPtr->id, channelOutput);
+				}
+			}
 
-			mixedLeft += fmLevel;
-			mixedRight += fmLevel;
+			mixedLeft += channelOutput;
+			mixedRight += channelOutput;
 
 			channelMask = (channelMask << 1);
 		}
@@ -769,18 +792,24 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_TOTAL; channel++)
 	{
 		LJ_YM2612_CHANNEL* const channelPtr = ym2612->channels[channel];
-		LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[0]);
+		int slot;
 
-		channelPtr->volume += channelPtr->volumeDelta;
-		if (channelPtr->volume < 0)
+		for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 		{
-			channelPtr->volume = 0;
+			LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
+
+			slotPtr->omega += slotPtr->omegaDelta;
+			slotPtr->volume += slotPtr->volumeDelta;
+
+			if (slotPtr->volume < 0)
+			{
+				slotPtr->volume = 0;
+			}
+			if (slotPtr->volume > LJ_YM2612_VOLUME_MAX)
+			{
+				slotPtr->volume = LJ_YM2612_VOLUME_MAX;
+			}
 		}
-		if (channelPtr->volume > LJ_YM2612_VOLUME_MAX)
-		{
-			channelPtr->volume = LJ_YM2612_VOLUME_MAX;
-		}
-		slotPtr->omega += slotPtr->omegaDelta;
 	}
 
 	return LJ_YM2612_OK;
