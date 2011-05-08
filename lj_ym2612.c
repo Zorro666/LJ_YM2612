@@ -68,22 +68,32 @@ enum LJ_YM2612_REGISTERS {
 static const char* LJ_YM2612_REGISTER_NAMES[LJ_YM2612_NUM_REGISTERS];
 static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 
-//FNUM = 11-bit table
-#define LJ_YM2612_FNUM_BITS (11)
-#define LJ_YM2612_NUM_FNUM_ENTRIES (1 << LJ_YM2612_FNUM_BITS)
-#define LJ_YM2612_FNUM_MASK ((1 << LJ_YM2612_FNUM_BITS) - 1)
+//Global fixed point scaling used in volume calculations, sin output - unify because output is used as inputs
+#define LJ_YM2612_GLOBAL_SCALE_BITS (16)
 
-//FREQ scale = 16.16-bit
-#define LJ_YM2612_FREQ_BITS (16)
+//FREQ scale = 16.16 - used global scale to keep things consistent
+#define LJ_YM2612_FREQ_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
 #define LJ_YM2612_FREQ_MASK ((1 << LJ_YM2612_FREQ_BITS) - 1)
-static LJ_YM_UINT32 LJ_YM2612_fnumTable[LJ_YM2612_NUM_FNUM_ENTRIES];
 
-//SIN table = 10-bit
-#define LJ_YM2612_SINTABLE_SCALE_BITS (13)
-#define LJ_YM2612_SINTABLE_BITS (10)
-#define LJ_YM2612_NUM_SINTABLE_ENTRIES (1 << LJ_YM2612_SINTABLE_BITS)
-#define LJ_YM2612_SINTABLE_MASK ((1 << LJ_YM2612_SINTABLE_BITS) - 1)
-static int LJ_YM2612_sinTable[LJ_YM2612_NUM_SINTABLE_ENTRIES];
+//Volume scale = 16.16 (-1->1) - matches frequency scale so inputs can be used in FM algorithms
+#define LJ_YM2612_VOLUME_SCALE_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
+
+//Sin output scale = 16.16 (-1->1) - matches frequency scale so inputs can be used in FM algorithms
+#define LJ_YM2612_SIN_SCALE_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
+
+// TL table scale = 16.16 (0->1) - matches volume scale
+#define LJ_YM2612_TL_SCALE_BITS (LJ_YM2612_VOLUME_SCALE_BITS)
+
+//FNUM = 11-bit table
+#define LJ_YM2612_FNUM_TABLE_BITS (11)
+#define LJ_YM2612_FNUM_TABLE_NUM_ENTRIES (1 << LJ_YM2612_FNUM_TABLE_BITS)
+static LJ_YM_UINT32 LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES];
+
+//SIN table = 16-bit table but stored in 16.16 scale
+#define LJ_YM2612_SIN_TABLE_BITS (16)
+#define LJ_YM2612_SIN_TABLE_NUM_ENTRIES (1 << LJ_YM2612_SIN_TABLE_BITS)
+#define LJ_YM2612_SIN_TABLE_MASK ((1 << LJ_YM2612_SIN_TABLE_BITS) - 1)
+static int LJ_YM2612_sinTable[LJ_YM2612_SIN_TABLE_NUM_ENTRIES];
 
 //DETUNE table = this are integer freq shifts in the frequency integer scale
 // In the docs (YM2608) : the base scale is (0.052982) this equates to: (8*1000*1000/(1*1024*1024))/144
@@ -92,7 +102,9 @@ static int LJ_YM2612_sinTable[LJ_YM2612_NUM_SINTABLE_ENTRIES];
 // 144 = 6 channels x 4 operators x 8 cycles per operator 
 // 144 = 6 channels x 24 cycles per channel
 // 144 = also the prescaler: YM2612 is 1/6 : one sample for each 24 FM clocks
-static const LJ_YM_UINT8 LJ_YM2612_detuneScaleTable[4*32] = {
+#define LJ_YM2612_NUM_KEYCODES (1<<5)
+#define LJ_YM2612_NUM_FDS (4)
+static const LJ_YM_UINT8 LJ_YM2612_detuneScaleTable[LJ_YM2612_NUM_FDS*LJ_YM2612_NUM_KEYCODES] = {
 //FD=0 : all 0
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
@@ -108,7 +120,7 @@ static const LJ_YM_UINT8 LJ_YM2612_detuneScaleTable[4*32] = {
 };
 
 //Convert detuneScaleTable into a frequency shift (+ and -)
-static int LJ_YM2612_detuneTable[8*32];
+static int LJ_YM2612_detuneTable[2*LJ_YM2612_NUM_FDS*LJ_YM2612_NUM_KEYCODES];
 
 // fnum -> keycode table for computing N3 & N4
 // N4 = Fnum Bit 11 
@@ -119,6 +131,9 @@ static const LJ_YM_UINT8 LJ_YM2612_fnumKeycodeTable[16] = {
 2, 3, 3, 3, 3, 3, 3, 3,
 };
 
+// TL - table (7-bits): 0->0x7F (16.16): output = 2^(-TL/8) : 16.16
+#define LJ_YM2612_TL_TABLE_NUM_ENTRIES (128)
+static int LJ_YM2612_tlTable[LJ_YM2612_TL_TABLE_NUM_ENTRIES];
 
 #define LJ_YM2612_VOLUME_MAX (8192)
 
@@ -209,7 +224,7 @@ static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const LJ
 	//detuneDelta from keycode and detune value
 	const int keycode = slotPtr->keycode;
 	const int detune = slotPtr->detune;
-	int detuneTableValue = LJ_YM2612_detuneTable[detune*32+keycode];
+	int detuneTableValue = LJ_YM2612_detuneTable[detune*LJ_YM2612_NUM_KEYCODES+keycode];
 	slotPtr->detuneDelta = detuneTableValue;
 	if (channelPtr->flags & LJ_YM2612_DEBUG)
 	{
@@ -237,14 +252,10 @@ static void ym2612_channelSetTotalLevel(LJ_YM2612_CHANNEL* const channelPtr, con
 
 	// Total Level = Bits 0-6
 	const int TL = (totalLevel >> 0) & 0x7F;
-	// From the docs each step is -0.75dB = x0.9172759 = 2^(-1/8)
-	const float db = -TL / 8.0f;
-	const float scale = powf(2.0f, db);
-	// totalLevel is stored in 16.16
-	const int TLscale = (int)(scale * (float)(1 << 16));
+	const int TLscale = LJ_YM2612_tlTable[TL];
 	slotPtr->totalLevel = TLscale;
-		printf("SetTotalLevel channel:%d slot:%d TL:%d db:%f scale:%f TLscale:%d\n", 
-				   channelPtr->id, slot, TL, db, scale, TLscale);
+		printf("SetTotalLevel channel:%d slot:%d TL:%d scale:%f TLscale:%d\n", 
+				   channelPtr->id, slot, TL, ((float)(TLscale)/(float)(1<<LJ_YM2612_TL_SCALE_BITS)), TLscale);
 }
 
 static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 detuneMult)
@@ -384,26 +395,36 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 	// freqScale = (chipClock/sampleRateOutput) / ( 144 );
 	ym2612->baseFreqScale = ((float)clock / (float)rate ) / 144.0f;
 
-	for (i = 0; i < LJ_YM2612_NUM_FNUM_ENTRIES; i++)
+	for (i = 0; i < LJ_YM2612_FNUM_TABLE_NUM_ENTRIES; i++)
 	{
 		float freq = ym2612->baseFreqScale * i;
 		// Include the sin table size in the (1/2^20)
-		freq = freq * (float)(1 << (LJ_YM2612_FREQ_BITS - (20 - LJ_YM2612_SINTABLE_BITS)));
+		freq = freq * (float)(1 << (LJ_YM2612_FREQ_BITS - (20 - LJ_YM2612_SIN_TABLE_BITS)));
 
 		LJ_YM_UINT32 intFreq = (LJ_YM_UINT32)(freq);
 		LJ_YM2612_fnumTable[i] = intFreq;
 	}
 
-	const float omegaScale = (2.0f * M_PI / LJ_YM2612_NUM_SINTABLE_ENTRIES);
-	for (i = 0; i < LJ_YM2612_NUM_SINTABLE_ENTRIES; i++)
+	const float omegaScale = (2.0f * M_PI / LJ_YM2612_SIN_TABLE_NUM_ENTRIES);
+	for (i = 0; i < LJ_YM2612_SIN_TABLE_NUM_ENTRIES; i++)
 	{
 		const float omega = omegaScale * i;
 		const float sinValue = sinf(omega);
-		const int scaledSin = (int)(sinValue * (float)(1 << LJ_YM2612_SINTABLE_SCALE_BITS));
+		const int scaledSin = (int)(sinValue * (float)(1 << LJ_YM2612_SIN_SCALE_BITS));
 		LJ_YM2612_sinTable[i] = scaledSin;
 	}
-	//DT1 = -3 -> 3
+
+	for (i = 0; i < LJ_YM2612_TL_TABLE_NUM_ENTRIES; i++)
+	{
+		// From the docs each step is -0.75dB = x0.9172759 = 2^(-1/8)
+		const float value = -i * ( 1.0f / 8.0f );
+		const float tlValue = powf(2.0f, value);
+		const int scaledTL = (int)(tlValue * (float)(1 << LJ_YM2612_TL_SCALE_BITS));
+		LJ_YM2612_tlTable[i] = scaledTL;
+	}
+
 #if 0 
+	//DT1 = -3 -> 3
 	for (i = 0; i < 4; i++)
 	{
 		int keycode;
@@ -417,20 +438,20 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 		}
 	}
 #endif // #if 0 
-	for (i = 0; i < 4; i++)
+	for (i = 0; i < LJ_YM2612_NUM_FDS; i++)
 	{
 		int keycode;
-		for (keycode = 0; keycode < 32; keycode++)
+		for (keycode = 0; keycode < LJ_YM2612_NUM_KEYCODES; keycode++)
 		{
-			const int detuneScaleTableValue = LJ_YM2612_detuneScaleTable[i*32+keycode];
+			const int detuneScaleTableValue = LJ_YM2612_detuneScaleTable[i*LJ_YM2612_NUM_KEYCODES+keycode];
 			//This should be including baseFreqScale to put in the same units as fnumTable - so it can be additive to it
 			const float detuneRate = ym2612->baseFreqScale * detuneScaleTableValue;
 			// Include the sin table size in the (1/2^20)
-			const float detuneRateTableValue = detuneRate * (float)(1 << (LJ_YM2612_FREQ_BITS - (20 - LJ_YM2612_SINTABLE_BITS)));
+			const float detuneRateTableValue = detuneRate * (float)(1 << (LJ_YM2612_FREQ_BITS - (20 - LJ_YM2612_SIN_TABLE_BITS)));
 			
 			int detuneTableValue = (int)(detuneRateTableValue);
-			LJ_YM2612_detuneTable[i*32+keycode] = detuneTableValue;
-			LJ_YM2612_detuneTable[(i+4)*32+keycode] = -detuneTableValue;
+			LJ_YM2612_detuneTable[i*LJ_YM2612_NUM_KEYCODES+keycode] = detuneTableValue;
+			LJ_YM2612_detuneTable[(i+LJ_YM2612_NUM_FDS)*LJ_YM2612_NUM_KEYCODES+keycode] = -detuneTableValue;
 		}
 	}
 /*
@@ -801,17 +822,18 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
 				const int OMEGA = slotPtr->omega;
+				//Explain this line !
 				const int phi = ((OMEGA & ~LJ_YM2612_FREQ_MASK) >> LJ_YM2612_FREQ_BITS);
 
-				const int scaledSin = LJ_YM2612_sinTable[phi & LJ_YM2612_SINTABLE_MASK];
+				const int scaledSin = LJ_YM2612_sinTable[phi & LJ_YM2612_SIN_TABLE_MASK];
 
 				int slotOutput = scaledSin;
-				slotOutput = (slotPtr->volume * slotOutput) >> LJ_YM2612_SINTABLE_SCALE_BITS;
+				slotOutput = (slotPtr->volume * slotOutput) >> LJ_YM2612_SIN_SCALE_BITS;
 
 				slotOutput = LJ_YM2612_CLAMP_VOLUME(slotOutput);
 
-				// Scale by totalLevel (in 16.16. format) - always < 1.0f
-				slotOutput = (slotOutput * slotPtr->totalLevel) >> 16;
+				// Scale by TL (total level = 0->1)
+				slotOutput = (slotOutput * slotPtr->totalLevel) >> LJ_YM2612_TL_SCALE_BITS;
 
 				channelOutput += slotOutput;
 				if (ym2612->flags & LJ_YM2612_DEBUG)
