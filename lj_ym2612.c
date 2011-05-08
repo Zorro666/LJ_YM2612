@@ -152,7 +152,7 @@ struct LJ_YM2612_SLOT
 	int omega;
 	LJ_YM_UINT32 omegaDelta;
 	int detuneDelta;			// negative values are allowed
-	LJ_YM_UINT32 totalLevel;
+	int totalLevel;
 
 	int volume;
 	int volumeDelta;
@@ -1037,8 +1037,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	//Loop over channels updating them, mix them, then output them into the buffer
 	for (sample = 0; sample < numCycles; sample++)
 	{
-		short mixedLeft = 0;
-		short mixedRight = 0;
+		int mixedLeft = 0;
+		int mixedRight = 0;
 		short outL = 0;
 		short outR = 0;
 
