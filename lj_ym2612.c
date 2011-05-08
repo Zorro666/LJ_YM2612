@@ -66,24 +66,23 @@ static const char* LJ_YM2612_REGISTER_NAMES[LJ_YM2612_NUM_REGISTERS];
 static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 
 //Global fixed point scaling used in volume calculations, sin output - unify because output is used as inputs
-#define LJ_YM2612_GLOBAL_SCALE_BITS (16)
+//15 is maximum (>= 16 will overflow int 32-bit calculations)
+#define LJ_YM2612_GLOBAL_SCALE_BITS (13)
 
 //FREQ scale = 16.16 - used global scale to keep things consistent
 #define LJ_YM2612_FREQ_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
 #define LJ_YM2612_FREQ_MASK ((1 << LJ_YM2612_FREQ_BITS) - 1)
 
 //Volume scale = 16.16 (-1->1) - matches frequency scale so inputs can be used in FM algorithms
-#define LJ_YM2612_VOLUME_SCALE_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
+//#define LJ_YM2612_VOLUME_SCALE_BITS (LJ_YM2612_GLOBAL_SCALE_BITS-0)
+#define LJ_YM2612_VOLUME_SCALE_BITS (13)
 
-// Number of bits to use for scaling output e.g. 8192 = 13
-#define LJ_YM2612_OUTPUT_VOLUME_BITS (14)
-//#define LJ_YM2612_OUTPUT_SCALE (LJ_YM2612_VOLUME_SCALE_BITS - LJ_YM2612_OUTPUT_VOLUME_BITS)
-#define LJ_YM2612_OUTPUT_SCALE (2)
-#define JAKE_MAGIC_PHI_SCALE (5-LJ_YM2612_OUTPUT_SCALE)
+// Number of bits to use for scaling output e.g. choose an output of 1.0 -> 13-bits (8192)
+#define LJ_YM2612_OUTPUT_VOLUME_BITS (13)
+#define LJ_YM2612_OUTPUT_SCALE (LJ_YM2612_VOLUME_SCALE_BITS - LJ_YM2612_OUTPUT_VOLUME_BITS)
 
 // Max volume is -1 -> +1
-//#define LJ_YM2612_VOLUME_MAX (1<<LJ_YM2612_VOLUME_SCALE_BITS)
-#define LJ_YM2612_VOLUME_MAX (8192 << LJ_YM2612_OUTPUT_SCALE)
+#define LJ_YM2612_VOLUME_MAX (1<<LJ_YM2612_VOLUME_SCALE_BITS)
 
 //Sin output scale = 16.16 (-1->1) - matches frequency scale so inputs can be used in FM algorithms
 #define LJ_YM2612_SIN_SCALE_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
@@ -99,11 +98,14 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 #define LJ_YM2612_FNUM_TABLE_NUM_ENTRIES (1 << LJ_YM2612_FNUM_TABLE_BITS)
 static LJ_YM_UINT32 LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES];
 
-//SIN table = 16-bit table but stored in 16.16 scale
-#define LJ_YM2612_SIN_TABLE_BITS (16)
+//SIN table = 13-bit table but stored in 16.16 scale
+#define LJ_YM2612_SIN_TABLE_BITS (13)
 #define LJ_YM2612_SIN_TABLE_NUM_ENTRIES (1 << LJ_YM2612_SIN_TABLE_BITS)
 #define LJ_YM2612_SIN_TABLE_MASK ((1 << LJ_YM2612_SIN_TABLE_BITS) - 1)
 static int LJ_YM2612_sinTable[LJ_YM2612_SIN_TABLE_NUM_ENTRIES];
+
+// >> MAGIC = volume - sin - 2 = -2 for defaults
+#define JAKE_MAGIC_PHI_SCALE_BITS (LJ_YM2612_VOLUME_SCALE_BITS - LJ_YM2612_SIN_TABLE_BITS -2)
 
 //DETUNE table = this are integer freq shifts in the frequency integer scale
 // In the docs (YM2608) : the base scale is (0.052982) this equates to: (8*1000*1000/(1*1024*1024))/144
@@ -1058,7 +1060,12 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				const int slotPhi = (OMEGA >> LJ_YM2612_FREQ_BITS);
 		
 				//Phi needs to have the fmInputDelta added to it to make algorithms work
-				const int deltaPhi = (slotPtr->fmInputDelta << JAKE_MAGIC_PHI_SCALE);
+#if JAKE_MAGIC_PHI_SCALE_BITS >= 0
+					const int deltaPhi = (slotPtr->fmInputDelta >> JAKE_MAGIC_PHI_SCALE_BITS);
+#else // #if JAKE_MAGIC_PHI_SCALE_BITS >= 0
+					const int deltaPhi = (slotPtr->fmInputDelta << -JAKE_MAGIC_PHI_SCALE_BITS);
+#endif // #if JAKE_MAGIC_PHI_SCALE_BITS >= 0
+
 				const int phi = slotPhi + deltaPhi;
 
 				const int scaledSin = LJ_YM2612_sinTable[phi & LJ_YM2612_SIN_TABLE_MASK];
@@ -1106,7 +1113,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				}
 			}
 
-			//channelOutput = LJ_YM2612_CLAMP_VOLUME(channelOutput);
+			// Keep within +/- 1
+			channelOutput = LJ_YM2612_CLAMP_VOLUME(channelOutput);
 
 			mixedLeft += channelOutput;
 			mixedRight += channelOutput;
@@ -1117,8 +1125,9 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		mixedLeft += dacValue;
 		mixedRight += dacValue;
 
-		//mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft);
-		//mixedRight = LJ_YM2612_CLAMP_VOLUME(mixedRight);
+		// Keep within +/- 1
+		mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft);
+		mixedRight = LJ_YM2612_CLAMP_VOLUME(mixedRight);
 
 		mixedLeft = mixedLeft >> LJ_YM2612_OUTPUT_SCALE;
 		mixedRight = mixedRight >> LJ_YM2612_OUTPUT_SCALE;
