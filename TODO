@@ -10,6 +10,7 @@ YM2612:implement TL using int maths and a table 2^(TL/8)
 
 Low Priority:
 YM2612:implement operators
+YM2612:compute max freq value and add it on if freq goes -ve because of detune
 
 Future Stuff:
 
