@@ -281,7 +281,7 @@ int main(int argc, char* argv[])
 					{
 						result = LJ_VGM_TEST_OK;
 					}
-					if ((vgmInstruction.R & 0xF0) == 0xB0)
+					if ((vgmInstruction.R & 0xB4) == 0xB4)
 					{
 						result = LJ_VGM_TEST_OK;
 					}
@@ -369,6 +369,7 @@ int main(int argc, char* argv[])
 static LJ_VGM_UINT8 sampleDocProgram[];
 static LJ_VGM_UINT8 noteProgram[];
 static LJ_VGM_UINT8 noteDTProgram[];
+static LJ_VGM_UINT8 algoProgram[];
 
 static LJ_VGM_UINT8* currentTestInstruction = NULL;
 LJ_VGM_RESULT startTestProgram(const char* const testName)
@@ -381,6 +382,11 @@ LJ_VGM_RESULT startTestProgram(const char* const testName)
 	else if (strcmp(testName,"noteDT") == 0)
 	{
 		currentTestInstruction = noteDTProgram;
+		return LJ_VGM_OK;
+	}
+	else if (strcmp(testName,"algo") == 0)
+	{
+		currentTestInstruction = algoProgram;
 		return LJ_VGM_OK;
 	}
 	else if (strcmp(testName,"sample") == 0)
@@ -500,9 +506,9 @@ static LJ_VGM_UINT8 noteProgram[] = {
 		0x38, 0x01,	// DT1/MUL - channel 0 slot 2 : DT=0 MUL=1
 		0x3C, 0x01,	// DT1/MUL - channel 0 slot 3 : DT=0 MUL=1
 		0x40, 0x00,	// Total Level - channel 0 slot 0 (*1)
-		0x44, 0xFF,	// Total Level - channel 0 slot 1 (*0.000001f)
-		0x48, 0xFF,	// Total Level - channel 0 slot 2 (*0.000001f)
-		0x4C, 0xFF,	// Total Level - channel 0 slot 3 (*0.000001f)
+		0x44, 0x7F,	// Total Level - channel 0 slot 1 (*0.000001f)
+		0x48, 0x7F,	// Total Level - channel 0 slot 2 (*0.000001f)
+		0x4C, 0x7F,	// Total Level - channel 0 slot 3 (*0.000001f)
 		0x50, 0x1F,	// RS/AR - channel 0 slot 0
 		0x54, 0x1F,	// RS/AR - channel 0 slot 1
 		0x58, 0x1F,	// RS/AR - channel 0 slot 2
@@ -585,4 +591,56 @@ static LJ_VGM_UINT8 noteDTProgram[] = {
 		0x00, 0x01,	// OUTPUT SAMPLES AFTER KEY OFF
 		0xFF, 0xFF,	// END PROGRAM
 };
+
+static LJ_VGM_UINT8 algoProgram[] = {
+		0x22, 0x00,	// LFO off
+		0x27, 0x00,	// Channel 3 mode normal
+		0x28, 0x00,	// All channels off
+		0x28, 0x01,	// All channels off
+		0x28, 0x02,	// All channels off
+		0x28, 0x03,	// All channels off
+		0x28, 0x04,	// All channels off
+		0x28, 0x05,	// All channels off
+		0x28, 0x06,	// All channels off
+		0x2B, 0x00,	// DAC off
+		0x30, 0x03,	// DT1/MUL - channel 0 slot 0 : DT=0 MUL=3
+		0x34, 0x00,	// DT1/MUL - channel 0 slot 1 : DT=0 MUL=0
+		0x38, 0x03,	// DT1/MUL - channel 0 slot 2 : DT=0 MUL=3
+		0x3C, 0x00,	// DT1/MUL - channel 0 slot 3 : DT=0 MUL=0
+		0x40, 0x7F,	// Total Level - channel 0 slot 0 (*0)
+		0x44, 0x7F,	// Total Level - channel 0 slot 1 (*0)
+		0x48, 0x00,	// Total Level - channel 0 slot 2 (*1)
+		0x4C, 0x00,	// Total Level - channel 0 slot 3 (*1)
+		0x50, 0x1F,	// RS/AR - channel 0 slot 0
+		0x54, 0x1F,	// RS/AR - channel 0 slot 1
+		0x58, 0x1F,	// RS/AR - channel 0 slot 2
+		0x5C, 0x1F,	// RS/AR - channel 0 slot 3
+		0x60, 0x00,	// AM/D1R - channel 0 slot 0
+		0x64, 0x00,	// AM/D1R - channel 0 slot 1
+		0x68, 0x00,	// AM/D1R - channel 0 slot 2
+		0x6C, 0x00,	// AM/D1R - channel 0 slot 3
+		0x70, 0x00,	// D2R - channel 0 slot 0
+		0x74, 0x00,	// D2R - channel 1 slot 1
+		0x78, 0x00,	// D2R - channel 2 slot 2
+		0x7C, 0x00,	// D2R - channel 3 slot 3
+		0x80, 0x0F,	// D1L/RR - channel 0 slot 0
+		0x84, 0x0F,	// D1L/RR - channel 0 slot 1
+		0x88, 0x0F,	// D1L/RR - channel 0 slot 2
+		0x8C, 0x0F,	// D1L/RR - channel 0 slot 3
+		0x90, 0x00,	// SSG - channel 0 slot 0
+		0x94, 0x00,	// SSG - channel 0 slot 1
+		0x98, 0x00,	// SSG - channel 0 slot 2
+		0x9C, 0x00,	// SSG - channel 0 slot 3
+		0xB0, 0x00,	// Feedback/algorithm (FB=0, ALG=0)
+		0xB4, 0xC0,	// Both speakers on
+		0x28, 0x00,	// Key off
+		0xA4, 0x6A,	// Set frequency (BLOCK=7)
+		0xA0, 0x69,	// Set frequency FREQ=???)
+		0x28, 0xC0,	// Key on (slot 2+slot3, channel 0)
+		0x00, 0x00,	// OUTPUT SAMPLES
+		0x28, 0x00,	// Key off (ALL slots, channel 0)
+		0x00, 0x01,	// OUTPUT SAMPLES
+		0xFF, 0xFF,	// END PROGRAM
+};
+
 
