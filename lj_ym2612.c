@@ -48,9 +48,6 @@ typedef struct LJ_YM2612_SLOT LJ_YM2612_SLOT;
 #define LJ_YM2612_NUM_CHANNELS_TOTAL (LJ_YM2612_NUM_CHANNELS_PER_PART * LJ_YM2612_NUM_PARTS)
 #define LJ_YM2612_NUM_SLOTS_PER_CHANNEL (4)
 
-// Random guess - needs to be in sync with how the envelope amplitude works also to match up
-#define DAC_SHIFT (6)
-
 enum LJ_YM2612_REGISTERS {
 		LJ_LFO_EN_LFO_FREQ = 0x22,
 		LJ_CH2_MODE_TIMER_CONTROL = 0x27,
@@ -61,7 +58,7 @@ enum LJ_YM2612_REGISTERS {
 		LJ_TOTAL_LEVEL = 0x40,
 		LJ_FREQLSB = 0xA0,
 		LJ_BLOCK_FREQMSB = 0xA4,
-		//LJ_FEEDBACK_ALGO = 0xB0,
+		LJ_FEEDBACK_ALGO = 0xB0,
 		//LJ_LR_AMS_PMS = 0xB4,
 };
 
@@ -78,11 +75,24 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 //Volume scale = 16.16 (-1->1) - matches frequency scale so inputs can be used in FM algorithms
 #define LJ_YM2612_VOLUME_SCALE_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
 
+// Number of bits to use for scaling output e.g. 8192 = 13
+#define LJ_YM2612_OUTPUT_VOLUME_BITS (14)
+//#define LJ_YM2612_OUTPUT_SCALE (LJ_YM2612_VOLUME_SCALE_BITS - LJ_YM2612_OUTPUT_VOLUME_BITS)
+#define LJ_YM2612_OUTPUT_SCALE (2)
+#define JAKE_MAGIC_PHI_SCALE (5-LJ_YM2612_OUTPUT_SCALE)
+
+// Max volume is -1 -> +1
+//#define LJ_YM2612_VOLUME_MAX (1<<LJ_YM2612_VOLUME_SCALE_BITS)
+#define LJ_YM2612_VOLUME_MAX (8192 << LJ_YM2612_OUTPUT_SCALE)
+
 //Sin output scale = 16.16 (-1->1) - matches frequency scale so inputs can be used in FM algorithms
 #define LJ_YM2612_SIN_SCALE_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
 
 // TL table scale = 16.16 (0->1) - matches volume scale
 #define LJ_YM2612_TL_SCALE_BITS (LJ_YM2612_VOLUME_SCALE_BITS)
+
+// Random guess - needs to be in sync with how the envelope amplitude works also to match up
+#define DAC_SHIFT (6)
 
 //FNUM = 11-bit table
 #define LJ_YM2612_FNUM_TABLE_BITS (11)
@@ -135,35 +145,40 @@ static const LJ_YM_UINT8 LJ_YM2612_fnumKeycodeTable[16] = {
 #define LJ_YM2612_TL_TABLE_NUM_ENTRIES (128)
 static int LJ_YM2612_tlTable[LJ_YM2612_TL_TABLE_NUM_ENTRIES];
 
-#define LJ_YM2612_VOLUME_MAX (8192)
-
 struct LJ_YM2612_SLOT
 {
 	LJ_YM_UINT32 fnum;
 	LJ_YM_UINT32 block;
 	int omega;
 	LJ_YM_UINT32 omegaDelta;
-	LJ_YM_UINT32 detuneDelta;
-	LJ_YM_UINT32 totalLevel; // 16.16 format
+	int detuneDelta;			// negative values are allowed
+	LJ_YM_UINT32 totalLevel;
 
 	int volume;
 	int volumeDelta;
+
+	// Algorithm support
+	int fmOutput;
+	int fmInputDelta;
+	int* modulationOutput;
+	int carrierOutputMask;
+	
 
 	LJ_YM_UINT8 block_fnumMSB;
 	LJ_YM_UINT8 detune;
 	LJ_YM_UINT8 multiple;
 	LJ_YM_UINT8 keycode;
+
 };
 
 struct LJ_YM2612_CHANNEL
 {
 	LJ_YM2612_SLOT slot[LJ_YM2612_NUM_SLOTS_PER_CHANNEL];
 
-	// These should go
-	int volumeTotal;
-	int volumeTotalDelta;
+	int debugFlags;
 
-	int flags;
+	LJ_YM_UINT8 feedback;
+	LJ_YM_UINT8 algorithm;
 
 	LJ_YM_UINT8 id;
 };
@@ -185,7 +200,7 @@ struct LJ_YM2612
 	LJ_YM_UINT32 clockRate;
 	LJ_YM_UINT32 outputSampleRate;
 
-	LJ_YM_UINT32 flags;
+	LJ_YM_UINT32 debugFlags;
 
 	LJ_YM_INT16 dacValue;
 	LJ_YM_UINT16 dacEnable;
@@ -226,7 +241,7 @@ static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const LJ
 	const int detune = slotPtr->detune;
 	int detuneTableValue = LJ_YM2612_detuneTable[detune*LJ_YM2612_NUM_KEYCODES+keycode];
 	slotPtr->detuneDelta = detuneTableValue;
-	if (channelPtr->flags & LJ_YM2612_DEBUG)
+	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
 		printf("detuneDelta %d detune:%d FD:%d keycode:%d\n", detuneTableValue, detune, (detune&0x3), keycode);
 	}
@@ -246,6 +261,185 @@ static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const LJ
 	slotPtr->omegaDelta = omegaDelta;
 }
 
+static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
+{
+	const int algorithm = channelPtr->algorithm;
+	const int FULL_OUTPUT_MASK = 0xFFFFFFFF;
+	if (algorithm == 0x0)
+	{
+		/*
+			Each slot outputs to the next FM, only slot 3 has carrier output
+			[0] --> [1] --> [2] --> [3] --------------->
+		*/
+		channelPtr->slot[0].carrierOutputMask = 0;
+		channelPtr->slot[0].modulationOutput = &channelPtr->slot[1].fmInputDelta;
+
+		channelPtr->slot[1].carrierOutputMask = 0;
+		channelPtr->slot[1].modulationOutput = &channelPtr->slot[2].fmInputDelta;
+
+		channelPtr->slot[2].carrierOutputMask = 0;
+		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+
+		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[3].modulationOutput = NULL;
+	}
+	else if (algorithm == 0x1)
+	{
+		/*
+			slot 0 & slot 1 both output to slot 2, slot 2 outputs to slot 3, only slot 3 has carrier output
+				[0] \
+				[1] --> [2] --> [3] ------->
+		*/
+		channelPtr->slot[0].carrierOutputMask = 0;
+		channelPtr->slot[0].modulationOutput = &channelPtr->slot[2].fmInputDelta;
+
+		channelPtr->slot[1].carrierOutputMask = 0;
+		channelPtr->slot[1].modulationOutput = &channelPtr->slot[2].fmInputDelta;
+
+		channelPtr->slot[2].carrierOutputMask = 0;
+		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+
+		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[3].modulationOutput = NULL;
+	}
+	else if (algorithm == 0x2)
+	{
+		/*
+			slot 0 & slot 2 both output to slot 3, slot 1 outputs to slot 2, only slot 3 has carrier output
+			[0] --------\
+			[1] --> [2] --> [3] ------->
+		*/
+		channelPtr->slot[0].carrierOutputMask = 0;
+		channelPtr->slot[0].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+
+		channelPtr->slot[1].carrierOutputMask = 0;
+		channelPtr->slot[1].modulationOutput = &channelPtr->slot[2].fmInputDelta;
+
+		channelPtr->slot[2].carrierOutputMask = 0;
+		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+
+		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[3].modulationOutput = NULL;
+	}
+	else if (algorithm == 0x3)
+	{
+		/*
+			slot 0 outputs to slot 1, slot 1 & slot 2 output to slot 3, only slot 3 has carrier output
+			[0] --> [1] --> [3] ------->
+			[2] --------/
+		*/
+		channelPtr->slot[0].carrierOutputMask = 0;
+		channelPtr->slot[0].modulationOutput = &channelPtr->slot[1].fmInputDelta;
+
+		channelPtr->slot[1].carrierOutputMask = 0;
+		channelPtr->slot[1].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+
+		channelPtr->slot[2].carrierOutputMask = 0;
+		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+
+		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[3].modulationOutput = NULL;
+	}
+	else if (algorithm == 0x4)
+	{
+		/*
+			slot 0 outputs to slot 1, slot 2 outputs to slot 3, slot 1 and slot 3 have carrier output
+		    [0] --> [1] --------------->
+        [2] --> [3] --/
+		*/
+		channelPtr->slot[0].carrierOutputMask = 0;
+		channelPtr->slot[0].modulationOutput = &channelPtr->slot[1].fmInputDelta;
+
+		channelPtr->slot[1].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[1].modulationOutput = NULL;
+
+		channelPtr->slot[2].carrierOutputMask = 0;
+		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+
+		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[3].modulationOutput = NULL;
+	}
+	else if (algorithm == 0x5)
+	{
+		/*
+			slot 0 and slot 1 and slot 2 output to slot 3, only slot 3 has carrier output
+			[0] --\
+			[1] --> [3] --------------->
+			[2] --/
+		*/
+		channelPtr->slot[0].carrierOutputMask = 0;
+		channelPtr->slot[0].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+
+		channelPtr->slot[1].carrierOutputMask = 0;
+		channelPtr->slot[1].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+
+		channelPtr->slot[2].carrierOutputMask = 0;
+		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+
+		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[3].modulationOutput = NULL;
+	}
+	else if (algorithm == 0x6)
+	{
+		/*
+			slot 0 outputs to slot 1, slot 1 and slot 2 and slot 3 have carrier output
+			[0] --> [1] --\
+ 							[2] --------------->
+							[3] --/
+		*/
+		channelPtr->slot[0].carrierOutputMask = 0;
+		channelPtr->slot[0].modulationOutput = &channelPtr->slot[1].fmInputDelta;
+
+		channelPtr->slot[1].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[1].modulationOutput = NULL;
+
+		channelPtr->slot[2].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[2].modulationOutput = NULL;
+
+		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[3].modulationOutput = NULL;
+	}
+	else if (algorithm == 0x7)
+	{
+		/*
+		 Each slot outputs to carrier, no FM
+			[0] --\
+    	[1] ---\
+    	[2] --------------->
+    	[3] ---/
+		*/
+		channelPtr->slot[0].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[0].modulationOutput = NULL;
+
+		channelPtr->slot[1].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[1].modulationOutput = NULL;
+
+		channelPtr->slot[2].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[2].modulationOutput = NULL;
+
+		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[3].modulationOutput = NULL;
+	}
+}
+
+static void ym2612_channelSetFeedbackAlgorithm(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 data)
+{
+	// 0xB0-0xB2 Feedback = Bits 5-3, Algorithm = Bits 0-2
+	const int algorithm = (data >> 0) & 0x7;
+	const int feedback = (data >> 3) & 0x7;
+
+	channelPtr->feedback = feedback;
+	channelPtr->algorithm = algorithm;
+
+	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("SetFeedbackAlgorithm channel:%d feedback:%d algorithm:%d\n", channelPtr->id, feedback, algorithm);
+	}
+
+	//Update the connections for this channel
+	ym2612_channelSetConnections(channelPtr);
+}
+
 static void ym2612_channelSetTotalLevel(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 totalLevel)
 {
 	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
@@ -254,8 +448,12 @@ static void ym2612_channelSetTotalLevel(LJ_YM2612_CHANNEL* const channelPtr, con
 	const int TL = (totalLevel >> 0) & 0x7F;
 	const int TLscale = LJ_YM2612_tlTable[TL];
 	slotPtr->totalLevel = TLscale;
-		printf("SetTotalLevel channel:%d slot:%d TL:%d scale:%f TLscale:%d\n", 
-				   channelPtr->id, slot, TL, ((float)(TLscale)/(float)(1<<LJ_YM2612_TL_SCALE_BITS)), TLscale);
+
+	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("SetTotalLevel channel:%d slot:%d TL:%d scale:%f TLscale:%d\n", channelPtr->id, 
+					slot, TL, ((float)(TLscale)/(float)(1<<LJ_YM2612_TL_SCALE_BITS)), TLscale);
+	}
 }
 
 static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 detuneMult)
@@ -271,7 +469,7 @@ static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, con
 	slotPtr->multiple = multiple ? (multiple << 1) : 1;
 
 	ym2612_slotComputeOmegaDelta(slotPtr, channelPtr);
-	if (channelPtr->flags & LJ_YM2612_DEBUG)
+	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
 		printf("SetDetuneMult channel:%d slot:%d detune:%d mult:%d\n", channelPtr->id, slot, detune, multiple);
 	}
@@ -302,7 +500,7 @@ static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, cons
 
 		ym2612_slotComputeOmegaDelta(slotPtr, channelPtr);
 
-		if (channelPtr->flags & LJ_YM2612_DEBUG)
+		if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 		{
 			printf("SetFreqBlock channel:%d slot:%d block:%d fnum:%d 0x%X keycode:%d block_fnumMSB:0x%X fnumLSB:0x%X\n", 
 					channelPtr->id, slot, block, fnum, fnum, keycode, block_fnumMSB, fnumLSB);
@@ -334,27 +532,33 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 		{
 			slotPtr->omega = 0;
 			slotPtr->volume = 0;
-			slotPtr->volumeDelta = +4096;
+			slotPtr->volumeDelta = LJ_YM2612_VOLUME_MAX;
+			slotPtr->fmInputDelta = 0;
 		}
 		else
 		{
-			slotPtr->volumeDelta = -4096;
+			slotPtr->volumeDelta = -LJ_YM2612_VOLUME_MAX;
 		}
 		slotMask = slotMask << 1;
 	}
 }
 
-static void ym2612_slotClear(LJ_YM2612_SLOT* const slot)
+static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 {
-	slot->fnum = 0;
-	slot->block = 0;
-	slot->volume = 0;
-	slot->volumeDelta = 0;
-	slot->block_fnumMSB = 0;
-	slot->detune = 0;
-	slot->multiple = 0;
-	slot->omega = 0;
-	slot->omegaDelta = 0;
+	slotPtr->fnum = 0;
+	slotPtr->block = 0;
+	slotPtr->volume = 0;
+	slotPtr->volumeDelta = 0;
+	slotPtr->block_fnumMSB = 0;
+	slotPtr->detune = 0;
+	slotPtr->multiple = 0;
+	slotPtr->omega = 0;
+	slotPtr->omegaDelta = 0;
+
+	slotPtr->fmOutput = 0;
+	slotPtr->fmInputDelta = 0;
+	slotPtr->modulationOutput = NULL;
+	slotPtr->carrierOutputMask = 0x0;
 }
 
 static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
@@ -365,7 +569,7 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
 		LJ_YM2612_SLOT* const slot = &(channelPtr->slot[i]);
 		ym2612_slotClear(slot);
 	}
-	channelPtr->flags = 0;
+	channelPtr->debugFlags = 0;
 }
 
 static void ym2612_partClear(LJ_YM2612_PART* const part)
@@ -474,7 +678,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 
 	ym2612->dacValue = 0;
 	ym2612->dacEnable = 0x0;
-	ym2612->flags = 0x0;
+	ym2612->debugFlags = 0x0;
 	ym2612->baseFreqScale = 0.0f;
 	ym2612->regAddress = 0x0;	
 	ym2612->slotWriteAddr = 0xFF;	
@@ -534,8 +738,8 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	LJ_YM2612_validRegisters[LJ_TOTAL_LEVEL] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_TOTAL_LEVEL] = "TOTAL_LEVEL";
 
-	//LJ_YM2612_validRegisters[LJ_FEEDBACK_ALGO] = 1;
-	//LJ_YM2612_REGISTER_NAMES[LJ_FEEDBACK_ALGO] = "FEEDBACK_ALGO";
+	LJ_YM2612_validRegisters[LJ_FEEDBACK_ALGO] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_FEEDBACK_ALGO] = "FEEDBACK_ALGO";
 
 	//LJ_YM2612_validRegisters[LJ_LR_AMS_PMS] = 1;
 	//LJ_YM2612_REGISTER_NAMES[LJ_LR_AMS_PMS] = "LR_AMS_PMS";
@@ -548,9 +752,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 			//Found a valid register
 			//0x20 = system which is specific set of registers
 			//0x30-0x90 = settings per channel per slot (channel = bottom 2 bits of reg, slot = reg / 4)
-			//0xA0-0xB0 = settings per channel (channel = bottom 2 bits of reg)
-			//0xB0, 0xB1, 0xB2 = feedback, algorithm
-			//0xB4, 0xB5, 0xB6 = feedback, algorithm
+			//0xA0-0xB6 = settings per channel (channel = bottom 2 bits of reg)
 			if ((i >= 0x20) && (i < 0x30))
 			{
 			}
@@ -614,7 +816,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 	}
 
 	ym2612->part[part].reg[reg] = data;
-	if (ym2612->flags & LJ_YM2612_DEBUG)
+	if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 	{
 		printf( "ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
 	}
@@ -626,23 +828,30 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 		const int lfoFreq = (data >> 0) & 0x7;
 		ym2612->lfoEnable = lfoEnable;
 		ym2612->lfoFreq = lfoFreq;
+
+		return LJ_YM2612_OK;
 	}
-	if (reg == LJ_CH2_MODE_TIMER_CONTROL)
+	else if (reg == LJ_CH2_MODE_TIMER_CONTROL)
 	{
 		// 0x27 Ch2 Mode = Bits 6-7, 
 		// 0x27 Reset B = Bit 5, Reset A = Bit 4, Enable B = Bit 3, Enable A = Bit 2, Start B = Bit 1, Start A = Bit 0
 		ym2612->ch2Mode = (data >> 6) & 0x3;
+	
 		//ym2612_setTimers(data & 0x1F)
+
+		return LJ_YM2612_OK;
 	}
 	else if (reg == LJ_DAC_EN)
 	{
 		// 0x2A DAC Bits 0-7
 		ym2612->dacEnable = 0xFFFF * ((data & 0x80) >> 7);
+		return LJ_YM2612_OK;
 	}
 	else if (reg == LJ_DAC)
 	{
 		// 0x2B DAC en = Bit 7
 		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) << DAC_SHIFT;
+		return LJ_YM2612_OK;
 	}
 	else if (reg == LJ_KEY_ONOFF)
 	{
@@ -652,9 +861,12 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 		{
 			const int slotOnOff = (data >> 4);
 			const int part = (channel & 0x4) >> 2;
+
 			LJ_YM2612_CHANNEL* const channelPtr = &ym2612->part[part].channel[channel];
+
 			ym2612_channelKeyOnOff(channelPtr, slotOnOff);
 		}
+		return LJ_YM2612_OK;
 	}
 	else if ((reg >= 0x30) && (reg <= 0x9F))
 	{
@@ -662,30 +874,33 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 		const int channel = reg & 0x3;
 		const int slot = (reg >> 2) & 0x3;
 		const int regParameter = reg & 0xF0;
+
 		LJ_YM2612_CHANNEL* const channelPtr = &ym2612->part[part].channel[channel];
+
 		if (regParameter == LJ_DETUNE_MULT)
 		{
 			ym2612_channelSetDetuneMult(channelPtr, slot, data);
-			if (ym2612->flags & LJ_YM2612_DEBUG)
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d data:0x%X\n", part, channel, slot, data);
 			}
+			return LJ_YM2612_OK;
 		}
 		else if (regParameter == LJ_TOTAL_LEVEL)
 		{
 			ym2612_channelSetTotalLevel(channelPtr, slot, data);
-			if (ym2612->flags & LJ_YM2612_DEBUG)
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d data:0x%X\n", part, channel, slot, data);
 			}
 			printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d data:0x%X\n", part, channel, slot, data);
+			return LJ_YM2612_OK;
 		}
 	}
 	else if ((reg >= 0xA0) && (reg <= 0xB6))
 	{
 		// 0xA0-0xB0 = settings per channel (channel = bottom 2 bits of reg)
 		const int channel = reg & 0x3;
-		//const int regParameter = (reg >> 2) << 2; // reg & 0xFC
 		const int regParameter = reg & 0xFC;
 
 		LJ_YM2612_CHANNEL* const channelPtr = &ym2612->part[part].channel[channel];
@@ -693,19 +908,31 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 		{
 			// 0xA0-0xA2 Frequency number LSB = Bits 0-7 (bottom 8 bits of frequency number)
 			ym2612_channelSetFreqBlock(channelPtr, data);
-			if (ym2612->flags & LJ_YM2612_DEBUG)
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf( "LJ_FREQLSB part:%d channel:%d data:0x%X\n", part, channel, data);
 			}
+			return LJ_YM2612_OK;
 		}
 		else if (regParameter == LJ_BLOCK_FREQMSB)
 		{
 			// 0xA4-0xA6 Block = Bits 5-3, Frequency Number MSB = Bits 0-2 (top 3-bits of frequency number)
 			ym2612_channelSetBlockFnumMSB(channelPtr, data);
-			if (ym2612->flags & LJ_YM2612_DEBUG)
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf( "LJ_BLOCK_FREQMSB part:%d channel:%d data:0x%X\n", part, channel, data);
 			}
+			return LJ_YM2612_OK;
+		}
+		else if (regParameter == LJ_FEEDBACK_ALGO)
+		{
+			// 0xB0-0xB2 Feedback = Bits 5-3, Algorithm = Bits 0-2
+			ym2612_channelSetFeedbackAlgorithm(channelPtr, data);
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf( "LJ_FEEDBACK_ALGO part:%d channel:%d data:0x%X\n", part, channel, data);
+			}
+			return LJ_YM2612_OK;
 		}
 	}
 
@@ -746,7 +973,7 @@ LJ_YM2612_RESULT LJ_YM2612_setFlags(LJ_YM2612* const ym2612, const unsigned int 
 		return LJ_YM2612_ERROR;
 	}
 
-	ym2612->flags = flags;
+	ym2612->debugFlags = flags;
 
 	for (part = 0; part < LJ_YM2612_NUM_PARTS; part++)
 	{
@@ -754,7 +981,7 @@ LJ_YM2612_RESULT LJ_YM2612_setFlags(LJ_YM2612* const ym2612, const unsigned int 
 		for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_PER_PART; channel++)
 		{
 			LJ_YM2612_CHANNEL* const channelPtr = &ym2612->part[part].channel[channel];
-			channelPtr->flags = flags;
+			channelPtr->debugFlags = flags;
 		}
 	}
 	return LJ_YM2612_OK;
@@ -795,14 +1022,14 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 	//Global state update - LFO, DAC, SSG
 	dacValue = ym2612->dacValue & ym2612->dacEnable;
-	if (ym2612->flags & LJ_YM2612_NODAC)
+	if (ym2612->debugFlags & LJ_YM2612_NODAC)
 	{
 		dacValue = 0x0;
 	}
-	if (ym2612->flags & LJ_YM2612_ONECHANNEL)
+	if (ym2612->debugFlags & LJ_YM2612_ONECHANNEL)
 	{
 		// channel starts at 0
-		const int debugChannel =((ym2612->flags >> LJ_YM2612_ONECHANNEL_SHIFT) & LJ_YM2612_ONECHANNEL_MASK); 
+		const int debugChannel =((ym2612->debugFlags >> LJ_YM2612_ONECHANNEL_SHIFT) & LJ_YM2612_ONECHANNEL_MASK); 
 		outputChannelMask = 1 << debugChannel;
 	}
 
@@ -810,52 +1037,76 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	//Loop over channels updating them, mix them, then output them into the buffer
 	for (sample = 0; sample < numCycles; sample++)
 	{
-		LJ_YM_INT16 mixedLeft = 0;
-		LJ_YM_INT16 mixedRight = 0;
+		short mixedLeft = 0;
+		short mixedRight = 0;
+		short outL = 0;
+		short outR = 0;
 
 		for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_TOTAL; channel++)
 		{
 			LJ_YM2612_CHANNEL* const channelPtr = ym2612->channels[channel];
 			int channelOutput = 0;
+
 			for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 			{
 				LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
+				int carrierOutput = 0;
+
 				const int OMEGA = slotPtr->omega;
-				//Explain this line !
-				const int phi = ((OMEGA & ~LJ_YM2612_FREQ_MASK) >> LJ_YM2612_FREQ_BITS);
+				// Needs scaling down because of ????????????????????????????
+				const int slotPhi = (OMEGA >> LJ_YM2612_FREQ_BITS);
+		
+				//Phi needs to have the fmInputDelta added to it to make algorithms work
+				const int deltaPhi = (slotPtr->fmInputDelta << JAKE_MAGIC_PHI_SCALE);
+				const int phi = slotPhi + deltaPhi;
 
 				const int scaledSin = LJ_YM2612_sinTable[phi & LJ_YM2612_SIN_TABLE_MASK];
 
-				int slotOutput = scaledSin;
-				slotOutput = (slotPtr->volume * slotOutput) >> LJ_YM2612_SIN_SCALE_BITS;
+				int slotOutput = (slotPtr->volume * scaledSin) >> LJ_YM2612_SIN_SCALE_BITS;
 
+				// Keep within +/- 1
 				slotOutput = LJ_YM2612_CLAMP_VOLUME(slotOutput);
 
 				// Scale by TL (total level = 0->1)
 				slotOutput = (slotOutput * slotPtr->totalLevel) >> LJ_YM2612_TL_SCALE_BITS;
 
-				channelOutput += slotOutput;
-				if (ym2612->flags & LJ_YM2612_DEBUG)
+				// Unused - potentially for debugging
+				slotPtr->fmOutput = slotOutput;
+		
+				// Add this output onto the input of the slot in the algorithm
+				if (slotPtr->modulationOutput != NULL)
+				{
+					*slotPtr->modulationOutput += slotOutput;
+				}
+
+				carrierOutput = slotOutput & slotPtr->carrierOutputMask;
+				channelOutput += carrierOutput;
+
+				if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 				{
 					if (slotOutput != 0)
 					{
-						printf("Channel:%d Slot:%d slotOutput:%d\n", channelPtr->id, slot, slotOutput);
+						printf("Channel:%d Slot:%d slotOutput:%d carrierOutput:%d\n", channelPtr->id, slot, slotOutput, carrierOutput);
 					}
 				}
+				// Zero out the fmInputDelta so it is ready to be used on the next update
+				slotPtr->fmInputDelta = 0;
 			}
 			if ((channelMask & outputChannelMask) == 0)
 			{
 				channelOutput = 0;
 			}
 
-			if (ym2612->flags & LJ_YM2612_DEBUG)
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
 				if (channelOutput != 0)
 				{
 					printf("Channel:%d channelOutput:%d\n", channelPtr->id, channelOutput);
 				}
 			}
+
+			//channelOutput = LJ_YM2612_CLAMP_VOLUME(channelOutput);
 
 			mixedLeft += channelOutput;
 			mixedRight += channelOutput;
@@ -866,11 +1117,17 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		mixedLeft += dacValue;
 		mixedRight += dacValue;
 
-		mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft);
-		mixedRight = LJ_YM2612_CLAMP_VOLUME(mixedRight);
+		//mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft);
+		//mixedRight = LJ_YM2612_CLAMP_VOLUME(mixedRight);
 
-		outputLeft[sample] = mixedLeft;
-		outputRight[sample] = mixedRight;
+		mixedLeft = mixedLeft >> LJ_YM2612_OUTPUT_SCALE;
+		mixedRight = mixedRight >> LJ_YM2612_OUTPUT_SCALE;
+
+		outL = mixedLeft;
+		outR = mixedRight;
+
+		outputLeft[sample] = outL;
+		outputRight[sample] = outR;
 	}
 
 	// Update volumes and frequency position
@@ -886,13 +1143,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 			slotPtr->omega += slotPtr->omegaDelta;
 			slotPtr->volume += slotPtr->volumeDelta;
 
+			slotPtr->volume = LJ_YM2612_CLAMP_VOLUME(slotPtr->volume);
 			if (slotPtr->volume < 0)
 			{
 				slotPtr->volume = 0;
-			}
-			if (slotPtr->volume > LJ_YM2612_VOLUME_MAX)
-			{
-				slotPtr->volume = LJ_YM2612_VOLUME_MAX;
 			}
 		}
 	}
