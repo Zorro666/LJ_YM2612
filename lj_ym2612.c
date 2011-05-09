@@ -149,6 +149,9 @@ static const LJ_YM_UINT8 LJ_YM2612_fnumKeycodeTable[16] = {
 #define LJ_YM2612_TL_TABLE_NUM_ENTRIES (128)
 static int LJ_YM2612_tlTable[LJ_YM2612_TL_TABLE_NUM_ENTRIES];
 
+// The slots referenced in the registers are not 0,1,2,3 *sigh*
+static int LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2, 1, 3 };
+
 struct LJ_YM2612_SLOT
 {
 	LJ_YM_UINT32 fnum;
@@ -406,7 +409,7 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
 	else if (algorithm == 0x5)
 	{
 		/*
-			slot 0 - > slot 1 & slot 2 & slot 3, slot 3 has carrier output
+			slot 0 outputs to slot 1 and slot 2 and slot 3, only slot 3 has carrier output
 						/>	[1] --\
 			[0] -->		[2] --------------->
 						\>	[3] --/
@@ -589,11 +592,12 @@ static void ym2612_channelSetBlockFnumMSB(LJ_YM2612_CHANNEL* const channelPtr, c
 
 static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 slotOnOff)
 {
-	int slot;
+	int i;
 	int slotMask = 0x1;
 	//Set the start of wave
-	for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
+	for (i = 0; i < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; i++)
 	{
+		const int slot = LJ_YM2612_slotTable[i];
 		LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
 		if (slotOnOff & slotMask)
@@ -861,10 +865,6 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 
 LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, LJ_YM_UINT8 reg, LJ_YM_UINT8 data)
 {
-	LJ_YM_UINT32 parameter = 0;
-	//LJ_YM_UINT32 channel = 0;
-	//LJ_YM_UINT32 slot = 0;
-
 	if (ym2612 == NULL)
 	{
 		fprintf(stderr, "ym2612_setRegister:ym2612 is NULL\n");
@@ -876,9 +876,6 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 		fprintf(stderr, "ym2612_setRegister:invalid part:%d max:%d \n",part, LJ_YM2612_NUM_PARTS);
 		return LJ_YM2612_ERROR;
 	}
-
-	// convert from register to parameter
-	parameter = (reg & 0xF0) >> 4;
 
 	if (LJ_YM2612_validRegisters[reg] == 0)
 	{
@@ -941,9 +938,11 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 	}
 	else if ((reg >= 0x30) && (reg <= 0x9F))
 	{
-		//0x30-0x90 = settings per channel per slot (channel = bottom 2 bits of reg, slot = reg / 4)
+		//0x30-0x90 = settings per channel per slot (channel = bottom 2 bits of reg, slotReg = reg / 4)
+		// Use a table to convert from slotReg -> internal slot
 		const int channel = reg & 0x3;
-		const int slot = (reg >> 2) & 0x3;
+		const int slotReg = (reg >> 2) & 0x3;
+		const int slot = LJ_YM2612_slotTable[slotReg];
 		const int regParameter = reg & 0xF0;
 
 		LJ_YM2612_CHANNEL* const channelPtr = &ym2612->part[part].channel[channel];
@@ -953,7 +952,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			ym2612_channelSetDetuneMult(channelPtr, slot, data);
 			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
-				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d data:0x%X\n", part, channel, slot, data);
+				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
 			return LJ_YM2612_OK;
 		}
@@ -962,9 +961,9 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			ym2612_channelSetTotalLevel(channelPtr, slot, data);
 			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
-				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d data:0x%X\n", part, channel, slot, data);
+				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
-			printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d data:0x%X\n", part, channel, slot, data);
+			printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			return LJ_YM2612_OK;
 		}
 	}
