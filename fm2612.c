@@ -497,10 +497,8 @@ static INT32 lfo_pm_table[128*8*32]; /* 128 combinations of 7 bits meaningful (o
 
 /* slot number */
 #define SLOT1 0
-//#define SLOT2 2
-//#define SLOT3 1
-#define SLOT2 1
-#define SLOT3 2
+#define SLOT2 2
+#define SLOT3 1
 #define SLOT4 3
 
 /* bit0 = Right enable , bit1 = Left enable */
