@@ -73,9 +73,8 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 #define LJ_YM2612_FREQ_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
 #define LJ_YM2612_FREQ_MASK ((1 << LJ_YM2612_FREQ_BITS) - 1)
 
-//Volume scale = 16.16 (-1->1) - matches frequency scale so inputs can be used in FM algorithms
-//#define LJ_YM2612_VOLUME_SCALE_BITS (LJ_YM2612_GLOBAL_SCALE_BITS-0)
-#define LJ_YM2612_VOLUME_SCALE_BITS (13)
+//Volume scale = xx.yy (-1->1) 
+#define LJ_YM2612_VOLUME_SCALE_BITS (12)
 
 // Number of bits to use for scaling output e.g. choose an output of 1.0 -> 13-bits (8192)
 #define LJ_YM2612_OUTPUT_VOLUME_BITS (13)
@@ -84,7 +83,7 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 // Max volume is -1 -> +1
 #define LJ_YM2612_VOLUME_MAX (1<<LJ_YM2612_VOLUME_SCALE_BITS)
 
-//Sin output scale = 16.16 (-1->1) - matches frequency scale so inputs can be used in FM algorithms
+//Sin output scale = xx.yy (-1->1)
 #define LJ_YM2612_SIN_SCALE_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
 
 // TL table scale = 16.16 (0->1) - matches volume scale
@@ -98,14 +97,17 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 #define LJ_YM2612_FNUM_TABLE_NUM_ENTRIES (1 << LJ_YM2612_FNUM_TABLE_BITS)
 static LJ_YM_UINT32 LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES];
 
-//SIN table = 13-bit table but stored in 16.16 scale
+//SIN table = 13-bit table but stored in LJ_YM2612_SIN_SCALE_BITS format
 #define LJ_YM2612_SIN_TABLE_BITS (13)
 #define LJ_YM2612_SIN_TABLE_NUM_ENTRIES (1 << LJ_YM2612_SIN_TABLE_BITS)
 #define LJ_YM2612_SIN_TABLE_MASK ((1 << LJ_YM2612_SIN_TABLE_BITS) - 1)
 static int LJ_YM2612_sinTable[LJ_YM2612_SIN_TABLE_NUM_ENTRIES];
 
-// >> MAGIC = volume - sin - 2 = -2 for defaults
-#define JAKE_MAGIC_PHI_SCALE_BITS (LJ_YM2612_VOLUME_SCALE_BITS - LJ_YM2612_SIN_TABLE_BITS -2)
+// Right shift for delta phi = LJ_YM2612_VOLUME_SCALE_BITS - LJ_YM2612_SIN_TABLE_BITS - 2
+// >> LJ_YM2612_VOLUME_SCALE_BITS = to remove the volume scale in the output from the sin table
+// << LJ_YM2612_SIN_TABLE_BITS = to put the output back into the range of the sin table
+// << 2 = *4 to convert FM output of -1 -> +1 => -4 -> +4 => -PI (and a bit) -> +PI (and a bit)
+#define LJ_YM2612_DELTA_PHI_SCALE (LJ_YM2612_VOLUME_SCALE_BITS - LJ_YM2612_SIN_TABLE_BITS -2)
 
 //DETUNE table = this are integer freq shifts in the frequency integer scale
 // In the docs (YM2608) : the base scale is (0.052982) this equates to: (8*1000*1000/(1*1024*1024))/144
@@ -162,7 +164,7 @@ struct LJ_YM2612_SLOT
 	// Algorithm support
 	int fmOutput;
 	int fmInputDelta;
-	int* modulationOutput;
+	int* modulationOutput[3];
 	int carrierOutputMask;
 	
 
@@ -274,16 +276,24 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
 			[0] --> [1] --> [2] --> [3] --------------->
 		*/
 		channelPtr->slot[0].carrierOutputMask = 0;
-		channelPtr->slot[0].modulationOutput = &channelPtr->slot[1].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[0] = &channelPtr->slot[1].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[1] = NULL;
+		channelPtr->slot[0].modulationOutput[2] = NULL;
 
 		channelPtr->slot[1].carrierOutputMask = 0;
-		channelPtr->slot[1].modulationOutput = &channelPtr->slot[2].fmInputDelta;
+		channelPtr->slot[1].modulationOutput[0] = &channelPtr->slot[2].fmInputDelta;
+		channelPtr->slot[1].modulationOutput[1] = NULL;
+		channelPtr->slot[1].modulationOutput[2] = NULL;
 
 		channelPtr->slot[2].carrierOutputMask = 0;
-		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].modulationOutput[0] = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].modulationOutput[1] = NULL;
+		channelPtr->slot[2].modulationOutput[2] = NULL;
 
 		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[3].modulationOutput = NULL;
+		channelPtr->slot[3].modulationOutput[0] = NULL;
+		channelPtr->slot[3].modulationOutput[1] = NULL;
+		channelPtr->slot[3].modulationOutput[2] = NULL;
 	}
 	else if (algorithm == 0x1)
 	{
@@ -293,16 +303,24 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
 				[1] --> [2] --> [3] ------->
 		*/
 		channelPtr->slot[0].carrierOutputMask = 0;
-		channelPtr->slot[0].modulationOutput = &channelPtr->slot[2].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[0] = &channelPtr->slot[2].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[1] = NULL;
+		channelPtr->slot[0].modulationOutput[2] = NULL;
 
 		channelPtr->slot[1].carrierOutputMask = 0;
-		channelPtr->slot[1].modulationOutput = &channelPtr->slot[2].fmInputDelta;
+		channelPtr->slot[1].modulationOutput[0] = &channelPtr->slot[2].fmInputDelta;
+		channelPtr->slot[1].modulationOutput[1] = NULL;
+		channelPtr->slot[1].modulationOutput[2] = NULL;
 
 		channelPtr->slot[2].carrierOutputMask = 0;
-		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].modulationOutput[0] = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].modulationOutput[1] = NULL;
+		channelPtr->slot[2].modulationOutput[2] = NULL;
 
 		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[3].modulationOutput = NULL;
+		channelPtr->slot[3].modulationOutput[0] = NULL;
+		channelPtr->slot[3].modulationOutput[1] = NULL;
+		channelPtr->slot[3].modulationOutput[2] = NULL;
 	}
 	else if (algorithm == 0x2)
 	{
@@ -312,16 +330,24 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
 			[1] --> [2] --> [3] ------->
 		*/
 		channelPtr->slot[0].carrierOutputMask = 0;
-		channelPtr->slot[0].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[0] = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[1] = NULL;
+		channelPtr->slot[0].modulationOutput[2] = NULL;
 
 		channelPtr->slot[1].carrierOutputMask = 0;
-		channelPtr->slot[1].modulationOutput = &channelPtr->slot[2].fmInputDelta;
+		channelPtr->slot[1].modulationOutput[0] = &channelPtr->slot[2].fmInputDelta;
+		channelPtr->slot[1].modulationOutput[1] = NULL;
+		channelPtr->slot[1].modulationOutput[2] = NULL;
 
 		channelPtr->slot[2].carrierOutputMask = 0;
-		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].modulationOutput[0] = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].modulationOutput[1] = NULL;
+		channelPtr->slot[2].modulationOutput[2] = NULL;
 
 		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[3].modulationOutput = NULL;
+		channelPtr->slot[3].modulationOutput[0] = NULL;
+		channelPtr->slot[3].modulationOutput[1] = NULL;
+		channelPtr->slot[3].modulationOutput[2] = NULL;
 	}
 	else if (algorithm == 0x3)
 	{
@@ -331,16 +357,24 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
 			[2] --------/
 		*/
 		channelPtr->slot[0].carrierOutputMask = 0;
-		channelPtr->slot[0].modulationOutput = &channelPtr->slot[1].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[0] = &channelPtr->slot[1].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[1] = NULL;
+		channelPtr->slot[0].modulationOutput[2] = NULL;
 
 		channelPtr->slot[1].carrierOutputMask = 0;
-		channelPtr->slot[1].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[1].modulationOutput[0] = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[1].modulationOutput[1] = NULL;
+		channelPtr->slot[1].modulationOutput[2] = NULL;
 
 		channelPtr->slot[2].carrierOutputMask = 0;
-		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].modulationOutput[0] = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].modulationOutput[1] = NULL;
+		channelPtr->slot[2].modulationOutput[2] = NULL;
 
 		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[3].modulationOutput = NULL;
+		channelPtr->slot[3].modulationOutput[0] = NULL;
+		channelPtr->slot[3].modulationOutput[1] = NULL;
+		channelPtr->slot[3].modulationOutput[2] = NULL;
 	}
 	else if (algorithm == 0x4)
 	{
@@ -350,39 +384,52 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
         [2] --> [3] --/
 		*/
 		channelPtr->slot[0].carrierOutputMask = 0;
-		channelPtr->slot[0].modulationOutput = &channelPtr->slot[1].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[0] = &channelPtr->slot[1].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[1] = NULL;
+		channelPtr->slot[0].modulationOutput[2] = NULL;
 
 		channelPtr->slot[1].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[1].modulationOutput = NULL;
+		channelPtr->slot[1].modulationOutput[0] = NULL;
+		channelPtr->slot[1].modulationOutput[1] = NULL;
+		channelPtr->slot[1].modulationOutput[2] = NULL;
 
 		channelPtr->slot[2].carrierOutputMask = 0;
-		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].modulationOutput[0] = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].modulationOutput[1] = NULL;
+		channelPtr->slot[2].modulationOutput[2] = NULL;
 
 		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[3].modulationOutput = NULL;
+		channelPtr->slot[3].modulationOutput[0] = NULL;
+		channelPtr->slot[3].modulationOutput[1] = NULL;
+		channelPtr->slot[3].modulationOutput[2] = NULL;
 	}
 	else if (algorithm == 0x5)
 	{
 		/*
-			slot 0 and slot 1 and slot 2 output to slot 3, only slot 3 has carrier output
-			THIS IS WRONG WRONG WRONG
 			slot 0 - > slot 1 & slot 2 & slot 3, slot 3 has carrier output
-			One slot to multiple outputs bugger
-			[0] --\
-			[1] --> [3] --------------->
-			[2] --/
+						/>	[1] --\
+			[0] -->		[2] --------------->
+						\>	[3] --/
 		*/
 		channelPtr->slot[0].carrierOutputMask = 0;
-		channelPtr->slot[0].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[0] = &channelPtr->slot[1].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[1] = &channelPtr->slot[2].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[2] = &channelPtr->slot[3].fmInputDelta;
 
-		channelPtr->slot[1].carrierOutputMask = 0;
-		channelPtr->slot[1].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[1].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[1].modulationOutput[0] = NULL;
+		channelPtr->slot[1].modulationOutput[1] = NULL;
+		channelPtr->slot[1].modulationOutput[2] = NULL;
 
-		channelPtr->slot[2].carrierOutputMask = 0;
-		channelPtr->slot[2].modulationOutput = &channelPtr->slot[3].fmInputDelta;
+		channelPtr->slot[2].carrierOutputMask = FULL_OUTPUT_MASK;
+		channelPtr->slot[2].modulationOutput[0] = NULL;
+		channelPtr->slot[2].modulationOutput[1] = NULL;
+		channelPtr->slot[2].modulationOutput[2] = NULL;
 
 		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[3].modulationOutput = NULL;
+		channelPtr->slot[3].modulationOutput[0] = NULL;
+		channelPtr->slot[3].modulationOutput[1] = NULL;
+		channelPtr->slot[3].modulationOutput[2] = NULL;
 	}
 	else if (algorithm == 0x6)
 	{
@@ -393,16 +440,24 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
 							[3] --/
 		*/
 		channelPtr->slot[0].carrierOutputMask = 0;
-		channelPtr->slot[0].modulationOutput = &channelPtr->slot[1].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[0] = &channelPtr->slot[1].fmInputDelta;
+		channelPtr->slot[0].modulationOutput[1] = NULL;
+		channelPtr->slot[0].modulationOutput[2] = NULL;
 
 		channelPtr->slot[1].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[1].modulationOutput = NULL;
+		channelPtr->slot[1].modulationOutput[0] = NULL;
+		channelPtr->slot[1].modulationOutput[1] = NULL;
+		channelPtr->slot[1].modulationOutput[2] = NULL;
 
 		channelPtr->slot[2].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[2].modulationOutput = NULL;
+		channelPtr->slot[2].modulationOutput[0] = NULL;
+		channelPtr->slot[2].modulationOutput[1] = NULL;
+		channelPtr->slot[2].modulationOutput[2] = NULL;
 
 		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[3].modulationOutput = NULL;
+		channelPtr->slot[3].modulationOutput[0] = NULL;
+		channelPtr->slot[3].modulationOutput[1] = NULL;
+		channelPtr->slot[3].modulationOutput[2] = NULL;
 	}
 	else if (algorithm == 0x7)
 	{
@@ -414,16 +469,24 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
     	[3] ---/
 		*/
 		channelPtr->slot[0].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[0].modulationOutput = NULL;
+		channelPtr->slot[0].modulationOutput[0] = NULL;
+		channelPtr->slot[0].modulationOutput[1] = NULL;
+		channelPtr->slot[0].modulationOutput[2] = NULL;
 
 		channelPtr->slot[1].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[1].modulationOutput = NULL;
+		channelPtr->slot[1].modulationOutput[0] = NULL;
+		channelPtr->slot[1].modulationOutput[1] = NULL;
+		channelPtr->slot[1].modulationOutput[2] = NULL;
 
 		channelPtr->slot[2].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[2].modulationOutput = NULL;
+		channelPtr->slot[2].modulationOutput[0] = NULL;
+		channelPtr->slot[2].modulationOutput[1] = NULL;
+		channelPtr->slot[2].modulationOutput[2] = NULL;
 
 		channelPtr->slot[3].carrierOutputMask = FULL_OUTPUT_MASK;
-		channelPtr->slot[3].modulationOutput = NULL;
+		channelPtr->slot[3].modulationOutput[0] = NULL;
+		channelPtr->slot[3].modulationOutput[1] = NULL;
+		channelPtr->slot[3].modulationOutput[2] = NULL;
 	}
 }
 
@@ -562,7 +625,10 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 
 	slotPtr->fmOutput = 0;
 	slotPtr->fmInputDelta = 0;
-	slotPtr->modulationOutput = NULL;
+	slotPtr->modulationOutput[0] = NULL;
+	slotPtr->modulationOutput[1] = NULL;
+	slotPtr->modulationOutput[2] = NULL;
+
 	slotPtr->carrierOutputMask = 0x0;
 }
 
@@ -1063,11 +1129,11 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				const int slotPhi = (OMEGA >> LJ_YM2612_FREQ_BITS);
 		
 				//Phi needs to have the fmInputDelta added to it to make algorithms work
-#if JAKE_MAGIC_PHI_SCALE_BITS >= 0
-					const int deltaPhi = (slotPtr->fmInputDelta >> JAKE_MAGIC_PHI_SCALE_BITS);
-#else // #if JAKE_MAGIC_PHI_SCALE_BITS >= 0
-					const int deltaPhi = (slotPtr->fmInputDelta << -JAKE_MAGIC_PHI_SCALE_BITS);
-#endif // #if JAKE_MAGIC_PHI_SCALE_BITS >= 0
+#if LJ_YM2612_DELTA_PHI_SCALE >= 0
+					const int deltaPhi = (slotPtr->fmInputDelta >> LJ_YM2612_DELTA_PHI_SCALE);
+#else // #if LJ_YM2612_DELTA_PHI_SCALE >= 0
+					const int deltaPhi = (slotPtr->fmInputDelta << -LJ_YM2612_DELTA_PHI_SCALE);
+#endif // #if LJ_YM2612_DELTA_PHI_SCALE >= 0
 
 				const int phi = slotPhi + deltaPhi;
 
@@ -1085,9 +1151,17 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				slotPtr->fmOutput = slotOutput;
 		
 				// Add this output onto the input of the slot in the algorithm
-				if (slotPtr->modulationOutput != NULL)
+				if (slotPtr->modulationOutput[0] != NULL)
 				{
-					*slotPtr->modulationOutput += slotOutput;
+					*slotPtr->modulationOutput[0] += slotOutput;
+				}
+				if (slotPtr->modulationOutput[1] != NULL)
+				{
+					*slotPtr->modulationOutput[1] += slotOutput;
+				}
+				if (slotPtr->modulationOutput[2] != NULL)
+				{
+					*slotPtr->modulationOutput[2] += slotOutput;
 				}
 
 				carrierOutput = slotOutput & slotPtr->carrierOutputMask;
@@ -1132,8 +1206,13 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft);
 		mixedRight = LJ_YM2612_CLAMP_VOLUME(mixedRight);
 
+#if LJ_YM2612_OUTPUT_SCALE >= 0
 		mixedLeft = mixedLeft >> LJ_YM2612_OUTPUT_SCALE;
 		mixedRight = mixedRight >> LJ_YM2612_OUTPUT_SCALE;
+#else // #if LJ_YM2612_OUTPUT_SCALE >= 0
+		mixedLeft = mixedLeft << -LJ_YM2612_OUTPUT_SCALE;
+		mixedRight = mixedRight << -LJ_YM2612_OUTPUT_SCALE;
+#endif // #if LJ_YM2612_OUTPUT_SCALE >= 0
 
 		outL = mixedLeft;
 		outR = mixedRight;
