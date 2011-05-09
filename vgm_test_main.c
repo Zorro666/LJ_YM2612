@@ -603,14 +603,14 @@ static LJ_VGM_UINT8 algoProgram[] = {
 		0x28, 0x05,	// All channels off
 		0x28, 0x06,	// All channels off
 		0x2B, 0x00,	// DAC off
-		0x30, 0x03,	// DT1/MUL - channel 0 slot 0 : DT=0 MUL=3
-		0x34, 0x03,	// DT1/MUL - channel 0 slot 2 : DT=0 MUL=3
-		0x38, 0x00,	// DT1/MUL - channel 0 slot 1 : DT=0 MUL=0
-		0x3C, 0x00,	// DT1/MUL - channel 0 slot 3 : DT=0 MUL=0
-		0x40, 0x7F,	// Total Level - channel 0 slot 0 (*0)
-		0x44, 0x00,	// Total Level - channel 0 slot 2 (*0)
-		0x48, 0x7F,	// Total Level - channel 0 slot 1 (*1)
-		0x4C, 0x00,	// Total Level - channel 0 slot 3 (*1)
+		0x30, 0x09,	// DT1/MUL - channel 0 slot 0 : DT=0 MUL=0
+		0x34, 0x0A,	// DT1/MUL - channel 0 slot 2 : DT=0 MUL=0
+		0x38, 0x0B,	// DT1/MUL - channel 0 slot 1 : DT=0 MUL=0
+		0x3C, 0x08,	// DT1/MUL - channel 0 slot 3 : DT=0 MUL=0
+		0x40, 0x10,	// Total Level - channel 0 slot 0 (*0)
+		0x44, 0x10,	// Total Level - channel 0 slot 2 (*0)
+		0x48, 0x10,	// Total Level - channel 0 slot 1 (*1)
+		0x4C, 0x10,	// Total Level - channel 0 slot 3 (*1)
 		0x50, 0x1F,	// RS/AR - channel 0 slot 0
 		0x54, 0x1F,	// RS/AR - channel 0 slot 2
 		0x58, 0x1F,	// RS/AR - channel 0 slot 1
@@ -631,12 +631,12 @@ static LJ_VGM_UINT8 algoProgram[] = {
 		0x94, 0x00,	// SSG - channel 0 slot 2
 		0x98, 0x00,	// SSG - channel 0 slot 1
 		0x9C, 0x00,	// SSG - channel 0 slot 3
-		0xB0, 0x00,	// Feedback/algorithm (FB=0, ALG=0)
+		0xB0, 0x07,	// Feedback/algorithm (FB=0, ALG=7)
 		0xB4, 0xC0,	// Both speakers on
 		0x28, 0x00,	// Key off
-		0xA4, 0x6A,	// Set frequency (BLOCK=7)
+		0xA4, 0x5A,	// Set frequency (BLOCK=7)
 		0xA0, 0x69,	// Set frequency FREQ=???)
-		0x28, 0xC0,	// Key on (slot 2 & 3, channel 0)
+		0x28, 0xF0,	// Key on (slot 0 & 1 & 2 & 3, channel 0)
 		0x00, 0x00,	// OUTPUT SAMPLES
 		0x28, 0x00,	// Key off (ALL slots, channel 0)
 		0x00, 0x01,	// OUTPUT SAMPLES
