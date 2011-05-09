@@ -597,7 +597,8 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 	//Set the start of wave
 	for (i = 0; i < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; i++)
 	{
-		const int slot = LJ_YM2612_slotTable[i];
+		//const int slot = LJ_YM2612_slotTable[i];
+		const int slot = i;
 		LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
 		if (slotOnOff & slotMask)
