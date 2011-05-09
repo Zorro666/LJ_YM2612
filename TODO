@@ -1,8 +1,7 @@
 High Priority:
-YM2612:fix slot referencing: ALL slot regs -> S0:S2:S1:S3 Key On/Off=Bits 7=S3:6=S1:5=2:4=0
+YM2612:algorithm testing: 0, 1, 2, 3, 4, 5, 6, 7
 
 Medium Priority:
-YM2612:algorithm testing: 0, 1, 2, 3, 4, 5, 6, 7
 YM2612:implement LJ_FEEDBACK_ALGO = 0xB0
 YM2612:fix up DAC scaling and make it #define'd and controlled
 YM2612:test and verify -ve detune
