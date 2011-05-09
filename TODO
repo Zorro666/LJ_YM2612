@@ -1,24 +1,26 @@
 High Priority:
-YM2612:algorithm testing: 0, 1, 2, 3, 4, 5, 6, 7
-
-Medium Priority:
 YM2612:implement LJ_FEEDBACK_ALGO = 0xB0
 YM2612:fix up DAC scaling and make it #define'd and controlled
 YM2612:test and verify -ve detune
 YM2612:DAC enable -> blocks channel 5
-YM2612:implement LJ_LR_AMS_PMS = 0xB4,
+
+Medium Priority:
+YM2612:implement left/right mode
 YM2612:support Ch 2/5 special mode with freq per slot
 
 Low Priority:
 YM2612:implement ADSR
 TEST_APP: VGM debug on/off
-YM2612:implement operators
 YM2612:compute max freq value and add it on if freq goes -ve because of detune
 
 Future Stuff:
 
 High Priority:
 YM2612:implement LJ_LR_AMS_PMS = 0xB4,
+YM2612:implement LFO
+YM2612:implement SSG
+YM2612:implement timers
+YM2612:add read API call 
 
 Medium Priority:
 YM2612: error handling for unknown/unsupported register (be nice to make it say UNKNOWN REGISTER)
@@ -27,12 +29,6 @@ Low Priority:
 TEST_APP:have real time graph plotting thingy
 VGM:support the loop settings in the header
 TEST_APP: number of loops on command line
-
-YM2612:implement ch 3 and 6 special frequency mode
-YM2612:implement LFO
-YM2612:implement SSG
-YM2612:implement timers
-YM2612:add read API call 
 
 VGM:zlib support for compressed files
 VGM:handle the other commands (skip correct amount of data basically)
