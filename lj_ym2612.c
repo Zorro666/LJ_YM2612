@@ -67,14 +67,14 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 
 //Global fixed point scaling used in volume calculations, sin output - unify because output is used as inputs
 //15 is maximum (>= 16 will overflow int 32-bit calculations)
-#define LJ_YM2612_GLOBAL_SCALE_BITS (13)
+#define LJ_YM2612_GLOBAL_SCALE_BITS (16)
 
 //FREQ scale = 16.16 - used global scale to keep things consistent
 #define LJ_YM2612_FREQ_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
 #define LJ_YM2612_FREQ_MASK ((1 << LJ_YM2612_FREQ_BITS) - 1)
 
 //Volume scale = xx.yy (-1->1) 
-#define LJ_YM2612_VOLUME_SCALE_BITS (12)
+#define LJ_YM2612_VOLUME_SCALE_BITS (13)
 
 // Number of bits to use for scaling output e.g. choose an output of 1.0 -> 13-bits (8192)
 #define LJ_YM2612_OUTPUT_VOLUME_BITS (13)
@@ -97,8 +97,8 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 #define LJ_YM2612_FNUM_TABLE_NUM_ENTRIES (1 << LJ_YM2612_FNUM_TABLE_BITS)
 static LJ_YM_UINT32 LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES];
 
-//SIN table = 13-bit table but stored in LJ_YM2612_SIN_SCALE_BITS format
-#define LJ_YM2612_SIN_TABLE_BITS (13)
+//SIN table = 10-bit table but stored in LJ_YM2612_SIN_SCALE_BITS format
+#define LJ_YM2612_SIN_TABLE_BITS (10)
 #define LJ_YM2612_SIN_TABLE_NUM_ENTRIES (1 << LJ_YM2612_SIN_TABLE_BITS)
 #define LJ_YM2612_SIN_TABLE_MASK ((1 << LJ_YM2612_SIN_TABLE_BITS) - 1)
 static int LJ_YM2612_sinTable[LJ_YM2612_SIN_TABLE_NUM_ENTRIES];
@@ -1130,9 +1130,9 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		
 				//Phi needs to have the fmInputDelta added to it to make algorithms work
 #if LJ_YM2612_DELTA_PHI_SCALE >= 0
-					const int deltaPhi = (slotPtr->fmInputDelta >> LJ_YM2612_DELTA_PHI_SCALE);
+				const int deltaPhi = (slotPtr->fmInputDelta >> LJ_YM2612_DELTA_PHI_SCALE);
 #else // #if LJ_YM2612_DELTA_PHI_SCALE >= 0
-					const int deltaPhi = (slotPtr->fmInputDelta << -LJ_YM2612_DELTA_PHI_SCALE);
+				const int deltaPhi = (slotPtr->fmInputDelta << -LJ_YM2612_DELTA_PHI_SCALE);
 #endif // #if LJ_YM2612_DELTA_PHI_SCALE >= 0
 
 				const int phi = slotPhi + deltaPhi;
