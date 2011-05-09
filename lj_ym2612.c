@@ -365,6 +365,9 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
 	{
 		/*
 			slot 0 and slot 1 and slot 2 output to slot 3, only slot 3 has carrier output
+			THIS IS WRONG WRONG WRONG
+			slot 0 - > slot 1 & slot 2 & slot 3, slot 3 has carrier output
+			One slot to multiple outputs bugger
 			[0] --\
 			[1] --> [3] --------------->
 			[2] --/
