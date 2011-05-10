@@ -281,10 +281,6 @@ int main(int argc, char* argv[])
 					{
 						result = LJ_VGM_TEST_OK;
 					}
-					if ((vgmInstruction.R & 0xB4) == 0xB4)
-					{
-						result = LJ_VGM_TEST_OK;
-					}
 					if (noerror == 1)
 					{
 						result = LJ_VGM_TEST_OK;
