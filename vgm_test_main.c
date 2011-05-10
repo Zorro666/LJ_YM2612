@@ -552,13 +552,13 @@ static LJ_VGM_UINT8 noteDTProgram[] = {
 		0x28, 0x05,	// All channels off
 		0x28, 0x06,	// All channels off
 		0x2B, 0x00,	// DAC off
-		0x30, 0x12,	// DT1/MUL - channel 0 slot 0 : DT=1 MUL=2 -> *2
-		0x34, 0x21,	// DT1/MUL - channel 0 slot 2 : DT=2 MUL=1 -> *1
-		0x38, 0x33,	// DT1/MUL - channel 0 slot 1 : DT=3 MUL=3 -> *3
-		0x3C, 0x03,	// DT1/MUL - channel 0 slot 3 : DT=0 MUL=3 -> *3
+		0x30, 0x33,	// DT1/MUL - channel 0 slot 0 : DT=-3 MUL=2 -> *2
+		0x34, 0x21,	// DT1/MUL - channel 0 slot 2 : DT=-1 MUL=1 -> *1
+		0x38, 0x33,	// DT1/MUL - channel 0 slot 1 : DT=-2 MUL=3 -> *3
+		0x3C, 0x03,	// DT1/MUL - channel 0 slot 3 : DT=+0 MUL=3 -> *3
 		0x40, 0x00,	// Total Level - channel 0 slot 0
-		0x44, 0x10,	// Total Level - channel 0 slot 2
-		0x48, 0x10,	// Total Level - channel 0 slot 1
+		0x44, 0x70,	// Total Level - channel 0 slot 2
+		0x48, 0x70,	// Total Level - channel 0 slot 1
 		0x4C, 0x7F,	// Total Level - channel 0 slot 3 (*0.0)
 		0x50, 0x1F,	// RS/AR - channel 0 slot 0
 		0x54, 0x1F,	// RS/AR - channel 0 slot 2
@@ -583,7 +583,7 @@ static LJ_VGM_UINT8 noteDTProgram[] = {
 		0xB0, 0x07,	// Feedback/algorithm (FB=0, ALG=7)
 		0xB4, 0xC0,	// Both speakers on
 		0x28, 0x00,	// Key off
-		0xA4, 0x6A,	// Set frequency (BLOCK=7)
+		0xA4, 0x30,	// Set frequency (BLOCK=7)
 		0xA0, 0x69,	// Set frequency FREQ=???)
 		0x28, 0x70,	// Key on (slot 0+1+2, channel 0)
 		0x00, 0x00,	// OUTPUT SAMPLES AFTER KEY ON
