@@ -77,8 +77,8 @@ The format starts with a 64 byte header:
 0x4f dd    		: Game Gear PSG stereo, write dd to port 0x06
 0x50 dd    		: PSG (SN76489/SN76496) write value dd
 0x51 aa dd 		: YM2413, write value dd to register aa
-0x52 aa dd 		: YM2612 port 0, write value dd to register aa
-0x53 aa dd 		: YM2612 port 1, write value dd to register aa
+0x52 aa dd 		: YM2612 part 0, write value dd to register aa
+0x53 aa dd 		: YM2612 part 1, write value dd to register aa
 0x54 aa dd 		: YM2151, write value dd to register aa
 0x61 nn nn 		: Wait n samples, n can range from 0 to 65535 (approx 1.49 seconds). 
 				  Longer pauses than this are represented by multiple wait commands.
@@ -87,7 +87,7 @@ The format starts with a 64 byte header:
 0x66       		: end of sound data
 0x67 ...   		: data block: see below
 0x7n       		: wait n+1 samples, n can range from 0 to 15.
-0x8n       		: YM2612 port 0 address 2A write from the data bank, then wait n samples; n can range from 0 to 15. 
+0x8n       		: YM2612 part 0 address 2A write from the data bank, then wait n samples; n can range from 0 to 15. 
 				  Note that the wait is n, NOT n+1.
 0xe0 dddddddd 	: seek to offset dddddddd (Intel byte order) in PCM data bank
  
@@ -240,13 +240,13 @@ static void vgm_init(LJ_VGM_FILE* const vgmFile)
 	LJ_VGM_validInstruction[LJ_VGM_DATA_BLOCK_START] = 1;
 	LJ_VGM_instruction[LJ_VGM_DATA_BLOCK_START]= "DATA_BLOCK_START";
 
-	//LJ_VGM_YM2612_WRITE_PORT_0 = 0x52,
-	LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_PORT_0] = 1;
-	LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_PORT_0]= "YM2612_WRITE_PORT_0";
+	//LJ_VGM_YM2612_WRITE_PART_0 = 0x52,
+	LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_PART_0] = 1;
+	LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_PART_0]= "YM2612_WRITE_PART_0";
 
-	//LJ_VGM_YM2612_WRITE_PORT_1 = 0x53,
-	LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_PORT_1] = 1;
-	LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_PORT_1]= "YM2612_WRITE_PORT_1";
+	//LJ_VGM_YM2612_WRITE_PART_1 = 0x53,
+	LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_PART_1] = 1;
+	LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_PART_1]= "YM2612_WRITE_PART_1";
 
 	//LJ_VGM_DATA_SEEK_OFFSET = 0xe0,
 	LJ_VGM_validInstruction[LJ_VGM_DATA_SEEK_OFFSET] = 1;
@@ -520,7 +520,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 
 		return LJ_VGM_OK;
 	}
-	else if ((cmd == LJ_VGM_YM2612_WRITE_PORT_0) || (cmd == LJ_VGM_YM2612_WRITE_PORT_1))
+	else if ((cmd == LJ_VGM_YM2612_WRITE_PART_0) || (cmd == LJ_VGM_YM2612_WRITE_PART_1))
 	{
 		//0x52 aa dd 		: YM2612 port 0, write value dd to register aa
 		//0x53 aa dd 		: YM2612 port 1, write value dd to register aa
@@ -782,7 +782,7 @@ void LJ_VGM_debugPrint(const LJ_VGM_INSTRUCTION* const vgmInstr)
 	{
 		printf(" dataType:0x%X dataNum:%d", vgmInstr->dataType, vgmInstr->dataNum);
 	}
-	else if ((cmd == LJ_VGM_YM2612_WRITE_PORT_0) || (cmd == LJ_VGM_YM2612_WRITE_PORT_1))
+	else if ((cmd == LJ_VGM_YM2612_WRITE_PART_0) || (cmd == LJ_VGM_YM2612_WRITE_PART_1))
 	{
 		const int R = vgmInstr->R;
 		const int D = vgmInstr->D;
