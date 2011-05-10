@@ -660,7 +660,7 @@ static LJ_VGM_UINT8 dacTestProgram[] = {
 		LJ_TEST_PART_0, 0x28, 0x04,	// All channels off
 		LJ_TEST_PART_0, 0x28, 0x05,	// All channels off
 		LJ_TEST_PART_0, 0x28, 0x06,	// All channels off
-		LJ_TEST_PART_0, 0x2B, 0x00,	// DAC off
+		LJ_TEST_PART_0, 0x2B, 0x80,	// DAC on
 		LJ_TEST_PART_1, 0x32, 0x33,	// DT1/MUL - channel 5 slot 0 : DT=-3 MUL=2 -> *2
 		LJ_TEST_PART_1, 0x36, 0x21,	// DT1/MUL - channel 5 slot 2 : DT=-1 MUL=1 -> *1
 		LJ_TEST_PART_1, 0x3A, 0x33,	// DT1/MUL - channel 5 slot 1 : DT=-2 MUL=3 -> *3
@@ -695,6 +695,35 @@ static LJ_VGM_UINT8 dacTestProgram[] = {
 		LJ_TEST_PART_1, 0xA6, 0x30,	// Set frequency (BLOCK=7) - channel 5
 		LJ_TEST_PART_1, 0xA2, 0x69,	// Set frequency FREQ=???) - channel 5
 		LJ_TEST_PART_0, 0x28, 0x76,	// Key on (slot 0+1+2, channel 5)
+		LJ_TEST_PART_0, 0x2A, 0x70,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x60,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x50,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x40,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x30,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x20,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x10,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x00,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x10,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x20,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x30,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x40,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x50,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x60,	// DAC data
+		LJ_TEST_OUTPUT, 0x00, 0x02,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x2A, 0x70,	// DAC data
 		LJ_TEST_OUTPUT, 0xB0, 0x00,	// OUTPUT SAMPLES
 		LJ_TEST_PART_0, 0x28, 0x06,	// Key off - channel 5
 		LJ_TEST_OUTPUT, 0x30, 0x00,	// OUTPUT SAMPLES
