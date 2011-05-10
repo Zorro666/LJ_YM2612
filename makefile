@@ -17,6 +17,12 @@ C_COMPILE_FLAGS:=-g -Wall -Werror
 LINK:=gcc
 LINK_FLAGS:=-g -lm
 
+ifdef WINDIR
+TARGET_EXTENSION := .exe
+else
+TARGET_EXTENSION := 
+endif	# ifdef WINDIR
+
 define upperString
 $(shell echo $1 | tr [a-z] [A-Z] )
 endef
@@ -40,6 +46,8 @@ endef
      
 $(foreach project,$(PROJECTS),$(eval $(call PROJECT_template,$(project),$(call upperString,$(project)))))
 
+TARGET_EXES := $(foreach target,$(TARGETS),$(target)$(TARGET_EXTENSION))
+
 test:
 	@echo C_COMPILE=$(C_COMPILE)
 	@echo C_COMPILE_FLAGS=$(C_COMPILE_FLAGS)
@@ -50,11 +58,13 @@ test:
 	@echo SRCFILES=$(SRCFILES)
 	@echo OBJFILES=$(OBJFILES)
 	@echo DFILES=$(DFILES)
-	@echo GYM_TEST_SRCFILES=$(GYM_TEST_SRCFILES)
-	@echo GYM_TEST_OBJFILES=$(GYM_TEST_OBJFILES)
-	@echo GYM_TEST_DEPENDS=$(GYM_TEST_DEPENDS)
-	@echo GYM_TEST_DFILES=$(GYM_TEST_DFILES)
-	@echo GYM_TEST_OBJFILE=$(GYM_TEST_OBJFILE)
+	@echo VGM_TEST_SRCFILES=$(VGM_TEST_SRCFILES)
+	@echo VGM_TEST_OBJFILES=$(VGM_TEST_OBJFILES)
+	@echo VGM_TEST_DEPENDS=$(VGM_TEST_DEPENDS)
+	@echo VGM_TEST_DFILES=$(VGM_TEST_DFILES)
+	@echo VGM_TEST_OBJFILE=$(VGM_TEST_OBJFILE)
+	@echo TARGET_EXTENSION=$(TARGET_EXTENSION)
+	@echo TARGET_EXES=$(TARGET_EXES)
 
 %.o: %.c
 	@echo Compiling $<
@@ -82,7 +92,7 @@ clean: FORCE
 
 
 nuke: clean
-	@$(RM) -vf $(TARGETS)
+	@$(RM) -vf $(TARGET_EXES)
 
 
 sinclude $(DFILES)
