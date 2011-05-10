@@ -944,6 +944,10 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			LJ_YM2612_CHANNEL* const channelPtr = &ym2612->part[part].channel[channel];
 
 			ym2612_channelKeyOnOff(channelPtr, slotOnOff);
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf("LJ_KEY_ONFF part:%d channel:%d slotOnOff:0x%X data:0x%X\n", part, channel, slotOnOff, data);
+			}
 		}
 		return LJ_YM2612_OK;
 	}
@@ -974,7 +978,6 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			{
 				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
-			printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			return LJ_YM2612_OK;
 		}
 	}
@@ -1124,7 +1127,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		short outR = 0;
 	
 		//DAC enable blocks channel 5
-		const int numChannelsToProcess = ym2612->dacEnable ? LJ_YM2612_NUM_CHANNELS_TOTAL : LJ_YM2612_NUM_CHANNELS_TOTAL-1;
+		const int numChannelsToProcess = ym2612->dacEnable ? LJ_YM2612_NUM_CHANNELS_TOTAL-1 : LJ_YM2612_NUM_CHANNELS_TOTAL;
 
 		for (channel = 0; channel < numChannelsToProcess; channel++)
 		{
