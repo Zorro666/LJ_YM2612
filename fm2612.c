@@ -508,7 +508,7 @@ static INT32 lfo_pm_table[128*8*32]; /* 128 combinations of 7 bits meaningful (o
 
 
 /* save output as raw 16-bit sample */
-#define SAVE_SAMPLE
+//#define SAVE_SAMPLE
 
 #ifdef SAVE_SAMPLE
 static FILE *sample[1];
