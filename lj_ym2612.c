@@ -89,8 +89,8 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 // TL table scale = 16.16 (0->1) - matches volume scale
 #define LJ_YM2612_TL_SCALE_BITS (LJ_YM2612_VOLUME_SCALE_BITS)
 
-// Random guess - needs to be in sync with how the envelope amplitude works also to match up
-#define DAC_SHIFT (6)
+// DAC is in 7-bit scale (-128->128) so this converts it to volume_scale bits
+#define LJ_YM2612_DAC_SHIFT (LJ_YM2612_VOLUME_SCALE_BITS - 7)
 
 //FNUM = 11-bit table
 #define LJ_YM2612_FNUM_TABLE_BITS (11)
@@ -929,7 +929,11 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 	else if (reg == LJ_DAC)
 	{
 		// 0x2B DAC en = Bit 7
-		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) << DAC_SHIFT;
+#if LJ_YM2612_DAC_SHIFT >= 0
+		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) << LJ_YM2612_DAC_SHIFT;
+#else // #if LJ_YM2612_DAC_SHIFT >= 0
+		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) >> -LJ_YM2612_DAC_SHIFT;
+#endif // #if LJ_YM2612_DAC_SHIFT >= 0
 		return LJ_YM2612_OK;
 	}
 	else if (reg == LJ_KEY_ONOFF)
