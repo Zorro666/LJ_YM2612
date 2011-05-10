@@ -64,17 +64,25 @@ test:
 	@echo Linking $@
 	@$(LINK) $(LINK_FLAGS) -o $@ $^
 
-.PHONY: all clean nuke format
+.PHONY: all clean nuke format tags
 .SUFFIXES:            # Delete the default suffixes
 
 FORCE:
 
+tags:
+	@ctags -R --exclude=CMakeFiles --c++-kinds=+p --fields=+iaS --extra=+q .
+
 clean: FORCE
-	rm -f $(OBJFILES)
-	rm -f $(DFILES)
+	@$(RM) -vf $(OBJFILES)
+	@$(RM) -vf $(DFILES)
+	@$(RM) -vf tags
+	@$(RM) -vf cscope.out
+	@$(RM) -vf cscope.in.out
+	@$(RM) -vf cscope.po.out
+
 
 nuke: clean
-	rm -f $(TARGETS)
+	@$(RM) -vf $(TARGETS)
 
 
 sinclude $(DFILES)
