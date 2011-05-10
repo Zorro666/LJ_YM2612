@@ -661,40 +661,40 @@ static LJ_VGM_UINT8 dacTestProgram[] = {
 		LJ_TEST_PART_0, 0x28, 0x05,	// All channels off
 		LJ_TEST_PART_0, 0x28, 0x06,	// All channels off
 		LJ_TEST_PART_0, 0x2B, 0x00,	// DAC off
-		LJ_TEST_PART_0, 0x32, 0x33,	// DT1/MUL - channel 5 slot 0 : DT=-3 MUL=2 -> *2
-		LJ_TEST_PART_0, 0x36, 0x21,	// DT1/MUL - channel 5 slot 2 : DT=-1 MUL=1 -> *1
-		LJ_TEST_PART_0, 0x3A, 0x33,	// DT1/MUL - channel 5 slot 1 : DT=-2 MUL=3 -> *3
-		LJ_TEST_PART_0, 0x3E, 0x03,	// DT1/MUL - channel 5 slot 3 : DT=+0 MUL=3 -> *3
-		LJ_TEST_PART_0, 0x42, 0x00,	// Total Level - channel 5 slot 0
-		LJ_TEST_PART_0, 0x46, 0x70,	// Total Level - channel 5 slot 2
-		LJ_TEST_PART_0, 0x4A, 0x70,	// Total Level - channel 5 slot 1
-		LJ_TEST_PART_0, 0x4E, 0x7F,	// Total Level - channel 5 slot 3 (*0.0)
-		LJ_TEST_PART_0, 0x52, 0x1F,	// RS/AR - channel 5 slot 0
-		LJ_TEST_PART_0, 0x56, 0x1F,	// RS/AR - channel 5 slot 2
-		LJ_TEST_PART_0, 0x5A, 0x1F,	// RS/AR - channel 5 slot 1
-		LJ_TEST_PART_0, 0x5E, 0x1F,	// RS/AR - channel 5 slot 3
-		LJ_TEST_PART_0, 0x62, 0x00,	// AM/D1R - channel 5 slot 0
-		LJ_TEST_PART_0, 0x66, 0x00,	// AM/D1R - channel 5 slot 2
-		LJ_TEST_PART_0, 0x6A, 0x00,	// AM/D1R - channel 5 slot 1
-		LJ_TEST_PART_0, 0x6E, 0x00,	// AM/D1R - channel 5 slot 3
-		LJ_TEST_PART_0, 0x72, 0x00,	// D2R - channel 5 slot 0
-		LJ_TEST_PART_0, 0x76, 0x00,	// D2R - channel 5 slot 2
-		LJ_TEST_PART_0, 0x7A, 0x00,	// D2R - channel 5 slot 1
-		LJ_TEST_PART_0, 0x7E, 0x00,	// D2R - channel 5 slot 3
-		LJ_TEST_PART_0, 0x82, 0x0F,	// D1L/RR - channel 5 slot 0
-		LJ_TEST_PART_0, 0x86, 0x0F,	// D1L/RR - channel 5 slot 2
-		LJ_TEST_PART_0, 0x8A, 0x0F,	// D1L/RR - channel 5 slot 1
-		LJ_TEST_PART_0, 0x8E, 0x0F,	// D1L/RR - channel 5 slot 3
-		LJ_TEST_PART_0, 0x92, 0x00,	// SSG - channel 5 slot 0
-		LJ_TEST_PART_0, 0x96, 0x00,	// SSG - channel 5 slot 2
-		LJ_TEST_PART_0, 0x9A, 0x00,	// SSG - channel 5 slot 1
-		LJ_TEST_PART_0, 0x9E, 0x00,	// SSG - channel 5 slot 3
-		LJ_TEST_PART_0, 0xB2, 0x07,	// Feedback/algorithm (FB=0, ALG=7) - channel 5
-		LJ_TEST_PART_0, 0xB6, 0xC0,	// Both speakers on - channel 5
+		LJ_TEST_PART_1, 0x32, 0x33,	// DT1/MUL - channel 5 slot 0 : DT=-3 MUL=2 -> *2
+		LJ_TEST_PART_1, 0x36, 0x21,	// DT1/MUL - channel 5 slot 2 : DT=-1 MUL=1 -> *1
+		LJ_TEST_PART_1, 0x3A, 0x33,	// DT1/MUL - channel 5 slot 1 : DT=-2 MUL=3 -> *3
+		LJ_TEST_PART_1, 0x3E, 0x03,	// DT1/MUL - channel 5 slot 3 : DT=+0 MUL=3 -> *3
+		LJ_TEST_PART_1, 0x42, 0x00,	// Total Level - channel 5 slot 0
+		LJ_TEST_PART_1, 0x46, 0x70,	// Total Level - channel 5 slot 2
+		LJ_TEST_PART_1, 0x4A, 0x70,	// Total Level - channel 5 slot 1
+		LJ_TEST_PART_1, 0x4E, 0x7F,	// Total Level - channel 5 slot 3 (*0.0)
+		LJ_TEST_PART_1, 0x52, 0x1F,	// RS/AR - channel 5 slot 0
+		LJ_TEST_PART_1, 0x56, 0x1F,	// RS/AR - channel 5 slot 2
+		LJ_TEST_PART_1, 0x5A, 0x1F,	// RS/AR - channel 5 slot 1
+		LJ_TEST_PART_1, 0x5E, 0x1F,	// RS/AR - channel 5 slot 3
+		LJ_TEST_PART_1, 0x62, 0x00,	// AM/D1R - channel 5 slot 0
+		LJ_TEST_PART_1, 0x66, 0x00,	// AM/D1R - channel 5 slot 2
+		LJ_TEST_PART_1, 0x6A, 0x00,	// AM/D1R - channel 5 slot 1
+		LJ_TEST_PART_1, 0x6E, 0x00,	// AM/D1R - channel 5 slot 3
+		LJ_TEST_PART_1, 0x72, 0x00,	// D2R - channel 5 slot 0
+		LJ_TEST_PART_1, 0x76, 0x00,	// D2R - channel 5 slot 2
+		LJ_TEST_PART_1, 0x7A, 0x00,	// D2R - channel 5 slot 1
+		LJ_TEST_PART_1, 0x7E, 0x00,	// D2R - channel 5 slot 3
+		LJ_TEST_PART_1, 0x82, 0x0F,	// D1L/RR - channel 5 slot 0
+		LJ_TEST_PART_1, 0x86, 0x0F,	// D1L/RR - channel 5 slot 2
+		LJ_TEST_PART_1, 0x8A, 0x0F,	// D1L/RR - channel 5 slot 1
+		LJ_TEST_PART_1, 0x8E, 0x0F,	// D1L/RR - channel 5 slot 3
+		LJ_TEST_PART_1, 0x92, 0x00,	// SSG - channel 5 slot 0
+		LJ_TEST_PART_1, 0x96, 0x00,	// SSG - channel 5 slot 2
+		LJ_TEST_PART_1, 0x9A, 0x00,	// SSG - channel 5 slot 1
+		LJ_TEST_PART_1, 0x9E, 0x00,	// SSG - channel 5 slot 3
+		LJ_TEST_PART_1, 0xB2, 0x07,	// Feedback/algorithm (FB=0, ALG=7) - channel 5
+		LJ_TEST_PART_1, 0xB6, 0xC0,	// Both speakers on - channel 5
 		LJ_TEST_PART_0, 0x28, 0x06,	// Key off - channel 5
-		LJ_TEST_PART_0, 0xA6, 0x30,	// Set frequency (BLOCK=7) - channel 5
-		LJ_TEST_PART_0, 0xA2, 0x69,	// Set frequency FREQ=???) - channel 5
-		LJ_TEST_PART_0, 0x28, 0x72,	// Key on (slot 0+1+2, channel 5)
+		LJ_TEST_PART_1, 0xA6, 0x30,	// Set frequency (BLOCK=7) - channel 5
+		LJ_TEST_PART_1, 0xA2, 0x69,	// Set frequency FREQ=???) - channel 5
+		LJ_TEST_PART_0, 0x28, 0x76,	// Key on (slot 0+1+2, channel 5)
 		LJ_TEST_OUTPUT, 0xB0, 0x00,	// OUTPUT SAMPLES
 		LJ_TEST_PART_0, 0x28, 0x06,	// Key off - channel 5
 		LJ_TEST_OUTPUT, 0x30, 0x00,	// OUTPUT SAMPLES
