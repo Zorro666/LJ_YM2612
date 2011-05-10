@@ -9,6 +9,8 @@ VGM/
 *.raw
 *.pcm
 *.wav
+*.aup
+*_data/
 gym_test
 gym_test2
 vgm_test
