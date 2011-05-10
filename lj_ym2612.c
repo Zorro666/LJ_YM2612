@@ -59,7 +59,7 @@ enum LJ_YM2612_REGISTERS {
 		LJ_FREQLSB = 0xA0,
 		LJ_BLOCK_FREQMSB = 0xA4,
 		LJ_FEEDBACK_ALGO = 0xB0,
-		//LJ_LR_AMS_PMS = 0xB4,
+		LJ_LR_AMS_PMS = 0xB4,
 };
 
 static const char* LJ_YM2612_REGISTER_NAMES[LJ_YM2612_NUM_REGISTERS];
@@ -184,8 +184,14 @@ struct LJ_YM2612_CHANNEL
 
 	int debugFlags;
 
+	LJ_YM_UINT32 left;
+	LJ_YM_UINT32 right;
+
 	LJ_YM_UINT8 feedback;
 	LJ_YM_UINT8 algorithm;
+
+	LJ_YM_UINT8 ams;
+	LJ_YM_UINT8 pms;
 
 	LJ_YM_UINT8 id;
 };
@@ -209,8 +215,8 @@ struct LJ_YM2612
 
 	LJ_YM_UINT32 debugFlags;
 
-	LJ_YM_INT16 dacValue;
-	LJ_YM_UINT16 dacEnable;
+	int dacValue;
+	LJ_YM_UINT32 dacEnable;
 
 	LJ_YM_UINT8 regAddress;
 	LJ_YM_UINT8 slotWriteAddr;	
@@ -493,6 +499,28 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
 	}
 }
 
+static void ym2612_channelSetLeftRightAmsPms(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 data)
+{
+		// 0xB4-0xB6 Feedback = Left= Bit 7, Right= Bit 6, AMS = Bits 3-5, PMS = Bits 0-1
+	const int left = (data >> 7) & 0x1;
+	const int right = (data >> 6) & 0x1;
+	const int AMS = (data >> 3) & 0x7;
+	const int PMS = (data >> 0) & 0x3;
+
+	channelPtr->left = left *	~0;
+	channelPtr->right = right * ~0;
+	channelPtr->ams = AMS;
+	channelPtr->pms = PMS;
+
+	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("SetLeftRightAmsPms channel:%d left:%d right:%d AMS:%d PMS:%d\n", channelPtr->id, left, right, AMS, PMS);
+	}
+
+	//Update the connections for this channel
+	ym2612_channelSetConnections(channelPtr);
+}
+
 static void ym2612_channelSetFeedbackAlgorithm(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 data)
 {
 	// 0xB0-0xB2 Feedback = Bits 5-3, Algorithm = Bits 0-2
@@ -646,6 +674,13 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
 		ym2612_slotClear(slot);
 	}
 	channelPtr->debugFlags = 0;
+	channelPtr->feedback = 0;
+	channelPtr->algorithm = 0;
+
+	channelPtr->left = 0;
+	channelPtr->right = 0;
+	channelPtr->ams = 0;
+	channelPtr->pms = 0;
 }
 
 static void ym2612_partClear(LJ_YM2612_PART* const part)
@@ -817,8 +852,8 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	LJ_YM2612_validRegisters[LJ_FEEDBACK_ALGO] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_FEEDBACK_ALGO] = "FEEDBACK_ALGO";
 
-	//LJ_YM2612_validRegisters[LJ_LR_AMS_PMS] = 1;
-	//LJ_YM2612_REGISTER_NAMES[LJ_LR_AMS_PMS] = "LR_AMS_PMS";
+	LJ_YM2612_validRegisters[LJ_LR_AMS_PMS] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_LR_AMS_PMS] = "LR_AMS_PMS";
 
 	//For parameters mark all the associated registers as valid
 	for (i = 0; i < LJ_YM2612_NUM_REGISTERS; i++)
@@ -923,16 +958,16 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 	else if (reg == LJ_DAC_EN)
 	{
 		// 0x2A DAC Bits 0-7
-		ym2612->dacEnable = 0xFFFF * ((data & 0x80) >> 7);
+		ym2612->dacEnable = ~0 * ((data & 0x80) >> 7);
 		return LJ_YM2612_OK;
 	}
 	else if (reg == LJ_DAC)
 	{
 		// 0x2B DAC en = Bit 7
 #if LJ_YM2612_DAC_SHIFT >= 0
-		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) << LJ_YM2612_DAC_SHIFT;
+		ym2612->dacValue = ((int)(data - 0x80)) << LJ_YM2612_DAC_SHIFT;
 #else // #if LJ_YM2612_DAC_SHIFT >= 0
-		ym2612->dacValue = ((LJ_YM_INT16)(data - 0x80)) >> -LJ_YM2612_DAC_SHIFT;
+		ym2612->dacValue = ((int)(data - 0x80)) >> -LJ_YM2612_DAC_SHIFT;
 #endif // #if LJ_YM2612_DAC_SHIFT >= 0
 		return LJ_YM2612_OK;
 	}
@@ -1022,6 +1057,16 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			}
 			return LJ_YM2612_OK;
 		}
+		else if (regParameter == LJ_LR_AMS_PMS)
+		{
+			// 0xB4-0xB6 Feedback = Left= Bit 7, Right= Bit 6, AMS = Bits 3-5, PMS = Bits 0-1
+			ym2612_channelSetLeftRightAmsPms(channelPtr, data);
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf( "LJ_LR_AMS_PMS part:%d channel:%d data:0x%X\n", part, channel, data);
+			}
+			return LJ_YM2612_OK;
+		}
 	}
 
 	return LJ_YM2612_OK;
@@ -1093,7 +1138,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 {
 	LJ_YM_INT16* outputLeft = output[0];
 	LJ_YM_INT16* outputRight = output[1];
-	LJ_YM_INT16 dacValue = 0;
+	int dacValue = 0;
 	int sample;
 
 	int channel;
@@ -1213,14 +1258,16 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 			// Keep within +/- 1
 			channelOutput = LJ_YM2612_CLAMP_VOLUME(channelOutput);
 
-			mixedLeft += channelOutput;
-			mixedRight += channelOutput;
+			mixedLeft += channelOutput & channelPtr->left;
+			mixedRight += channelOutput & channelPtr->right;
 
 			channelMask = (channelMask << 1);
 		}
 
-		mixedLeft += dacValue;
-		mixedRight += dacValue;
+		mixedLeft += (dacValue & ym2612->channels[5]->left);
+		mixedRight += (dacValue & ym2612->channels[5]->right);
+		//mixedLeft += dacValue;
+		//mixedRight += dacValue;
 
 		// Keep within +/- 1
 		mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft);
