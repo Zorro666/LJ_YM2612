@@ -165,7 +165,6 @@ struct LJ_YM2612_SLOT
 	int volumeDelta;
 
 	// Algorithm support
-	int fmOutput;
 	int fmInputDelta;
 	int* modulationOutput[3];
 	int carrierOutputMask;
@@ -184,10 +183,12 @@ struct LJ_YM2612_CHANNEL
 
 	int debugFlags;
 
+	int slot0Output[2];
+
 	LJ_YM_UINT32 left;
 	LJ_YM_UINT32 right;
 
-	LJ_YM_UINT8 feedback;
+	int feedback;
 	LJ_YM_UINT8 algorithm;
 
 	LJ_YM_UINT8 ams;
@@ -656,7 +657,6 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 	slotPtr->omega = 0;
 	slotPtr->omegaDelta = 0;
 
-	slotPtr->fmOutput = 0;
 	slotPtr->fmInputDelta = 0;
 	slotPtr->modulationOutput[0] = NULL;
 	slotPtr->modulationOutput[1] = NULL;
@@ -676,6 +676,9 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
 	channelPtr->debugFlags = 0;
 	channelPtr->feedback = 0;
 	channelPtr->algorithm = 0;
+
+	channelPtr->slot0Output[0] = 0;
+	channelPtr->slot0Output[1] = 0;
 
 	channelPtr->left = 0;
 	channelPtr->right = 0;
@@ -1195,9 +1198,29 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				int carrierOutput = 0;
 
 				const int OMEGA = slotPtr->omega;
-				// Needs scaling down because of ????????????????????????????
 				const int slotPhi = (OMEGA >> LJ_YM2612_FREQ_BITS);
 		
+				// Slot 0 feedback
+				if (slot == 0)
+				{
+					//Average of the last 2 samples
+					slotPtr->fmInputDelta = (channelPtr->slot0Output[0] + channelPtr->slot0Output[1]);
+					//Average
+					slotPtr->fmInputDelta = slotPtr->fmInputDelta >> 1;
+
+					//slotPtr->fmInputDelta = channelPtr->slot0Output[1];
+					//From docs: Feedback is 0 = + 0, 1 = +PI/16, 2 = +PI/8, 3 = +PI/4, 4 = +PI/2, 5 = +PI, 6 = +2 PI, 7 = +4 PI
+					//fmDelta is currently in -1->1 which is mapped to 0->2PI (and correct angle units) by the deltaPhi scaling
+					//feedback 7 = +2 in these units, so feedback 7 maps to 2^1
+					slotPtr->fmInputDelta = slotPtr->fmInputDelta << channelPtr->feedback;
+					slotPtr->fmInputDelta = slotPtr->fmInputDelta >> 6;
+
+					//deltaPhi scaling has an implicit x4 so /4 here
+					slotPtr->fmInputDelta = slotPtr->fmInputDelta >> 2;
+
+					//slotPtr->fmInputDelta = slotPtr->fmInputDelta >> (8 - channelPtr->feedback);
+				}
+				//
 				//Phi needs to have the fmInputDelta added to it to make algorithms work
 #if LJ_YM2612_DELTA_PHI_SCALE >= 0
 				const int deltaPhi = (slotPtr->fmInputDelta >> LJ_YM2612_DELTA_PHI_SCALE);
@@ -1217,9 +1240,6 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				// Scale by TL (total level = 0->1)
 				slotOutput = (slotOutput * slotPtr->totalLevel) >> LJ_YM2612_TL_SCALE_BITS;
 
-				// Unused - potentially for debugging
-				slotPtr->fmOutput = slotOutput;
-		
 				// Add this output onto the input of the slot in the algorithm
 				if (slotPtr->modulationOutput[0] != NULL)
 				{
@@ -1232,6 +1252,13 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				if (slotPtr->modulationOutput[2] != NULL)
 				{
 					*slotPtr->modulationOutput[2] += slotOutput;
+				}
+
+				if (slot == 0)
+				{
+					// Save the slot 0 output (the last 2 outputs are saved), used as input for the slot 0 feedback
+					channelPtr->slot0Output[0] = channelPtr->slot0Output[1];
+					channelPtr->slot0Output[1] = slotOutput;
 				}
 
 				carrierOutput = slotOutput & slotPtr->carrierOutputMask;
