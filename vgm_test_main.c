@@ -776,7 +776,9 @@ static LJ_VGM_UINT8 feedbackProgram[] = {
 		LJ_TEST_PART_0, 0xA4, 0x6A,	// Set frequency (BLOCK=7)
 		LJ_TEST_PART_0, 0xA0, 0x69,	// Set frequency FREQ=???)
 		LJ_TEST_PART_0, 0x28, 0x10,	// Key on (slot 0, channel 0)
-		LJ_TEST_OUTPUT, 0xB0, 0x00,	// OUTPUT SAMPLES
+		LJ_TEST_OUTPUT, 0x50, 0x00,	// OUTPUT SAMPLES
+		LJ_TEST_PART_0, 0x28, 0x10,	// Key on (slot 0, channel 0)
+		LJ_TEST_OUTPUT, 0x50, 0x00,	// OUTPUT SAMPLES
 		LJ_TEST_PART_0, 0x28, 0x00,	// Key off
 		LJ_TEST_OUTPUT, 0x30, 0x00,	// OUTPUT SAMPLES
 		LJ_TEST_FINISH, 0xFF, 0xFF,	// END PROGRAM
