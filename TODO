@@ -2,10 +2,9 @@ High Priority:
 YM2612:support Ch 2/5 special mode with freq per slot
 
 Medium Priority:
-YM2612:implement LJ_FEEDBACK_ALGO = 0xB0
+YM2612:implement ADSR
 
 Low Priority:
-YM2612:implement ADSR
 TEST_APP: VGM debug on/off
 YM2612:compute max freq value and add it on if freq goes -ve because of detune
 
