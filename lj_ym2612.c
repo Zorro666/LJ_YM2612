@@ -1139,6 +1139,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	LJ_YM_INT16* outputLeft = output[0];
 	LJ_YM_INT16* outputRight = output[1];
 	int dacValue = 0;
+	int dacValueLeft = 0;
+	int dacValueRight = 0;
 	int sample;
 
 	int channel;
@@ -1154,11 +1156,14 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	}
 
 	//Global state update - LFO, DAC, SSG
-	dacValue = ym2612->dacValue & ym2612->dacEnable;
+	dacValue= ym2612->dacValue & ym2612->dacEnable;
 	if (ym2612->debugFlags & LJ_YM2612_NODAC)
 	{
 		dacValue = 0x0;
 	}
+	dacValueLeft = (dacValue & ym2612->channels[5]->left);
+	dacValueRight = (dacValue & ym2612->channels[5]->right);
+
 	if (ym2612->debugFlags & LJ_YM2612_ONECHANNEL)
 	{
 		// channel starts at 0
@@ -1264,10 +1269,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 			channelMask = (channelMask << 1);
 		}
 
-		mixedLeft += (dacValue & ym2612->channels[5]->left);
-		mixedRight += (dacValue & ym2612->channels[5]->right);
-		//mixedLeft += dacValue;
-		//mixedRight += dacValue;
+		mixedLeft += dacValueLeft;
+		mixedRight += dacValueRight;
 
 		// Keep within +/- 1
 		mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft);
