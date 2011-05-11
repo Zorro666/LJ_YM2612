@@ -770,7 +770,7 @@ static LJ_VGM_UINT8 feedbackProgram[] = {
 		LJ_TEST_PART_0, 0x94, 0x00,	// SSG - channel 0 slot 2
 		LJ_TEST_PART_0, 0x98, 0x00,	// SSG - channel 0 slot 1
 		LJ_TEST_PART_0, 0x9C, 0x00,	// SSG - channel 0 slot 3
-		LJ_TEST_PART_0, 0xB0, 0x67,	// Feedback/algorithm (FB=6, ALG=7)
+		LJ_TEST_PART_0, 0xB0, 0x77,	// Feedback/algorithm (FB=6, ALG=7)
 		LJ_TEST_PART_0, 0xB4, 0xC0,	// Both speakers on
 		LJ_TEST_PART_0, 0x28, 0x00,	// Key off
 		LJ_TEST_PART_0, 0xA4, 0x6A,	// Set frequency (BLOCK=7)
