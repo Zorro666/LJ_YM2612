@@ -638,7 +638,6 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 				slotPtr->omega = 0;
 				slotPtr->volume = 0;
 				slotPtr->volumeDelta = LJ_YM2612_VOLUME_MAX;
-				slotPtr->volumeDelta = 128;
 				slotPtr->fmInputDelta = 0;
 				slotPtr->keyOn = 1;
 			}
@@ -1217,22 +1216,22 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				{
 					//Average of the last 2 samples
 					slotPtr->fmInputDelta = (channelPtr->slot0Output[0] + channelPtr->slot0Output[1]);
-					//Average
-					slotPtr->fmInputDelta = slotPtr->fmInputDelta >> 1;
+					if (channelPtr->feedback != 0)
+					{
+						//Average = >> 1
+						//From docs: Feedback is 0 = + 0, 1 = +PI/16, 2 = +PI/8, 3 = +PI/4, 4 = +PI/2, 5 = +PI, 6 = +2 PI, 7 = +4 PI
+						//fmDelta is currently in -1->1 which is mapped to 0->2PI (and correct angle units) by the deltaPhi scaling
+						//feedback 6 = +1 in these units, so feedback 6 maps to 2^0: << feedback then >> 6
+						//deltaPhi scaling has an implicit x4 so /4 here: >> 2
 
-					//slotPtr->fmInputDelta = channelPtr->slot0Output[1];
-					//From docs: Feedback is 0 = + 0, 1 = +PI/16, 2 = +PI/8, 3 = +PI/4, 4 = +PI/2, 5 = +PI, 6 = +2 PI, 7 = +4 PI
-					//fmDelta is currently in -1->1 which is mapped to 0->2PI (and correct angle units) by the deltaPhi scaling
-					//feedback 7 = +2 in these units, so feedback 7 maps to 2^1
-					slotPtr->fmInputDelta = slotPtr->fmInputDelta << channelPtr->feedback;
-					slotPtr->fmInputDelta = slotPtr->fmInputDelta >> 6;
-
-					//deltaPhi scaling has an implicit x4 so /4 here
-					slotPtr->fmInputDelta = slotPtr->fmInputDelta >> 2;
-
-					//slotPtr->fmInputDelta = slotPtr->fmInputDelta >> (8 - channelPtr->feedback);
+						//Results in: >> (1+6+2-feedback) >> (9-feedback)
+						slotPtr->fmInputDelta = slotPtr->fmInputDelta >> (9 - channelPtr->feedback);
+					}
+					else
+					{
+						slotPtr->fmInputDelta = 0;
+					}
 				}
-				//
 				//Phi needs to have the fmInputDelta added to it to make algorithms work
 #if LJ_YM2612_DELTA_PHI_SCALE >= 0
 				const int deltaPhi = (slotPtr->fmInputDelta >> LJ_YM2612_DELTA_PHI_SCALE);
