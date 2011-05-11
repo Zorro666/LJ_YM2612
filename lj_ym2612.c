@@ -175,6 +175,7 @@ struct LJ_YM2612_SLOT
 	LJ_YM_UINT8 multiple;
 	LJ_YM_UINT8 keycode;
 
+	LJ_YM_UINT8 keyOn;
 };
 
 struct LJ_YM2612_CHANNEL
@@ -632,14 +633,23 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 
 		if (slotOnOff & slotMask)
 		{
-			slotPtr->omega = 0;
-			slotPtr->volume = 0;
-			slotPtr->volumeDelta = LJ_YM2612_VOLUME_MAX;
-			slotPtr->fmInputDelta = 0;
+			if (slotPtr->keyOn == 0)
+			{
+				slotPtr->omega = 0;
+				slotPtr->volume = 0;
+				slotPtr->volumeDelta = LJ_YM2612_VOLUME_MAX;
+				slotPtr->volumeDelta = 128;
+				slotPtr->fmInputDelta = 0;
+				slotPtr->keyOn = 1;
+			}
 		}
 		else
 		{
-			slotPtr->volumeDelta = -LJ_YM2612_VOLUME_MAX;
+			if (slotPtr->keyOn == 1)
+			{
+				slotPtr->volumeDelta = -LJ_YM2612_VOLUME_MAX;
+				slotPtr->keyOn = 0;
+			}
 		}
 		slotMask = slotMask << 1;
 	}
@@ -663,6 +673,8 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 	slotPtr->modulationOutput[2] = NULL;
 
 	slotPtr->carrierOutputMask = 0x0;
+
+	slotPtr->keyOn = 0;
 }
 
 static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
