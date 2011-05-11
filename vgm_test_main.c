@@ -692,7 +692,7 @@ static LJ_VGM_UINT8 dacTestProgram[] = {
 		LJ_TEST_PART_1, 0x9A, 0x00,	// SSG - channel 5 slot 1
 		LJ_TEST_PART_1, 0x9E, 0x00,	// SSG - channel 5 slot 3
 		LJ_TEST_PART_1, 0xB2, 0x07,	// Feedback/algorithm (FB=0, ALG=7) - channel 5
-		LJ_TEST_PART_1, 0xB6, 0xC0,	// Both speakers on - channel 5
+		LJ_TEST_PART_1, 0xB6, 0x40,	// Right speaker on - channel 5
 		LJ_TEST_PART_0, 0x28, 0x06,	// Key off - channel 5
 		LJ_TEST_PART_1, 0xA6, 0x30,	// Set frequency (BLOCK=7) - channel 5
 		LJ_TEST_PART_1, 0xA2, 0x69,	// Set frequency FREQ=???) - channel 5
