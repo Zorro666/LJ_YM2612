@@ -1,5 +1,5 @@
 High Priority:
-YM2612:support Ch 2/5 special mode with freq per slot
+YM2612:support Ch 2 special mode with freq per slot
 
 Medium Priority:
 YM2612:implement ADSR
