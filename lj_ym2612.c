@@ -160,7 +160,6 @@ struct LJ_YM2612_SLOT
 	LJ_YM_UINT32 block;
 	int omega;
 	LJ_YM_UINT32 omegaDelta;
-	int detuneDelta;			// negative values are allowed
 	int totalLevel;
 
 	int volume;
@@ -243,27 +242,27 @@ static int LJ_YM2612_CLAMP_VOLUME(const int volume)
 	return volume;
 }
 
-static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const LJ_YM2612_CHANNEL* const channelPtr)
+static int ym2612_computeDetuneDelta(const int detune, const int keycode, const int debugFlags)
 {
-	const int FNUM = slotPtr->fnum;
-	const int B = slotPtr->block;
-	const int MULTIPLE = slotPtr->multiple;
+	const int detuneDelta = LJ_YM2612_detuneTable[detune*LJ_YM2612_NUM_KEYCODES+keycode];
 
+	if (debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("detuneDelta %d detune:%d FD:%d keycode:%d\n", detuneDelta, detune, (detune&0x3), keycode);
+	}
+
+	return detuneDelta;
+}
+
+static int ym2612_computeOmegaDelta(const int fnum, const int block, const int multiple, const int detune, const int keycode, 
+																		const int debugFlags)
+{
 	// F * 2^(B-1)
 	// Could multiply the fnumTable up by (1<<6) then change this to fnumTable >> (7-B)
-	int omegaDelta = (LJ_YM2612_fnumTable[FNUM] << B) >> 1;
+	int omegaDelta = (LJ_YM2612_fnumTable[fnum] << block) >> 1;
 
-	//detuneDelta from keycode and detune value
-	const int keycode = slotPtr->keycode;
-	const int detune = slotPtr->detune;
-	int detuneTableValue = LJ_YM2612_detuneTable[detune*LJ_YM2612_NUM_KEYCODES+keycode];
-	slotPtr->detuneDelta = detuneTableValue;
-	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
-	{
-		printf("detuneDelta %d detune:%d FD:%d keycode:%d\n", detuneTableValue, detune, (detune&0x3), keycode);
-	}
-	
-	omegaDelta += detuneTableValue;
+	const int detuneDelta = ym2612_computeDetuneDelta(detune, keycode, debugFlags);
+	omegaDelta += detuneDelta;
 
 	if (omegaDelta < 0)
 	{
@@ -273,7 +272,21 @@ static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const LJ
 	}
 
 	// /2 because multiple is stored as x2 of its value
-	omegaDelta = (omegaDelta * MULTIPLE) >> 1;
+	omegaDelta = (omegaDelta * multiple) >> 1;
+
+	return omegaDelta;
+}
+
+static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const int debugFlags)
+{
+	const int FNUM = slotPtr->fnum;
+	const int B = slotPtr->block;
+	const int MULTIPLE = slotPtr->multiple;
+
+	const int keycode = slotPtr->keycode;
+	const int detune = slotPtr->detune;
+
+	const int omegaDelta = ym2612_computeOmegaDelta(FNUM, B, MULTIPLE, detune, keycode, debugFlags);
 
 	slotPtr->omegaDelta = omegaDelta;
 }
@@ -571,7 +584,6 @@ static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, con
 	//multiple = xN except N=0 then it is x1/2 store it as x2
 	slotPtr->multiple = multiple ? (multiple << 1) : 1;
 
-	ym2612_slotComputeOmegaDelta(slotPtr, channelPtr);
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
 		printf("SetDetuneMult channel:%d slot:%d detune:%d mult:%d\n", channelPtr->id, slot, detune, multiple);
@@ -601,7 +613,7 @@ static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, cons
 		slotPtr->omega = 0;
 		slotPtr->keycode = keycode;
 
-		ym2612_slotComputeOmegaDelta(slotPtr, channelPtr);
+		ym2612_slotComputeOmegaDelta(slotPtr, channelPtr->debugFlags);
 
 		if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 		{
@@ -1162,6 +1174,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	int dacValueLeft = 0;
 	int dacValueRight = 0;
 	int sample;
+	const int debugFlags = ym2612->debugFlags;
 
 	int channel;
 	int slot;
@@ -1177,17 +1190,17 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 	//Global state update - LFO, DAC, SSG
 	dacValue= ym2612->dacValue & ym2612->dacEnable;
-	if (ym2612->debugFlags & LJ_YM2612_NODAC)
+	if (debugFlags & LJ_YM2612_NODAC)
 	{
 		dacValue = 0x0;
 	}
 	dacValueLeft = (dacValue & ym2612->channels[5]->left);
 	dacValueRight = (dacValue & ym2612->channels[5]->right);
 
-	if (ym2612->debugFlags & LJ_YM2612_ONECHANNEL)
+	if (debugFlags & LJ_YM2612_ONECHANNEL)
 	{
 		// channel starts at 0
-		const int debugChannel =((ym2612->debugFlags >> LJ_YM2612_ONECHANNEL_SHIFT) & LJ_YM2612_ONECHANNEL_MASK); 
+		const int debugChannel =((debugFlags >> LJ_YM2612_ONECHANNEL_SHIFT) & LJ_YM2612_ONECHANNEL_MASK); 
 		outputChannelMask = 1 << debugChannel;
 	}
 
@@ -1217,6 +1230,9 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				const int OMEGA = slotPtr->omega;
 				const int slotPhi = (OMEGA >> LJ_YM2612_FREQ_BITS);
 		
+				//Compute the omega delta value
+				ym2612_slotComputeOmegaDelta(slotPtr, debugFlags);
+	
 				// Slot 0 feedback
 				if (slot == 0)
 				{
@@ -1281,7 +1297,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				carrierOutput = slotOutput & slotPtr->carrierOutputMask;
 				channelOutput += carrierOutput;
 
-				if (ym2612->debugFlags & LJ_YM2612_DEBUG)
+				if (debugFlags & LJ_YM2612_DEBUG)
 				{
 					if (slotOutput != 0)
 					{
@@ -1296,7 +1312,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				channelOutput = 0;
 			}
 
-			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				if (channelOutput != 0)
 				{
