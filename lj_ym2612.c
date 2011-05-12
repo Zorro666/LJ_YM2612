@@ -58,6 +58,8 @@ enum LJ_YM2612_REGISTERS {
 		LJ_TOTAL_LEVEL = 0x40,
 		LJ_FREQLSB = 0xA0,
 		LJ_BLOCK_FREQMSB = 0xA4,
+		LJ_CH2_FREQLSB = 0xA8,
+		LJ_CH2_BLOCK_FREQMSB = 0xAC,
 		LJ_FEEDBACK_ALGO = 0xB0,
 		LJ_LR_AMS_PMS = 0xB4,
 };
@@ -627,7 +629,6 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 	//Set the start of wave
 	for (i = 0; i < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; i++)
 	{
-		//const int slot = LJ_YM2612_slotTable[i];
 		const int slot = i;
 		LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
@@ -851,6 +852,12 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	LJ_YM2612_validRegisters[LJ_BLOCK_FREQMSB] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_BLOCK_FREQMSB] = "BLOCK_FREQ(MSB)";
 
+	LJ_YM2612_validRegisters[LJ_CH2_FREQLSB] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_CH2_FREQLSB] = "CH2_FREQ(LSB)";
+
+	LJ_YM2612_validRegisters[LJ_CH2_BLOCK_FREQMSB] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_CH2_BLOCK_FREQMSB] = "CH2_BLOCK_FREQ(MSB)";
+
 	LJ_YM2612_validRegisters[LJ_DETUNE_MULT] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_DETUNE_MULT] = "DETUNE_MULT";
 
@@ -896,6 +903,9 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 			if ((i >= 0xA0) && (i <= 0xB6))
 			{
 				//0xA0-0xB0 = settings per channel (channel = bottom 2 bits of reg)
+				//0xA8->0xAE - settings per slot (slot = bottom 2 bits of reg)
+				//0xA9 = slot 0, 0xAA = slot 1, 0xA8 = slot 2, 0xA2 = slot 3
+				//0xAD = slot 0, 0xAE = slot 1, 0xAC = slot 2, 0xA6 = slot 3
 				int regBase = (i >> 2) << 2;
 				int j;
 				for (j = 0; j < 3; j++)
@@ -904,10 +914,6 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 					LJ_YM2612_validRegisters[regBase+j] = 1;
 					LJ_YM2612_REGISTER_NAMES[regBase+j] = regBaseName;
 				}
-			}
-			if (i == 0xA0) 
-			{
-				//Special bits for 0xA8->0xAE
 			}
 		}
 	}
