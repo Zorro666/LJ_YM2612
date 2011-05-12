@@ -257,26 +257,27 @@ int main(int argc, char* argv[])
 				{
 					fprintf(stderr,"ERROR: VGM:%d ERROR processing command\n",sampleCount);
 					result = LJ_VGM_TEST_ERROR;
-					if ((vgmInstruction.R & 0xF0) == 0x40)
-					{
-						result = LJ_VGM_TEST_OK;
-					}
+					// rate scale + attack rate
 					if ((vgmInstruction.R & 0xF0) == 0x50)
 					{
 						result = LJ_VGM_TEST_OK;
 					}
+					// amplitude modulation + decay 1 rate
 					if ((vgmInstruction.R & 0xF0) == 0x60)
 					{
 						result = LJ_VGM_TEST_OK;
 					}
+					// decay 2 rate
 					if ((vgmInstruction.R & 0xF0) == 0x70)
 					{
 						result = LJ_VGM_TEST_OK;
 					}
+					// secondary amplitude + release rate
 					if ((vgmInstruction.R & 0xF0) == 0x80)
 					{
 						result = LJ_VGM_TEST_OK;
 					}
+					// SSG params
 					if ((vgmInstruction.R & 0xF0) == 0x90)
 					{
 						result = LJ_VGM_TEST_OK;
