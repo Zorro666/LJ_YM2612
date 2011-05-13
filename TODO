@@ -1,8 +1,10 @@
 High Priority:
-YM2612:support Ch 2 special mode with freq per slot
+YM2612:support Ch 2 special mode with freq per slot - channel settings used for slot 3 for ch2
+YM2612:fnum, block, keycode per slot ONLY used for ch2 & ch2 mode set
 
 Medium Priority:
 YM2612:implement ADSR
+YM2612:dirty flag for recomputing omega delta
 
 Low Priority:
 TEST_APP: VGM debug on/off
