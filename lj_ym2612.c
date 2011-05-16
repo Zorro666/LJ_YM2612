@@ -168,6 +168,7 @@ struct LJ_YM2612_SLOT
 	int* modulationOutput[3];
 	int carrierOutputMask;
 	
+	LJ_YM_UINT8 omegaDirty;
 
 	LJ_YM_UINT8 detune;
 	LJ_YM_UINT8 multiple;
@@ -193,6 +194,7 @@ struct LJ_YM2612_CHANNEL
 	int fnum;
 	int block;
 
+	LJ_YM_UINT8 omegaDirty;
 	LJ_YM_UINT8 block_fnumMSB;
 	LJ_YM_UINT8 keycode;
 
@@ -633,6 +635,7 @@ static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, cons
 	channelPtr->block = block;
 	channelPtr->fnum = fnum;
 	channelPtr->keycode = keycode;
+	channelPtr->omegaDirty = 1;
 
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -697,6 +700,8 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 
 	slotPtr->keyOn = 0;
 
+	slotPtr->omegaDirty = 1;
+
 	slotPtr->id = 0;
 }
 
@@ -716,6 +721,7 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
 	channelPtr->slot0Output[0] = 0;
 	channelPtr->slot0Output[1] = 0;
 
+	channelPtr->omegaDirty = 1;
 	channelPtr->fnum = 0;
 	channelPtr->block = 0;
 	channelPtr->block_fnumMSB = 0;
@@ -757,6 +763,7 @@ static void ym2612_SetChannel2FreqBlock(LJ_YM2612* const ym2612, const LJ_YM_UIN
 	ym2612->channel2slotData[slot].block = block;
 	ym2612->channel2slotData[slot].fnum = fnum;
 	ym2612->channel2slotData[slot].keycode = keycode;
+	channel2Ptr->slot[slot].omegaDirty = 1;
 
 	if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -1320,6 +1327,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 			const int channelFnum = channelPtr->fnum;
 			const int channelBlock = channelPtr->block;
 			const int channelKeycode = channelPtr->keycode;
+			int channelOmegaDirty = channelPtr->omegaDirty;
 
 			if ((channelMask & outputChannelMask) == 0)
 			{
@@ -1335,6 +1343,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				int slotFnum;
 				int slotBlock;
 				int slotKeycode;
+				int omegaDirty = 0;
 
 				const int OMEGA = slotPtr->omega;
 				const int slotPhi = (OMEGA >> LJ_YM2612_FREQ_BITS);
@@ -1346,6 +1355,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 					slotFnum = channelFnum;
 					slotBlock = channelBlock;
 					slotKeycode = channelKeycode;
+					omegaDirty = channelOmegaDirty;
 				}
 				else
 				{
@@ -1356,7 +1366,11 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				}
 
 				//Compute the omega delta value
-				ym2612_slotComputeOmegaDelta(slotPtr, slotFnum, slotBlock, slotKeycode, debugFlags);
+				if ((slotPtr->omegaDirty == 1) || (omegaDirty == 1))
+				{
+					ym2612_slotComputeOmegaDelta(slotPtr, slotFnum, slotBlock, slotKeycode, debugFlags);
+					slotPtr->omegaDirty = 0;
+				}
 	
 				// Slot 0 feedback
 				if (slot == 0)
@@ -1450,6 +1464,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 			mixedLeft += channelOutput & channelPtr->left;
 			mixedRight += channelOutput & channelPtr->right;
+
+			channelPtr->omegaDirty = 0;
 
 			channelMask = (channelMask << 1);
 		}
