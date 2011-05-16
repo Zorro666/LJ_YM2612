@@ -1,19 +1,17 @@
 High Priority:
-YM2612:support Ch 2 special mode with freq per slot - channel settings used for slot 3 for ch2
-YM2612:fnum, block, keycode per slot ONLY used for ch2 & ch2 mode set
+YM2612:dirty flag for recomputing omega delta
+YM2612:compute max freq value and add it on if freq goes -ve because of detune
+YM2612:implement LFO
 
 Medium Priority:
 YM2612:implement ADSR
-YM2612:dirty flag for recomputing omega delta
 
 Low Priority:
 TEST_APP: VGM debug on/off
-YM2612:compute max freq value and add it on if freq goes -ve because of detune
 
 Future Stuff:
 
 High Priority:
-YM2612:implement LFO
 YM2612:implement LJ_LR_AMS_PMS = 0xB4 (AMS, PMS)
 YM2612:implement SSG
 YM2612:implement timers
@@ -23,6 +21,7 @@ Medium Priority:
 YM2612: error handling for unknown/unsupported register (be nice to make it say UNKNOWN REGISTER)
 
 Low Priority:
+TEST_APP:test all block & fnum values then put output into FFT to output the frequency
 TEST_APP:have real time graph plotting thingy
 VGM:support the loop settings in the header
 TEST_APP: number of loops on command line
