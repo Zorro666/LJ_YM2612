@@ -835,7 +835,7 @@ static LJ_VGM_UINT8 ch2modeProgram[] = {
 		LJ_TEST_PART_0, 0x28, 0x00,	// Key off
 		LJ_TEST_PART_0, 0xA6, 0x34,	// Set frequency (BLOCK=6) - slot 3
 		LJ_TEST_PART_0, 0xA2, 0x69,	// Set frequency FREQ=???) - slot 3
-		LJ_TEST_PART_0, 0xAD, 0x3A,	// Set frequency (BLOCK=7) - slot 0
+		LJ_TEST_PART_0, 0xAD, 0x38,	// Set frequency (BLOCK=5) - slot 0
 		LJ_TEST_PART_0, 0xA9, 0x69,	// Set frequency FREQ=???) - slot 0
 		LJ_TEST_PART_0, 0x28, 0x92,	// Key on (slot0+slot 3, channel 2)
 		LJ_TEST_OUTPUT, 0xB0, 0x00,	// OUTPUT SAMPLES
