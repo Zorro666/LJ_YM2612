@@ -605,10 +605,8 @@ static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, con
 	}
 }
 
-static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 fnumLSB)
+static void ym2612_computeBlockFnumKeyCode(int* const blockPtr, int* fnumPtr, int* keycodePtr, const int block_fnumMSB, const int fnumLSB)
 {
-	const LJ_YM_UINT8 block_fnumMSB = channelPtr->block_fnumMSB;
-
 	// Block = Bits 3-5, Frequency Number MSB = Bits 0-2 (top 3-bits of frequency number)
 	const int block = (block_fnumMSB >> 3) & 0x7;
 	const int fnumMSB = (block_fnumMSB >> 0) & 0x7;
@@ -618,8 +616,22 @@ static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, cons
 	// N3 = Fnum Bit 11 * (Bit 10 | Bit 9 | Bit 8) | !Bit 11 * Bit 10 * Bit 9 * Bit 8
 	const int keycode = (block << 2) | LJ_YM2612_fnumKeycodeTable[fnum>>7];
 
-	channelPtr->fnum = fnum;
+	*blockPtr = block;
+	*fnumPtr = fnum;
+	*keycodePtr = keycode;
+}
+
+static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 fnumLSB)
+{
+	const LJ_YM_UINT8 block_fnumMSB = channelPtr->block_fnumMSB;
+
+	int block;
+	int fnum;
+	int keycode;
+	ym2612_computeBlockFnumKeyCode(&block, &fnum, &keycode, block_fnumMSB, fnumLSB);
+
 	channelPtr->block = block;
+	channelPtr->fnum = fnum;
 	channelPtr->keycode = keycode;
 
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
@@ -737,17 +749,13 @@ static void ym2612_SetChannel2FreqBlock(LJ_YM2612* const ym2612, const LJ_YM_UIN
 
 	const LJ_YM_UINT8 block_fnumMSB = ym2612->channel2slotData[slot].block_fnumMSB;
 
-	// Block = Bits 3-5, Frequency Number MSB = Bits 0-2 (top 3-bits of frequency number)
-	const int block = (block_fnumMSB >> 3) & 0x7;
-	const int fnumMSB = (block_fnumMSB >> 0) & 0x7;
-	const int fnum = (fnumMSB << 8) + (fnumLSB & 0xFF);
-	// keycode = (block << 2) | (N4 << 1) | (N3 << 0)
-	// N4 = Fnum Bit 11 
-	// N3 = Fnum Bit 11 * (Bit 10 | Bit 9 | Bit 8) | !Bit 11 * Bit 10 * Bit 9 * Bit 8
-	const int keycode = (block << 2) | LJ_YM2612_fnumKeycodeTable[fnum>>7];
+	int block;
+	int fnum;
+	int keycode;
+	ym2612_computeBlockFnumKeyCode(&block, &fnum, &keycode, block_fnumMSB, fnumLSB);
 
-	ym2612->channel2slotData[slot].fnum = fnum;
 	ym2612->channel2slotData[slot].block = block;
+	ym2612->channel2slotData[slot].fnum = fnum;
 	ym2612->channel2slotData[slot].keycode = keycode;
 
 	if (ym2612->debugFlags & LJ_YM2612_DEBUG)
