@@ -611,7 +611,7 @@ static void ym2612_channelSetFreqBlock(LJ_YM2612_CHANNEL* const channelPtr, cons
 
 	// Block = Bits 3-5, Frequency Number MSB = Bits 0-2 (top 3-bits of frequency number)
 	const int block = (block_fnumMSB >> 3) & 0x7;
-	const int fnumMSB = (block_fnumMSB >> 0) & 0x3;
+	const int fnumMSB = (block_fnumMSB >> 0) & 0x7;
 	const int fnum = (fnumMSB << 8) + (fnumLSB & 0xFF);
 	// keycode = (block << 2) | (N4 << 1) | (N3 << 0)
 	// N4 = Fnum Bit 11 
@@ -739,7 +739,7 @@ static void ym2612_SetChannel2FreqBlock(LJ_YM2612* const ym2612, const LJ_YM_UIN
 
 	// Block = Bits 3-5, Frequency Number MSB = Bits 0-2 (top 3-bits of frequency number)
 	const int block = (block_fnumMSB >> 3) & 0x7;
-	const int fnumMSB = (block_fnumMSB >> 0) & 0x3;
+	const int fnumMSB = (block_fnumMSB >> 0) & 0x7;
 	const int fnum = (fnumMSB << 8) + (fnumLSB & 0xFF);
 	// keycode = (block << 2) | (N4 << 1) | (N3 << 0)
 	// N4 = Fnum Bit 11 
