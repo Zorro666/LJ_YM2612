@@ -282,6 +282,21 @@ int main(int argc, char* argv[])
 					{
 						result = LJ_VGM_TEST_OK;
 					}
+					// CLOCK A1
+					if (vgmInstruction.R == 0x24)
+					{
+						result = LJ_VGM_TEST_OK;
+					}
+					// CLOCK A2
+					if (vgmInstruction.R == 0x25)
+					{
+						result = LJ_VGM_TEST_OK;
+					}
+					// CLOCK B
+					if (vgmInstruction.R == 0x26)
+					{
+						result = LJ_VGM_TEST_OK;
+					}
 					if (noerror == 1)
 					{
 						result = LJ_VGM_TEST_OK;
