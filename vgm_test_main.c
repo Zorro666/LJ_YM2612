@@ -551,7 +551,7 @@ static LJ_VGM_UINT8 noteProgram[] = {
 		LJ_TEST_PART_0, 0xB0, 0x07,	// Feedback/algorithm (FB=0, ALG=7)
 		LJ_TEST_PART_0, 0xB4, 0xC0,	// Both speakers on
 		LJ_TEST_PART_0, 0x28, 0x00,	// Key off
-		LJ_TEST_PART_0, 0xA4, 0x6A,	// Set frequency (BLOCK=7)
+		LJ_TEST_PART_0, 0xA4, 0x34,	// Set frequency (BLOCK=6)
 		LJ_TEST_PART_0, 0xA0, 0x69,	// Set frequency FREQ=???)
 		LJ_TEST_PART_0, 0x28, 0x10,	// Key on (slot 0, channel 0)
 		LJ_TEST_OUTPUT, 0xB0, 0x00,	// OUTPUT SAMPLES
@@ -793,8 +793,8 @@ static LJ_VGM_UINT8 fbProgram[] = {
 
 static LJ_VGM_UINT8 ch2modeProgram[] = {
 		LJ_TEST_PART_0, 0x22, 0x00,	// LFO off
-		LJ_TEST_PART_0, 0x27, 0x40,	// Channel 2 mode = 1 -> special
 		LJ_TEST_PART_0, 0x27, 0x00,	// Channel 2 mode = 0 -> normal
+		LJ_TEST_PART_0, 0x27, 0x40,	// Channel 2 mode = 1 -> special
 		LJ_TEST_PART_0, 0x28, 0x00,	// All channels off
 		LJ_TEST_PART_0, 0x28, 0x01,	// All channels off
 		LJ_TEST_PART_0, 0x28, 0x02,	// All channels off
