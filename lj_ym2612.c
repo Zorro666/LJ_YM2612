@@ -253,7 +253,7 @@ static int LJ_YM2612_CLAMP_VOLUME(const int volume)
 	{
 		return LJ_YM2612_VOLUME_MAX;
 	}
-	if (volume < -LJ_YM2612_VOLUME_MAX)
+	else if (volume < -LJ_YM2612_VOLUME_MAX)
 	{
 		return -LJ_YM2612_VOLUME_MAX;
 	}
@@ -1406,9 +1406,6 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 				int slotOutput = (slotPtr->volume * scaledSin) >> LJ_YM2612_SIN_SCALE_BITS;
 
-				// Keep within +/- 1
-				slotOutput = LJ_YM2612_CLAMP_VOLUME(slotOutput);
-
 				// Scale by TL (total level = 0->1)
 				slotOutput = (slotOutput * slotPtr->totalLevel) >> LJ_YM2612_TL_SCALE_BITS;
 
@@ -1432,6 +1429,9 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 					channelPtr->slot0Output[0] = channelPtr->slot0Output[1];
 					channelPtr->slot0Output[1] = slotOutput;
 				}
+
+				// Keep within +/- 1
+				slotOutput = LJ_YM2612_CLAMP_VOLUME(slotOutput);
 
 				carrierOutput = slotOutput & slotPtr->carrierOutputMask;
 				channelOutput += carrierOutput;
@@ -1474,8 +1474,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 		mixedRight += dacValueRight;
 
 		// Keep within +/- 1
-		mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft);
-		mixedRight = LJ_YM2612_CLAMP_VOLUME(mixedRight);
+		//mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft);
+		//mixedRight = LJ_YM2612_CLAMP_VOLUME(mixedRight);
 
 #if LJ_YM2612_OUTPUT_SCALE >= 0
 		mixedLeft = mixedLeft >> LJ_YM2612_OUTPUT_SCALE;
