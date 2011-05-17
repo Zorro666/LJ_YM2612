@@ -616,7 +616,7 @@ static LJ_VGM_UINT8 noteDTProgram[] = {
 		LJ_TEST_PART_0, 0xB0, 0x07,	// Feedback/algorithm (FB=0, ALG=7)
 		LJ_TEST_PART_0, 0xB4, 0xC0,	// Both speakers on
 		LJ_TEST_PART_0, 0x28, 0x00,	// Key off
-		LJ_TEST_PART_0, 0xA4, 0x30,	// Set frequency (BLOCK=7)
+		LJ_TEST_PART_0, 0xA4, 0x18,	// Set frequency (BLOCK=3)
 		LJ_TEST_PART_0, 0xA0, 0x69,	// Set frequency FREQ=???)
 		LJ_TEST_PART_0, 0x28, 0x70,	// Key on (slot 0+1+2, channel 0)
 		LJ_TEST_OUTPUT, 0xB0, 0x00,	// OUTPUT SAMPLES
@@ -666,7 +666,7 @@ static LJ_VGM_UINT8 algoProgram[] = {
 		LJ_TEST_PART_0, 0xB0, 0x07,	// Feedback/algorithm (FB=0, ALG=7)
 		LJ_TEST_PART_0, 0xB4, 0xC0,	// Both speakers on
 		LJ_TEST_PART_0, 0x28, 0x00,	// Key off
-		LJ_TEST_PART_0, 0xA4, 0x5A,	// Set frequency (BLOCK=7)
+		LJ_TEST_PART_0, 0xA4, 0x1A,	// Set frequency (BLOCK=7)
 		LJ_TEST_PART_0, 0xA0, 0x69,	// Set frequency FREQ=???)
 		LJ_TEST_PART_0, 0x28, 0xF0,	// Key on (slot 0 & 1 & 2 & 3, channel 0)
 		LJ_TEST_OUTPUT, 0xB0, 0x00,	// OUTPUT SAMPLES
@@ -716,7 +716,7 @@ static LJ_VGM_UINT8 dacTestProgram[] = {
 		LJ_TEST_PART_1, 0xB2, 0x07,	// Feedback/algorithm (FB=0, ALG=7) - channel 5
 		LJ_TEST_PART_1, 0xB6, 0x40,	// Right speaker on - channel 5
 		LJ_TEST_PART_0, 0x28, 0x06,	// Key off - channel 5
-		LJ_TEST_PART_1, 0xA6, 0x30,	// Set frequency (BLOCK=7) - channel 5
+		LJ_TEST_PART_1, 0xA6, 0x38,	// Set frequency (BLOCK=7) - channel 5
 		LJ_TEST_PART_1, 0xA2, 0x69,	// Set frequency FREQ=???) - channel 5
 		LJ_TEST_PART_0, 0x28, 0x76,	// Key on (slot 0+1+2, channel 5)
 		LJ_TEST_PART_0, 0x2A, 0x70,	// DAC data
@@ -795,7 +795,7 @@ static LJ_VGM_UINT8 fbProgram[] = {
 		LJ_TEST_PART_0, 0xB0, 0x67,	// Feedback/algorithm (FB=6, ALG=7)
 		LJ_TEST_PART_0, 0xB4, 0xC0,	// Both speakers on
 		LJ_TEST_PART_0, 0x28, 0x00,	// Key off
-		LJ_TEST_PART_0, 0xA4, 0x6A,	// Set frequency (BLOCK=7)
+		LJ_TEST_PART_0, 0xA4, 0x2A,	// Set frequency (BLOCK=6)
 		LJ_TEST_PART_0, 0xA0, 0x69,	// Set frequency FREQ=???)
 		LJ_TEST_PART_0, 0x28, 0x10,	// Key on (slot 0, channel 0)
 		LJ_TEST_OUTPUT, 0x50, 0x00,	// OUTPUT SAMPLES
@@ -850,7 +850,7 @@ static LJ_VGM_UINT8 ch2modeProgram[] = {
 		LJ_TEST_PART_0, 0x28, 0x00,	// Key off
 		LJ_TEST_PART_0, 0xA6, 0x34,	// Set frequency (BLOCK=6) - slot 3
 		LJ_TEST_PART_0, 0xA2, 0x69,	// Set frequency FREQ=???) - slot 3
-		LJ_TEST_PART_0, 0xAD, 0x38,	// Set frequency (BLOCK=5) - slot 0
+		LJ_TEST_PART_0, 0xAD, 0x2F,	// Set frequency (BLOCK=5) - slot 0
 		LJ_TEST_PART_0, 0xA9, 0x69,	// Set frequency FREQ=???) - slot 0
 		LJ_TEST_PART_0, 0x28, 0x92,	// Key on (slot0+slot 3, channel 2)
 		LJ_TEST_OUTPUT, 0xB0, 0x00,	// OUTPUT SAMPLES
