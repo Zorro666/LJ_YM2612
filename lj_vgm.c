@@ -72,7 +72,7 @@ The format starts with a 64 byte header:
 
 0x38-0x3f: Reserved (must be zero)
 
-// VGM commands
+VGM commands
 
 0x4f dd    		: Game Gear PSG stereo, write dd to port 0x06
 0x50 dd    		: PSG (SN76489/SN76496) write value dd
@@ -133,11 +133,13 @@ All unknown types must be skipped by the player.
 #include <string.h>
 
 
-////////////////////////////////////////////////////////////////////
-// 
-// Internal data & functions
-// 
-////////////////////////////////////////////////////////////////////
+/*
+* ////////////////////////////////////////////////////////////////////
+* // 
+* // Internal data & functions
+* // 
+* ////////////////////////////////////////////////////////////////////
+*/
 
 typedef unsigned short LJ_VGM_UINT16;
 
@@ -236,57 +238,57 @@ static void vgm_init(LJ_VGM_FILE* const vgmFile)
 		LJ_VGM_instruction[i]= "UNKNOWN";
 	}
 	
-	//LJ_VGM_DATA_BLOCK_START = 0x67,
+	/*LJ_VGM_DATA_BLOCK_START = 0x67,*/
 	LJ_VGM_validInstruction[LJ_VGM_DATA_BLOCK_START] = 1;
 	LJ_VGM_instruction[LJ_VGM_DATA_BLOCK_START]= "DATA_BLOCK_START";
 
-	//LJ_VGM_YM2612_WRITE_PART_0 = 0x52,
+	/*LJ_VGM_YM2612_WRITE_PART_0 = 0x52,*/
 	LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_PART_0] = 1;
 	LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_PART_0]= "YM2612_WRITE_PART_0";
 
-	//LJ_VGM_YM2612_WRITE_PART_1 = 0x53,
+	/*LJ_VGM_YM2612_WRITE_PART_1 = 0x53,*/
 	LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_PART_1] = 1;
 	LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_PART_1]= "YM2612_WRITE_PART_1";
 
-	//LJ_VGM_DATA_SEEK_OFFSET = 0xe0,
+	/*LJ_VGM_DATA_SEEK_OFFSET = 0xe0,*/
 	LJ_VGM_validInstruction[LJ_VGM_DATA_SEEK_OFFSET] = 1;
 	LJ_VGM_instruction[LJ_VGM_DATA_SEEK_OFFSET]= "DATA_SEEK_OFFSET";
 
-	//LJ_VGM_YM2612_WRITE_DATA = 0x80 -> 0x8F,
+	/*LJ_VGM_YM2612_WRITE_DATA = 0x80 -> 0x8F,*/
 	for (i = 0; i < 16; i++)
 	{
 		LJ_VGM_validInstruction[LJ_VGM_YM2612_WRITE_DATA+i] = 1;
 		LJ_VGM_instruction[LJ_VGM_YM2612_WRITE_DATA+i]= "YM2612_WRITE_DATA";
 	}
 
-	//LJ_VGM_WAIT_N_SAMPLES = 0x70 -> 0x7F,
+	/*LJ_VGM_WAIT_N_SAMPLES = 0x70 -> 0x7F,*/
 	for (i = 0; i < 16; i++)
 	{
 		LJ_VGM_validInstruction[LJ_VGM_WAIT_N_SAMPLES+i] = 1;
 		LJ_VGM_instruction[LJ_VGM_WAIT_N_SAMPLES+i]= "WAIT_N_SAMPLES";
 	}
 
-	//LJ_VGM_GAMEGEAR_PSG = 0x4F, 
+	/*LJ_VGM_GAMEGEAR_PSG = 0x4F, */
 	LJ_VGM_validInstruction[LJ_VGM_GAMEGEAR_PSG] = 1;
 	LJ_VGM_instruction[LJ_VGM_GAMEGEAR_PSG]= "GAMEGEAR_PSG";
 
-	//LJ_VGM_SN764xx_PSG = 0x50, 
+	/*LJ_VGM_SN764xx_PSG = 0x50, */
 	LJ_VGM_validInstruction[LJ_VGM_SN764xx_PSG] = 1;
 	LJ_VGM_instruction[LJ_VGM_SN764xx_PSG]= "SN764xx_PSG";
 
-	//LJ_VGM_WAIT_SAMPLES = 0x61,
+	/*LJ_VGM_WAIT_SAMPLES = 0x61,*/
 	LJ_VGM_validInstruction[LJ_VGM_WAIT_SAMPLES] = 1;
 	LJ_VGM_instruction[LJ_VGM_WAIT_SAMPLES]= "WAIT_SAMPLES";
 
-	//LJ_VGM_END_SOUND_DATA = 0x66,
+	/*LJ_VGM_END_SOUND_DATA = 0x66,*/
 	LJ_VGM_validInstruction[LJ_VGM_END_SOUND_DATA] = 1;
 	LJ_VGM_instruction[LJ_VGM_END_SOUND_DATA]= "END_SOUND_DATA";
 
-	//LJ_VGM_WAIT_60th = 0x62,
+	/*LJ_VGM_WAIT_60th = 0x62,*/
 	LJ_VGM_validInstruction[LJ_VGM_WAIT_60th] = 1;
 	LJ_VGM_instruction[LJ_VGM_WAIT_60th]= "WAIT_60th";
 
-	//LJ_VGM_WAIT_50th = 0x63,
+	/*LJ_VGM_WAIT_50th = 0x63,*/
 	LJ_VGM_validInstruction[LJ_VGM_WAIT_50th] = 1;
 	LJ_VGM_instruction[LJ_VGM_WAIT_50th]= "WAIT_50th";
 
@@ -375,11 +377,13 @@ static LJ_VGM_RESULT vgm_open(LJ_VGM_FILE* const vgmFile, const char* const fnam
 	return LJ_VGM_OK;
 }
 
-////////////////////////////////////////////////////////////////////
-// 
-// Exposed external data & functions
-// 
-////////////////////////////////////////////////////////////////////
+/*
+* ////////////////////////////////////////////////////////////////////
+* // 
+* // Exposed external data & functions
+* // 
+* ////////////////////////////////////////////////////////////////////
+*/
 
 LJ_VGM_FILE* LJ_VGM_create(const char* const fname)
 {
@@ -464,7 +468,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	if (cmd == LJ_VGM_DATA_BLOCK_START)
 	{
 		LJ_VGM_UINT8 endSoundData = 0;
-		//The data block format is: 0x67 0x66 tt ss ss ss ss (data)
+		/*The data block format is: 0x67 0x66 tt ss ss ss ss (data)*/
 		numRead = fread(&endSoundData, sizeof(endSoundData), 1, vgmFile->fh);
 		if (numRead != 1)
 		{
@@ -522,8 +526,8 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	}
 	else if ((cmd == LJ_VGM_YM2612_WRITE_PART_0) || (cmd == LJ_VGM_YM2612_WRITE_PART_1))
 	{
-		//0x52 aa dd 		: YM2612 port 0, write value dd to register aa
-		//0x53 aa dd 		: YM2612 port 1, write value dd to register aa
+		/*0x52 aa dd 		: YM2612 port 0, write value dd to register aa*/
+		/*0x53 aa dd 		: YM2612 port 1, write value dd to register aa*/
 		LJ_VGM_UINT8 R = 0;
 		LJ_VGM_UINT8 D = 0;
 
@@ -555,7 +559,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	}
 	else if (cmd == LJ_VGM_DATA_SEEK_OFFSET)
 	{
-		//0xe0 dddddddd 	: seek to offset dddddddd (Intel byte order) in PCM data bank
+		/*0xe0 dddddddd 	: seek to offset dddddddd (Intel byte order) in PCM data bank*/
 		numRead = fread(&vgmFile->dataSeekOffset, sizeof(vgmFile->dataSeekOffset), 1, vgmFile->fh);
 		if (numRead != 1)
 		{
@@ -578,7 +582,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	}
 	else if ((cmd >> 4) == 0x8)
 	{
-		//0x8n  : YM2612 port 0 address 2A write from the data bank, then wait n samples; n can range from 0 to 15. 
+		/*0x8n  : YM2612 port 0 address 2A write from the data bank, then wait n samples; n can range from 0 to 15. */
 		LJ_VGM_UINT8 waitSamples = cmd & 0xF;
 
 		vgmFile->pos += 1;
@@ -603,7 +607,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	}
 	else if ((cmd >> 4) == 0x7)
 	{
-		//0x7n : wait n+1 samples, n can range from 0 to 15.
+		/*0x7n : wait n+1 samples, n can range from 0 to 15.*/
 		LJ_VGM_UINT8 waitSamples = cmd & 0xF;
 
 		vgmFile->pos += 1;
@@ -622,7 +626,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	}
 	else if (cmd == LJ_VGM_GAMEGEAR_PSG)
 	{
-		// 0x4f dd : Game Gear PSG stereo, write dd to port 0x06
+		/* 0x4f dd : Game Gear PSG stereo, write dd to port 0x06*/
 		LJ_VGM_UINT8 D = 0;
 		numRead = fread(&D, sizeof(D), 1, vgmFile->fh);
 		if (numRead != 1)
@@ -644,7 +648,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	}
 	else if (cmd == LJ_VGM_SN764xx_PSG)
 	{
-		//0x50 dd : PSG (SN76489/SN76496) write value dd
+		/*0x50 dd : PSG (SN76489/SN76496) write value dd*/
 		LJ_VGM_UINT8 D = 0;
 		numRead = fread(&D, sizeof(D), 1, vgmFile->fh);
 		if (numRead != 1)
@@ -666,7 +670,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	}
 	else if (cmd == LJ_VGM_WAIT_SAMPLES)
 	{
-		//0x61 nn nn 		: Wait n samples, n can range from 0 to 65535 (approx 1.49 seconds). 
+		/*0x61 nn nn 		: Wait n samples, n can range from 0 to 65535 (approx 1.49 seconds). */
 		LJ_VGM_UINT16 waitSamples;
 		numRead = fread(&waitSamples, sizeof(waitSamples), 1, vgmFile->fh);
 		if (numRead != 1)
@@ -691,7 +695,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	}
 	else if (cmd == LJ_VGM_END_SOUND_DATA)
 	{
-		//0x66 : end of sound data
+		/*0x66 : end of sound data*/
 		vgmFile->pos += 1;
 		vgmFile->cmdCount += 1;
 
@@ -703,7 +707,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	}
 	else if (cmd == LJ_VGM_WAIT_60th)
 	{
-		//0x62 : wait 735 samples (60th of a second), a shortcut for 0x61 0xdf 0x02
+		/*0x62 : wait 735 samples (60th of a second), a shortcut for 0x61 0xdf 0x02*/
 		vgmFile->pos += 1;
 		vgmFile->cmdCount += 1;
 
@@ -720,7 +724,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	}
 	else if (cmd == LJ_VGM_WAIT_50th)
 	{
-		//0x63 : wait 882 samples (50th of a second), a shortcut for 0x61 0x72 0x03
+		/*0x63 : wait 882 samples (50th of a second), a shortcut for 0x61 0x72 0x03*/
 		vgmFile->pos += 1;
 		vgmFile->cmdCount += 1;
 

@@ -8,7 +8,7 @@ enum DVICE_YM2612_FLAGS {
 	DEVICE_YM2612_ONECHANNEL =			(1<<3),
 	DEVICE_YM2612_ONECHANNEL_SHIFT =	(4),
 	DEVICE_YM2612_ONECHANNEL_MASK =		(0x7),
-	DEVICE_YM2612_NEXT_DEBUG_THINGY =	(1<<7),
+	DEVICE_YM2612_NEXT_DEBUG_THINGY =	(1<<7)
 };
 
 void* device_ym2612_create(const int clockRate, const int outputSamplerate, const unsigned int flags);
@@ -21,5 +21,5 @@ const char* const getWavOutputName(const char* const inputName);
 #define LJ_VGM_TEST_OK (0)
 #define LJ_VGM_TEST_ERROR (-1)
 
-#endif // #ifndef VGM_TEST_MAIN_HH
+#endif /* #ifndef VGM_TEST_MAIN_HH */
 

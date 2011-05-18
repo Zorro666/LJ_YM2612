@@ -9,12 +9,12 @@
 #define __FM_H__
 
 /* --- select emulation chips --- */
-//#define BUILD_YM2203  (1)		/* build YM2203(OPN)   emulator */
-//#define BUILD_YM2608  (1)		/* build YM2608(OPNA)  emulator */
-//#define BUILD_YM2610  (1)		/* build YM2610(OPNB)  emulator */
-//#define BUILD_YM2610B (1)		/* build YM2610B(OPNB?)emulator */
-#define BUILD_YM2612  (1)		/* build YM2612(OPN2)  emulator */
-//#define BUILD_YM3438  (1)		/* build YM3438(OPN) emulator */
+/*define BUILD_YM2203  (1)	*/	/* build YM2203(OPN)   emulator */
+/*define BUILD_YM2608  (1)	*/	/* build YM2608(OPNA)  emulator */
+/*define BUILD_YM2610  (1) 	*/	/* build YM2610(OPNB)  emulator */
+/*define BUILD_YM2610B (1)	*/	/* build YM2610B(OPNB?)emulator */
+#define BUILD_YM2612  (1)				/* build YM2612(OPN2)  emulator */
+/*define BUILD_YM3438  (1)	*/	/* build YM3438(OPN) emulator */
 
 /* select bit size of output : 8 or 16 */
 #define FM_SAMPLE_BITS 16
@@ -24,7 +24,7 @@
 
 /* --- speedup optimize --- */
 /* busy flag enulation , The definition of FM_GET_TIME_NOW() is necessary. */
-//#define FM_BUSY_FLAG_SUPPORT 1
+/*define FM_BUSY_FLAG_SUPPORT 1 */
 #define FM_BUSY_FLAG_SUPPORT 0
 
 /* --- external SSG(YM2149/AY-3-8910)emulator interface port */

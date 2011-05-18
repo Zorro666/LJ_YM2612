@@ -1,4 +1,8 @@
 #include <math.h>
+
+#ifndef M_PI
+#define M_PI (3.14159265358979323846f)
+#endif
 /*
 **
 ** File: fm2612.c -- software implementation of Yamaha YM2612 FM sound generator
@@ -259,7 +263,7 @@ O( 0),O( 1),O( 2),O( 3),
 O( 0),O( 1),O( 2),O( 3),
 */
 O(18),O(18),O( 0),O( 0),
-O( 0),O( 0),O( 2),O( 2),   // Nemesis's tests
+O( 0),O( 0),O( 2),O( 2),   /* Nemesis's tests */
 
 O( 0),O( 1),O( 2),O( 3),
 O( 0),O( 1),O( 2),O( 3),
@@ -508,7 +512,7 @@ static INT32 lfo_pm_table[128*8*32]; /* 128 combinations of 7 bits meaningful (o
 
 
 /* save output as raw 16-bit sample */
-//#define SAVE_SAMPLE
+/*define SAVE_SAMPLE */
 
 #ifdef SAVE_SAMPLE
 static FILE *sample[1];
@@ -707,7 +711,6 @@ typedef struct
 	if ( val > max )      val = max; \
 	else if ( val < min ) val = min; \
 }
-
 
 /* status set and IRQ handling */
 INLINE void FM_STATUS_SET(FM_ST *ST,int flag)
@@ -1594,12 +1597,13 @@ INLINE signed int op_calc1(UINT32 phase, unsigned int env, signed int pm)
 INLINE void chan_calc(YM2612 *F2612, FM_OPN *OPN, FM_CH *CH)
 {
   UINT32 AM = OPN->LFO_AM >> CH->ams;
+	unsigned int eg_out;
 
   OPN->m2 = OPN->c1 = OPN->c2 = OPN->mem = 0;
 
   *CH->mem_connect = CH->mem_value;  /* restore delayed sample (MEM) value to m2 or c2 */
 
-  unsigned int eg_out = volume_calc(&CH->SLOT[SLOT1]);
+  eg_out = volume_calc(&CH->SLOT[SLOT1]);
   {
     INT32 out = CH->op1_out[0] + CH->op1_out[1];
     CH->op1_out[0] = CH->op1_out[1];
@@ -2307,8 +2311,8 @@ void ym2612_update_one(void *chip, FMSAMPLE **buffer, int length)
 		lt += ((out_fm[5]>>0) & OPN->pan[10]);
 		rt += ((out_fm[5]>>0) & OPN->pan[11]);
 
-//      Limit( lt, MAXOUT, MINOUT );
-//      Limit( rt, MAXOUT, MINOUT );
+/*      Limit( lt, MAXOUT, MINOUT ); */
+/*      Limit( rt, MAXOUT, MINOUT ); */
 
 		#ifdef SAVE_SAMPLE
 			SAVE_ALL_CHANNELS

@@ -1,12 +1,10 @@
 #ifndef LJ_YM2612_HH
 #define LJ_YM2612_HH
 
-typedef enum LJ_YM2612_RESULT LJ_YM2612_RESULT;
-
-enum LJ_YM2612_RESULT { 
+typedef enum LJ_YM2612_RESULT { 
 	LJ_YM2612_OK = 0,
 	LJ_YM2612_ERROR = -1
-};
+} LJ_YM2612_RESULT;
 
 enum LJ_YM2612_FLAGS { 
 	LJ_YM2612_DEBUG =							(1<<0),
@@ -15,7 +13,7 @@ enum LJ_YM2612_FLAGS {
 	LJ_YM2612_ONECHANNEL =				(1<<3),
 	LJ_YM2612_ONECHANNEL_SHIFT =	(4),
 	LJ_YM2612_ONECHANNEL_MASK =		(0x7),
-	LJ_YM2612_NEXT_DEBUG_THINGY =	(1<<7),
+	LJ_YM2612_NEXT_DEBUG_THINGY =	(1<<7)
 };
 
 typedef struct LJ_YM2612 LJ_YM2612;
@@ -38,4 +36,4 @@ LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, 
 
 LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles, LJ_YM_INT16* output[2]);
 
-#endif //#ifndef LJ_YM2612_HH
+#endif /* #ifndef LJ_YM2612_HH */

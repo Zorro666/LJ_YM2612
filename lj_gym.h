@@ -11,25 +11,23 @@ The GYM file format contains only four different instructions, each represented 
 
 #include <stdio.h>
 
-// Forward declarations
+/* Forward declarations */
 typedef struct LJ_GYM_FILE LJ_GYM_FILE;
 typedef struct LJ_GYM_INSTRUCTION LJ_GYM_INSTRUCTION;
-typedef enum LJ_GYM_RESULT LJ_GYM_RESULT;
-typedef enum LJ_GYM_COMMAND LJ_GYM_COMMAND;
 
 typedef unsigned char LJ_GYM_UINT8;
 
-enum LJ_GYM_RESULT { 
+typedef enum LJ_GYM_RESULT { 
 	LJ_GYM_OK = 0,
 	LJ_GYM_ERROR = -1
-};
+} LJ_GYM_RESULT;
 
-enum LJ_GYM_COMMAND { 
+typedef enum LJ_GYM_COMMAND { 
 	LJ_GYM_NOP = 0, 
 	LJ_GYM_WRITE_PORT_0 = 1, 
 	LJ_GYM_WRITE_PORT_1 = 2, 
 	LJ_GYM_WRITE_PORT_PSG = 3
-};
+} LJ_GYM_COMMAND;
 
 struct LJ_GYM_INSTRUCTION
 {
@@ -44,9 +42,9 @@ LJ_GYM_FILE* LJ_GYM_create(const char* const fname);
 LJ_GYM_RESULT LJ_GYM_destroy(LJ_GYM_FILE* const gymFile);
 
 LJ_GYM_RESULT LJ_GYM_read(LJ_GYM_FILE* const gymFile, LJ_GYM_INSTRUCTION* const gymInstr);
-//TODO: test reset
+/*TODO: test reset */
 LJ_GYM_RESULT LJ_GYM_reset(LJ_GYM_FILE* const gymFile);
 		
 void LJ_GYM_debugPrint( const LJ_GYM_INSTRUCTION* const gymInstr);
 
-#endif // #ifndef LJ_GYM_HH
+#endif /* #ifndef LJ_GYM_HH */

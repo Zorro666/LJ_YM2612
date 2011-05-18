@@ -14,14 +14,15 @@ int main(int argc, char* argv[])
 	LJ_YM2612* ym2612 = NULL;
 
 	LJ_YM_INT16* outputs[2];
-	outputs[0] = malloc(1024 * sizeof(LJ_YM_INT16));
-	outputs[1] = malloc(1024 * sizeof(LJ_YM_INT16));
 
 	FILE* outFileH = fopen("gym_test.pcm","wb");
 
 	int numCycles = 1;
 	int cmdCount;
 	int outputSampleRate = 44100;
+
+	outputs[0] = malloc(1024 * sizeof(LJ_YM_INT16));
+	outputs[1] = malloc(1024 * sizeof(LJ_YM_INT16));
 
 	gymFile = LJ_GYM_create( "test.gym" );
 	ym2612 = LJ_YM2612_create(LJ_YM2612_DEFAULT_CLOCK_RATE, outputSampleRate);
@@ -59,7 +60,7 @@ int main(int argc, char* argv[])
 						LJ_YM_INT16* outputLeft = outputs[0];
 						LJ_YM_INT16* outputRight = outputs[1];
 
-						// LR LR LR LR LR LR
+						/* LR LR LR LR LR LR */
 						fwrite(outputLeft+sample, sizeof(LJ_YM_INT16), 1, outFileH);
 						fwrite(outputRight+sample, sizeof(LJ_YM_INT16), 1, outFileH);
 					}

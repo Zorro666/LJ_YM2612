@@ -6,12 +6,12 @@
 #include <malloc.h>
 #include <string.h>
 
-// Globals for vgm_test_main.c
+/* Globals for vgm_test_main.c */
 void* device_ym2612_create(const int clockRate, const int outputSampleRate, const unsigned int flags)
 {
 	UINT32 ymFlags = 0;
 
-	//ym2612_init(void *param, device_t *device, int clock, int rate, FM_TIMERHANDLER timer_handler,FM_IRQHANDLER IRQHandler)
+	/*ym2612_init(void *param, device_t *device, int clock, int rate, FM_TIMERHANDLER timer_handler,FM_IRQHANDLER IRQHandler)*/
 	void* ym2612 = ym2612_init( NULL, NULL, clockRate, outputSampleRate, NULL, NULL);
 	ym2612_reset_chip(ym2612);
 
@@ -56,8 +56,9 @@ int device_ym2612_destroy(void* ym2612)
 const char* const getWavOutputName(const char* const inputName)
 {
 	static char wavOutputName[256];
+	char* ext;
 	strncpy(wavOutputName, inputName, 256); 
-	char* ext = strchr(wavOutputName, '.');
+	ext = strchr(wavOutputName, '.');
 	if (ext != NULL)
 	{
 		ext[0] = '\0';
@@ -67,7 +68,7 @@ const char* const getWavOutputName(const char* const inputName)
 	return wavOutputName;
 }
 
-// Globals for fm2612.c
+/* Globals for fm2612.c */
 void* allocClear(unsigned int size)
 {
 	return malloc(size);

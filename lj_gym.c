@@ -10,11 +10,12 @@ The GYM file format contains only four different instructions, each represented 
 
 #include "lj_gym.h"
 
+/* 
 ////////////////////////////////////////////////////////////////////
-// 
 // Internal data & functions
 // 
 ////////////////////////////////////////////////////////////////////
+*/
 
 struct LJ_GYM_FILE
 {
@@ -54,11 +55,13 @@ static LJ_GYM_RESULT gym_open(LJ_GYM_FILE* const gymFile, const char* const fnam
 	return LJ_GYM_OK;
 }
 
+/*
 ////////////////////////////////////////////////////////////////////
 // 
 // Exposed external data & functions
 // 
 ////////////////////////////////////////////////////////////////////
+*/
 
 LJ_GYM_FILE* LJ_GYM_create(const char* const fname)
 {

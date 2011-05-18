@@ -15,13 +15,14 @@ int main(int argc, char* argv[])
 	void* ym2612 = NULL;
 
 	FMSAMPLE* outputs[2];
-	outputs[0] = malloc(1024 * sizeof(FMSAMPLE));
-	outputs[1] = malloc(1024 * sizeof(FMSAMPLE));
 
 	FILE* outFileH = fopen("gym_test2.pcm","wb");
 
 	int numCycles = 1;
 	int cmdCount;
+
+	outputs[0] = malloc(1024 * sizeof(FMSAMPLE));
+	outputs[1] = malloc(1024 * sizeof(FMSAMPLE));
 
 	gymFile = LJ_GYM_create( "test.gym" );
 	ym2612 = ym2612_init(NULL, NULL, 0, 0, NULL, NULL);
@@ -55,7 +56,7 @@ int main(int argc, char* argv[])
 						FMSAMPLE* outputLeft = outputs[0];
 						FMSAMPLE* outputRight = outputs[1];
 
-						// LR LR LR LR LR LR
+						/* LR LR LR LR LR LR */
 						fwrite(outputLeft+sample, sizeof(FMSAMPLE), 1, outFileH);
 						fwrite(outputRight+sample, sizeof(FMSAMPLE), 1, outFileH);
 					}

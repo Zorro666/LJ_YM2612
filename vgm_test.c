@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 
-// Globals for vgm_test_main.c
+/* Globals for vgm_test_main.c */
 void* device_ym2612_create(const int clockRate, const int outputSampleRate, const unsigned int flags)
 {
 	LJ_YM2612* ym2612 = LJ_YM2612_create(clockRate, outputSampleRate);
@@ -51,8 +51,9 @@ int device_ym2612_destroy(void* ym2612)
 const char* const getWavOutputName(const char* const inputName)
 {
 	static char wavOutputName[256];
+	char* ext;
 	strncpy(wavOutputName, inputName, 256); 
-	char* const ext = strchr(wavOutputName, '.');
+	ext = strchr(wavOutputName, '.');
 	if (ext != NULL)
 	{
 		ext[0] = '\0';
@@ -60,5 +61,4 @@ const char* const getWavOutputName(const char* const inputName)
 	strcat(wavOutputName, ".wav");
 	return wavOutputName;
 }
-
 

@@ -3,24 +3,22 @@
 
 #include <stdio.h>
 
-// Forward declarations
+/* Forward declarations */
 typedef struct LJ_VGM_FILE LJ_VGM_FILE;
 typedef struct LJ_VGM_HEADER LJ_VGM_HEADER;
 typedef struct LJ_VGM_INSTRUCTION LJ_VGM_INSTRUCTION;
-typedef enum LJ_VGM_RESULT LJ_VGM_RESULT;
-typedef enum LJ_VGM_COMMAND LJ_VGM_COMMAND;
 
 typedef unsigned char LJ_VGM_UINT8;
 typedef unsigned int LJ_VGM_UINT32;
 
 typedef int LJ_VGM_INT32;
 
-enum LJ_VGM_RESULT { 
+typedef enum LJ_VGM_RESULT { 
 	LJ_VGM_OK = 0,
 	LJ_VGM_ERROR = -1
-};
+} LJ_VGM_RESULT;
 
-enum LJ_VGM_COMMAND { 
+typedef enum LJ_VGM_COMMAND { 
 	LJ_VGM_GAMEGEAR_PSG = 0x4F, 
 	LJ_VGM_SN764xx_PSG = 0x50, 
 	LJ_VGM_YM2413_WRITE =0x51, 
@@ -34,8 +32,8 @@ enum LJ_VGM_COMMAND {
 	LJ_VGM_DATA_BLOCK_START = 0x67,
 	LJ_VGM_WAIT_N_SAMPLES = 0x70,
 	LJ_VGM_YM2612_WRITE_DATA = 0x80,
-	LJ_VGM_DATA_SEEK_OFFSET = 0xe0,
-};
+	LJ_VGM_DATA_SEEK_OFFSET = 0xe0
+} LJ_VGM_COMMAND;
 
 struct LJ_VGM_INSTRUCTION
 {
@@ -57,9 +55,9 @@ LJ_VGM_FILE* LJ_VGM_create(const char* const fname);
 LJ_VGM_RESULT LJ_VGM_destroy(LJ_VGM_FILE* const vgmFile);
 
 LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const vgmInstr);
-//TODO: test reset
+/* TODO: test reset */
 LJ_VGM_RESULT LJ_VGM_reset(LJ_VGM_FILE* const vgmFile);
 		
 void LJ_VGM_debugPrint( const LJ_VGM_INSTRUCTION* const vgmInstr);
 
-#endif // #ifndef LJ_VGM_HH
+#endif /* #ifndef LJ_VGM_HH */

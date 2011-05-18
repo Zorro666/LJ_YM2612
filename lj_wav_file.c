@@ -68,27 +68,27 @@ typedef struct LJ_WAV_DATA_HEADER LJ_WAV_DATA_HEADER;
 
 struct LJ_WAV_RIFF_HEADER
 {
-	LJ_WAV_UINT32 chunkID;			// "RIFF"
-	LJ_WAV_UINT32 chunkSize;		// 4+chunkDataSize
-	LJ_WAV_UINT32 wavID;			// "WAVE"
+	LJ_WAV_UINT32 chunkID;			/* "RIFF" */
+	LJ_WAV_UINT32 chunkSize;		/* 4+chunkDataSize */
+	LJ_WAV_UINT32 wavID;				/* "WAVE" */
 };
 
 struct LJ_WAV_FORMAT_HEADER
 {
-	LJ_WAV_UINT32 chunkID;			// "fmt "
-	LJ_WAV_UINT32 chunkSize;		// 16 
-	LJ_WAV_UINT16 wFormatTag;		// PCM=0x1, IEEE_FLOAT=0x3, ALAW=0x6, MULAW=0x7, EXTENSIBLE = 0xFFFE
-	LJ_WAV_UINT16 nChannels;		// number of interleaved channels
-	LJ_WAV_UINT32 nSamplesPerSec;	// sampling rate (blocks per second)
-	LJ_WAV_UINT32 nAvgBytesPerSec;	// data rate (bytes per second)
-	LJ_WAV_UINT16 nBlockAlign;		// data block size in bytes
-	LJ_WAV_UINT16 wBitsPerSample;	// bits per sample
+	LJ_WAV_UINT32 chunkID;					/* "fmt " */
+	LJ_WAV_UINT32 chunkSize;				/* 16  */
+	LJ_WAV_UINT16 wFormatTag;			 	/* PCM=0x1, IEEE_FLOAT=0x3, ALAW=0x6, MULAW=0x7, EXTENSIBLE = 0xFFFE */
+	LJ_WAV_UINT16 nChannels;				/* number of interleaved channels */
+	LJ_WAV_UINT32 nSamplesPerSec;		/* sampling rate (blocks per second) */
+	LJ_WAV_UINT32 nAvgBytesPerSec;	/* data rate (bytes per second) */
+	LJ_WAV_UINT16 nBlockAlign;			/* data block size in bytes */
+	LJ_WAV_UINT16 wBitsPerSample;		/* bits per sample */
 };
 
 struct LJ_WAV_DATA_HEADER
 {
-	LJ_WAV_UINT32 chunkID;			// "data"
-	LJ_WAV_UINT32 chunkSize;		// wBitsPerSamples * 8 * nChannels * numSamples
+	LJ_WAV_UINT32 chunkID;			/* "data" */
+	LJ_WAV_UINT32 chunkSize;		/* wBitsPerSamples * 8 * nChannels * numSamples */
 };
 
 struct LJ_WAV_FILE
@@ -101,11 +101,13 @@ struct LJ_WAV_FILE
 	int numBytesWritten;
 };
 
-//////////////////////////////////////////////////////////////////////////////
-// 
-// External Data and functions
-// 
-//////////////////////////////////////////////////////////////////////////////
+/*
+* //////////////////////////////////////////////////////////////////////////////
+* // 
+* // External Data and functions
+* // 
+* //////////////////////////////////////////////////////////////////////////////
+*/
 
 LJ_WAV_FILE* LJ_WAV_create( const char* const filename, const LJ_WAV_FORMAT format, 
 							const int numChannels, const int sampleRate, const int numBytesPerChannel )
@@ -131,7 +133,7 @@ LJ_WAV_FILE* LJ_WAV_create( const char* const filename, const LJ_WAV_FORMAT form
 	}
 
 	riffHeader.chunkID = LJ_MAKEFOURCC('R','I','F','F');
-	riffHeader.chunkSize = 0; // 4 + (8 + 16) + (8 + (wBitsPerSamples * 8 * nChannels * numSamples))
+	riffHeader.chunkSize = 0; /* 4 + (8 + 16) + (8 + (wBitsPerSamples * 8 * nChannels * numSamples)) */
 	riffHeader.wavID = LJ_MAKEFOURCC('W','A','V','E');
 
 	result = fwrite(&riffHeader, sizeof(LJ_WAV_RIFF_HEADER), 1, fileH);
@@ -158,7 +160,7 @@ LJ_WAV_FILE* LJ_WAV_create( const char* const filename, const LJ_WAV_FORMAT form
 	}
 
 	dataHeader.chunkID = LJ_MAKEFOURCC('d','a','t','a');
-	dataHeader.chunkSize = 0; // wBitsPerSamples * 8 * nChannels * numSamples
+	dataHeader.chunkSize = 0; /* wBitsPerSamples * 8 * nChannels * numSamples */
 
 	result = fwrite(&dataHeader, sizeof(LJ_WAV_DATA_HEADER), 1, fileH);
 	if (result != 1)
@@ -209,7 +211,7 @@ LJ_WAV_RESULT LJ_WAV_close(LJ_WAV_FILE* const wavFile)
 	dataChunkSize = wavFile->numBytesWritten;
 	riffChunkSize = 4 + (8 + 16) + (8 + dataChunkSize);
 
-	//Seek back and update riff chunkSize and data chunkSize
+	/*Seek back and update riff chunkSize and data chunkSize */
 	result = fseek(wavFile->fileH, riffChunkSizeOffset, SEEK_SET);
 	if (result != 0)
 	{

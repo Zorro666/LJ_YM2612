@@ -20,7 +20,8 @@ typedef char INT8;
 
 typedef int TIME_TYPE;
 
-#define INLINE inline
+/*#define INLINE inline */
+#define INLINE 
 
 #define auto_alloc_clear(m,t) allocClear(sizeof(t))
 #define auto_free(m,p) allocFree(p)
@@ -29,5 +30,5 @@ typedef int TIME_TYPE;
 void* allocClear(unsigned int size);
 void allocFree(void* v);
 
-#endif // #ifndef EMU_HH
+#endif /* #ifndef EMU_HH */
 
