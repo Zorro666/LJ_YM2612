@@ -33,16 +33,25 @@ int main(int argc, char* argv[])
 		result = LJ_GYM_read(gymFile, &gymInstruction);
 		if (result == LJ_GYM_OK)
 		{
+			const LJ_YM_UINT8 notCS = 0;
+			const LJ_YM_UINT8 notRD = 1;
+			const LJ_YM_UINT8 notWR = 0;
 			LJ_GYM_debugPrint( &gymInstruction);
 			if (gymInstruction.cmd == LJ_GYM_WRITE_PORT_0)
 			{
-				result = LJ_YM2612_write(ym2612, 0x4000, gymInstruction.R);
-				result = LJ_YM2612_write(ym2612, 0x4001, gymInstruction.D);
+				const LJ_YM_UINT8 A1 = 0; /* part 0 */
+				result = LJ_YM2612_setDataPinsD07(ym2612, gymInstruction.R);
+				result = LJ_YM2612_setAddressPinsCSRDWRA1A0(ym2612, notCS, notRD, notWR, A1, 0);
+				result = LJ_YM2612_setDataPinsD07(ym2612, gymInstruction.D);
+				result = LJ_YM2612_setAddressPinsCSRDWRA1A0(ym2612, notCS, notRD, notWR, A1, 1);
 			}
 			else if (gymInstruction.cmd == LJ_GYM_WRITE_PORT_1)
 			{
-				result = LJ_YM2612_write(ym2612, 0x4002, gymInstruction.R);
-				result = LJ_YM2612_write(ym2612, 0x4003, gymInstruction.D);
+				const LJ_YM_UINT8 A1 = 1; /* part 1 */
+				result = LJ_YM2612_setDataPinsD07(ym2612, gymInstruction.R);
+				result = LJ_YM2612_setAddressPinsCSRDWRA1A0(ym2612, notCS, notRD, notWR, A1, 0);
+				result = LJ_YM2612_setDataPinsD07(ym2612, gymInstruction.D);
+				result = LJ_YM2612_setAddressPinsCSRDWRA1A0(ym2612, notCS, notRD, notWR, A1, 1);
 			}
 			if (result == LJ_YM2612_ERROR)
 			{

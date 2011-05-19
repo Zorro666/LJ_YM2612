@@ -1556,16 +1556,10 @@ LJ_YM2612_RESULT LJ_YM2612_setAddressPinsCSRDWRA1A0(LJ_YM2612* const ym2612, LJ_
 		fprintf(stderr, "LJ_YM2612_setAddressPinsCSRDWRA1A0:ym2612 is NULL\n");
 		return LJ_YM2612_ERROR;
 	}
-	if (notCS != 0)
+	if (notCS == 1)
 	{
 		/* !CS != 0 is inactive mode on chip e.g ignored */
 		return LJ_YM2612_OK;
-	}
-	if (notRD == notWR)
-	{
-		/* bad setting */
-		fprintf(stderr, "LJ_YM2612_setAddressPinsCSRDWRA1A0:bad setting !RD, !WR must be opposite of each other %d %d\n", notRD, notWR);
-		return LJ_YM2612_ERROR;
 	}
 	if ((notRD == 0) && (notWR == 1))
 	{
@@ -1577,43 +1571,31 @@ LJ_YM2612_RESULT LJ_YM2612_setAddressPinsCSRDWRA1A0(LJ_YM2612* const ym2612, LJ_
 	if ((notRD == 1) && (notWR == 0))
 	{
 		/* !RD = 1 !WR = 0 means a write */
-		return LJ_YM2612_OK;
-	}
-	fprintf(stderr, "LJ_YM2612_setAddressPinsCSRDWRA1A0:unknown combination of pins\n");
-	return LJ_YM2612_ERROR;
-}
-
-LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, LJ_YM_UINT8 data)
-{
-	int result = LJ_YM2612_ERROR;
-	const int part = (address >> 1) & 0x1;
-
-	/* PART 0: R = 0x4000, D = 0x4001 */
-	/* PART 1: R = 0x4002, D = 0x4003 */
-	if (ym2612 == NULL)
-	{
-		fprintf(stderr, "LJ_YM2612_write:ym2612 is NULL\n");
-		return LJ_YM2612_ERROR;
-	}
-
-	if ((address == 0x4000) || (address == 0x4002))
-	{
-		ym2612->regAddress = data;
-		ym2612->slotWriteAddr = part;
-		return LJ_YM2612_OK;
-	}
-	else if ((address == 0x4001) || (address == 0x4003))
-	{
-		if (ym2612->slotWriteAddr == part)
+		/* A0 = 0 means D0-7 is register address, A1 is part 0/1 */
+		if ((A0 == 0) && ((A1 == 0) || (A1 == 1)))
 		{
-			LJ_YM_UINT8 reg = ym2612->regAddress;
-			result = ym2612_setRegister(ym2612, part, reg, data);
-			/* Hmmmm - how does the real chip work */
-			ym2612->slotWriteAddr = 0xFF;
-			return result;
+			ym2612->regAddress = ym2612->D07;
+			ym2612->slotWriteAddr = A1;
+			return LJ_YM2612_OK;
 		}
-		return LJ_YM2612_OK;
+		/* A0 = 1 means D0-7 is register data, A1 is part 0/1 */
+		if ((A0 == 1) && ((A1 == 0) || (A1 == 1)))
+		{
+			if (ym2612->slotWriteAddr == A1)
+			{
+				const LJ_YM_UINT8 reg = ym2612->regAddress;
+				const LJ_YM_UINT8 part = A1;
+				const LJ_YM_UINT8 data = ym2612->D07;
+				LJ_YM2612_RESULT result = ym2612_setRegister(ym2612, part, reg, data);
+				/* Hmmmm - how does the real chip work */
+				ym2612->slotWriteAddr = 0xFF;
+				return result;
+			}
+		}
 	}
+
+	fprintf(stderr, "LJ_YM2612_setAddressPinsCSRDWRA1A0:unknown combination of pins !CS:%d !RD:%d !WR:%d A1:%d A0:%d\n",
+					notCS, notRD, notWR, A1, A0);
 
 	return LJ_YM2612_ERROR;
 }

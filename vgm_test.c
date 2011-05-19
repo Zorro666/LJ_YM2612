@@ -35,7 +35,16 @@ void* device_ym2612_create(const int clockRate, const int outputSampleRate, cons
 
 int device_ym2612_write(void* const ym2612, const int address, const int data)
 {
-	return LJ_YM2612_write(ym2612, address, data);
+	int result = LJ_VGM_TEST_ERROR;
+	const LJ_YM_UINT8 notCS = 0;
+	const LJ_YM_UINT8 notRD = 1;
+	const LJ_YM_UINT8 notWR = 0;
+	const LJ_YM_UINT8 A0 = (address >> 0) & 0x1;
+	const LJ_YM_UINT8 A1 = (address >> 1) & 0x1;
+	result = LJ_YM2612_setDataPinsD07(ym2612, data);
+	result = LJ_YM2612_setAddressPinsCSRDWRA1A0(ym2612, notCS, notRD, notWR, A1, A0);
+	
+	return result;
 }
 
 int device_ym2612_generateOutput(void* const ym2612, const int numCycles, short* output[2])
