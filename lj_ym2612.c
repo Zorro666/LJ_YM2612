@@ -61,6 +61,7 @@ typedef enum LJ_YM2612_REGISTERS {
 		LJ_DAC_EN = 0x2B,
 		LJ_DETUNE_MULT = 0x30,
 		LJ_TOTAL_LEVEL = 0x40,
+		LJ_SUSTAIN_LEVEL_RELEASE_RATE = 0x80,
 		LJ_FREQLSB = 0xA0,
 		LJ_BLOCK_FREQMSB = 0xA4,
 		LJ_CH2_FREQLSB = 0xA8,
@@ -92,8 +93,11 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 /* Sin output scale = xx.yy (-1->1) */
 #define LJ_YM2612_SIN_SCALE_BITS (LJ_YM2612_GLOBAL_SCALE_BITS)
 
-/* TL table scale = 16.16 (0->1) - matches volume scale */
+/* TL table scale - matches volume scale */
 #define LJ_YM2612_TL_SCALE_BITS (LJ_YM2612_VOLUME_SCALE_BITS)
+
+/* SL table scale - must match volume scale */
+#define LJ_YM2612_SL_SCALE_BITS (LJ_YM2612_VOLUME_SCALE_BITS)
 
 /* DAC is in 7-bit scale (-128->128) so this converts it to volume_scale bits */
 #define LJ_YM2612_DAC_SHIFT (LJ_YM2612_VOLUME_SCALE_BITS - 7)
@@ -151,18 +155,33 @@ static const LJ_YM_UINT8 LJ_YM2612_fnumKeycodeTable[16] = {
 2, 3, 3, 3, 3, 3, 3, 3,
 };
 
-/* TL - table (7-bits): 0->0x7F (16.16): output = 2^(-TL/8) : 16.16 */
+/* TL - table (7-bits): 0->0x7F : output = 2^(-TL/8) */
+/* From the docs each step is -0.75dB = x0.9172759 = 2^(-1/8) */
 #define LJ_YM2612_TL_TABLE_NUM_ENTRIES (128)
 static int LJ_YM2612_tlTable[LJ_YM2612_TL_TABLE_NUM_ENTRIES];
 
+/* SL - table (4-bits): 0->0xF : output = 2^(-SL/2) - could use tlTable[SL*4] */
+/* From the docs Bit 0 = 3dB, Bit 1 = 6dB, Bit 2 = 12dB, Bit 3 = 24dB = x0.707105 = 2^(-1/2) & 0xF = 93dB */
+#define LJ_YM2612_SL_TABLE_NUM_ENTRIES (16)
+static int LJ_YM2612_slTable[LJ_YM2612_SL_TABLE_NUM_ENTRIES];
+
 /* The slots referenced in the registers are not 0,1,2,3 *sigh* */
 static int LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2, 1, 3 };
+
+typedef enum LJ_YM2612_ADSR {
+	LJ_YM2612_UNKNOWN,
+	LJ_YM2612_ATTACK,
+	LJ_YM2612_DECAY,
+	LJ_YM2612_SUSTAIN,
+	LJ_YM2612_RELEASE
+} LJ_YM2612_ADSR;
 
 struct LJ_YM2612_SLOT
 {
 	int omega;
 	int omegaDelta;
 	int totalLevel;
+	int sustainLevel;
 
 	int volume;
 	int volumeDelta;
@@ -172,6 +191,7 @@ struct LJ_YM2612_SLOT
 	int* modulationOutput[3];
 	int carrierOutputMask;
 	
+	LJ_YM2612_ADSR adsrState;
 	LJ_YM_UINT8 omegaDirty;
 
 	LJ_YM_UINT8 detune;
@@ -295,6 +315,44 @@ static int ym2612_computeOmegaDelta(const int fnum, const int block, const int m
 	return omegaDelta;
 }
 
+static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr)
+{
+	const LJ_YM2612_ADSR adsrState = slotPtr->adsrState;
+
+	slotPtr->volume += slotPtr->volumeDelta;
+
+	if (adsrState == LJ_YM2612_ATTACK)
+	{
+		slotPtr->volumeDelta = +32;
+		if (slotPtr->volume >= LJ_YM2612_VOLUME_MAX)
+		{
+			slotPtr->volume = LJ_YM2612_VOLUME_MAX;
+			slotPtr->adsrState = LJ_YM2612_DECAY;
+			slotPtr->volumeDelta = -32;
+		}
+		return;
+	}
+	else if (adsrState == LJ_YM2612_DECAY)
+	{
+		if (slotPtr->volume <= slotPtr->sustainLevel)
+		{
+			slotPtr->volume = slotPtr->sustainLevel;
+			slotPtr->adsrState = LJ_YM2612_SUSTAIN;
+			slotPtr->volumeDelta = 0;
+		}
+		return;
+	}
+	else if (adsrState == LJ_YM2612_SUSTAIN)
+	{
+		return;
+	}
+	else if (adsrState == LJ_YM2612_RELEASE)
+	{
+		slotPtr->volumeDelta = -1024;
+		return;
+	}
+}
+
 static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const int fnum, const int block, const int keycode, 
 																				 const int debugFlags)
 {
@@ -310,7 +368,6 @@ static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const in
 		printf("Slot:%d omegaDelta %d fnum:%d block:%d multiple:%3.1f detune:%d keycode:%d\n", 
 					 slotPtr->id, omegaDelta, fnum, block, multiple/2.0f, detune, keycode);
 	}
-
 }
 
 static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
@@ -578,6 +635,23 @@ static void ym2612_channelSetFeedbackAlgorithm(LJ_YM2612_CHANNEL* const channelP
 	ym2612_channelSetConnections(channelPtr);
 }
 
+static void ym2612_channelSetSustainLevelReleaseRate(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 SL_RR)
+{
+	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
+
+	/* Release rate = Bits 0-3 */
+	/* Sustain Level = Bits 4-7 */
+	const int SL = ((SL_RR >> 4) & 0xF);
+	const int SLscale = LJ_YM2612_slTable[SL];
+	slotPtr->sustainLevel = SLscale;
+
+	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("SetSustainLevelReleaseRate channel:%d slot:%d SL:%d scale:%f SLscale:%d\n", channelPtr->id, 
+					slot, SL, ((float)(SLscale)/(float)(1<<LJ_YM2612_SL_SCALE_BITS)), SLscale);
+	}
+}
+
 static void ym2612_channelSetTotalLevel(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 totalLevel)
 {
 	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
@@ -668,19 +742,19 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 		{
 			if (slotPtr->keyOn == 0)
 			{
-				slotPtr->omega = 0;
-				slotPtr->volume = 0;
-				slotPtr->volumeDelta = LJ_YM2612_VOLUME_MAX;
-				slotPtr->fmInputDelta = 0;
 				slotPtr->keyOn = 1;
+				slotPtr->omega = 0;
+				slotPtr->fmInputDelta = 0;
+				slotPtr->adsrState = LJ_YM2612_ATTACK;
+				slotPtr->volumeDelta = 0;
 			}
 		}
 		else
 		{
 			if (slotPtr->keyOn == 1)
 			{
-				slotPtr->volumeDelta = -LJ_YM2612_VOLUME_MAX;
 				slotPtr->keyOn = 0;
+				slotPtr->adsrState = LJ_YM2612_RELEASE;
 			}
 		}
 		slotMask = slotMask << 1;
@@ -696,10 +770,15 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 	slotPtr->omega = 0;
 	slotPtr->omegaDelta = 0;
 
+	slotPtr->totalLevel = 0;
+	slotPtr->sustainLevel = 0;
+
 	slotPtr->fmInputDelta = 0;
 	slotPtr->modulationOutput[0] = NULL;
 	slotPtr->modulationOutput[1] = NULL;
 	slotPtr->modulationOutput[2] = NULL;
+
+	slotPtr->adsrState = LJ_YM2612_UNKNOWN;
 
 	slotPtr->carrierOutputMask = 0x0;
 
@@ -823,6 +902,17 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 		const int scaledTL = (int)(tlValue * (float)(1 << LJ_YM2612_TL_SCALE_BITS));
 		LJ_YM2612_tlTable[i] = scaledTL;
 	}
+
+	for (i = 0; i < LJ_YM2612_SL_TABLE_NUM_ENTRIES; i++)
+	{
+		/* From the docs Bit 0 = 3dB, Bit 1 = 6dB, Bit 2 = 12dB, Bit 3 = 24dB, each step = x0.707105 = 2^(-1/2) & 0xF = 93dB */
+		const float value = -i * (1.0f / 2.0f);
+		const float slValue = pow(2.0f, value);
+		const int scaledSL = (int)(slValue * (float)(1 << LJ_YM2612_SL_SCALE_BITS));
+		LJ_YM2612_slTable[i] = scaledSL;
+	}
+	/* 0xF = 93dB */
+	LJ_YM2612_slTable[15] = 0;
 
 #if 0 
 	/* DT1 = -3 -> 3 */
@@ -948,6 +1038,9 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 
 	LJ_YM2612_validRegisters[LJ_TOTAL_LEVEL] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_TOTAL_LEVEL] = "TOTAL_LEVEL";
+
+	LJ_YM2612_validRegisters[LJ_SUSTAIN_LEVEL_RELEASE_RATE] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_SUSTAIN_LEVEL_RELEASE_RATE] = "SUSTAIN_LEVEL_RELEASE_RATE";
 
 	LJ_YM2612_validRegisters[LJ_FEEDBACK_ALGO] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_FEEDBACK_ALGO] = "FEEDBACK_ALGO";
@@ -1130,7 +1223,16 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			ym2612_channelSetTotalLevel(channelPtr, slot, data);
 			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
-				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
+				printf("LJ_TOTAL_LEVEL part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
+			}
+			return LJ_YM2612_OK;
+		}
+		else if (regParameter == LJ_SUSTAIN_LEVEL_RELEASE_RATE)
+		{
+			ym2612_channelSetSustainLevelReleaseRate(channelPtr, slot, data);
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf("LJ_SUSTAIN_LEVEL_RELEASE_RATE part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
 			return LJ_YM2612_OK;
 		}
@@ -1540,7 +1642,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 			LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
 			slotPtr->omega += slotPtr->omegaDelta;
-			slotPtr->volume += slotPtr->volumeDelta;
+
+			ym2612_slotUpdateEG(slotPtr);
 
 			slotPtr->volume = LJ_YM2612_CLAMP_VOLUME(slotPtr->volume);
 			if (slotPtr->volume < 0)
