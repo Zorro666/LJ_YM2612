@@ -61,6 +61,9 @@ typedef enum LJ_YM2612_REGISTERS {
 		LJ_DAC_EN = 0x2B,
 		LJ_DETUNE_MULT = 0x30,
 		LJ_TOTAL_LEVEL = 0x40,
+		LJ_RATE_SCALE_ATTACK_RATE = 0x50,
+		LJ_AM_DECAY_RATE = 0x60,
+		LJ_SUSTAIN_RATE = 0x70,
 		LJ_SUSTAIN_LEVEL_RELEASE_RATE = 0x80,
 		LJ_FREQLSB = 0xA0,
 		LJ_BLOCK_FREQMSB = 0xA4,
@@ -191,14 +194,24 @@ struct LJ_YM2612_SLOT
 	int* modulationOutput[3];
 	int carrierOutputMask;
 	
+	/* ADSR settigns */
 	LJ_YM2612_ADSR adsrState;
-	LJ_YM_UINT8 omegaDirty;
+	LJ_YM_UINT8 keyScale;
+	LJ_YM_UINT8 attackRate;
+	LJ_YM_UINT8 decayRate;
+	LJ_YM_UINT8 sustainRate;
+	LJ_YM_UINT8 releaseRate;
 
+	/* LFO settings */
+	LJ_YM_UINT8 am;
+
+	/* frequency settings */
 	LJ_YM_UINT8 detune;
 	LJ_YM_UINT8 multiple;
 
 	LJ_YM_UINT8 keyOn;
 
+	LJ_YM_UINT8 omegaDirty;
 	LJ_YM_UINT8 id;
 };
 
@@ -323,12 +336,12 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr)
 
 	if (adsrState == LJ_YM2612_ATTACK)
 	{
-		slotPtr->volumeDelta = +32;
+		slotPtr->volumeDelta = +slotPtr->attackRate;
 		if (slotPtr->volume >= LJ_YM2612_VOLUME_MAX)
 		{
 			slotPtr->volume = LJ_YM2612_VOLUME_MAX;
 			slotPtr->adsrState = LJ_YM2612_DECAY;
-			slotPtr->volumeDelta = -32;
+			slotPtr->volumeDelta = -slotPtr->decayRate;
 		}
 		return;
 	}
@@ -338,7 +351,7 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr)
 		{
 			slotPtr->volume = slotPtr->sustainLevel;
 			slotPtr->adsrState = LJ_YM2612_SUSTAIN;
-			slotPtr->volumeDelta = 0;
+			slotPtr->volumeDelta = -slotPtr->sustainRate;
 		}
 		return;
 	}
@@ -348,7 +361,7 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr)
 	}
 	else if (adsrState == LJ_YM2612_RELEASE)
 	{
-		slotPtr->volumeDelta = -1024;
+		slotPtr->volumeDelta = -slotPtr->releaseRate;
 		return;
 	}
 }
@@ -635,20 +648,78 @@ static void ym2612_channelSetFeedbackAlgorithm(LJ_YM2612_CHANNEL* const channelP
 	ym2612_channelSetConnections(channelPtr);
 }
 
+static void ym2612_channelSetKeyScaleAttackRate(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 RS_AR)
+{
+	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
+
+	/* Attack Rate = Bits 0-4 */
+	const int AR = ((RS_AR >> 0) & 0x1F);
+
+	/* Rate Scale = Bits 6-7 */
+	const int RS = ((RS_AR >> 6) & 0x3);
+
+	slotPtr->attackRate = AR;
+	slotPtr->keyScale = RS;
+
+	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("SetKeyScaleAttackRate channel:%d slot:%d AR:%d RS:%d\n", channelPtr->id, slot, AR, RS);
+	}
+}
+
+static void ym2612_channelSetAMDecayRate(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 AM_DR)
+{
+	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
+
+	/* Decay Rate = Bits 0-4 */
+	const int DR = ((AM_DR >> 0) & 0x1F);
+
+	/* AM  = Bit 7 */
+	const int AM = ((AM_DR >> 7) & 0x1);
+
+	slotPtr->decayRate = DR;
+	slotPtr->am = AM;
+
+	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("SetAMDecayRate channel:%d slot:%d DR:%d AM:%d\n", channelPtr->id, slot, DR, AM);
+	}
+}
+
+static void ym2612_channelSetSustainRate(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 AM_DR)
+{
+	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
+
+	/* Sustain Rate = Bits 0-4 */
+	const int SR = ((AM_DR >> 0) & 0x1F);
+
+	slotPtr->sustainRate = SR;
+
+	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("SetSustainRate channel:%d slot:%d SR:%d\n", channelPtr->id, slot, SR);
+	}
+}
+
 static void ym2612_channelSetSustainLevelReleaseRate(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 SL_RR)
 {
 	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
 
 	/* Release rate = Bits 0-3 */
+	const int RR = ((SL_RR >> 0) & 0xF);
+
 	/* Sustain Level = Bits 4-7 */
 	const int SL = ((SL_RR >> 4) & 0xF);
 	const int SLscale = LJ_YM2612_slTable[SL];
+
+	/* Convert from 4-bits to usual 5-bits for rates */
+	slotPtr->releaseRate = (RR << 1) + 1;
 	slotPtr->sustainLevel = SLscale;
 
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
-		printf("SetSustainLevelReleaseRate channel:%d slot:%d SL:%d scale:%f SLscale:%d\n", channelPtr->id, 
-					slot, SL, ((float)(SLscale)/(float)(1<<LJ_YM2612_SL_SCALE_BITS)), SLscale);
+		printf("SetSustainLevelReleaseRate channel:%d slot:%d SL:%d scale:%f SLscale:%d RR:%d\n", channelPtr->id, 
+					slot, SL, ((float)(SLscale)/(float)(1<<LJ_YM2612_SL_SCALE_BITS)), SLscale, RR);
 	}
 }
 
@@ -780,7 +851,16 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 
 	slotPtr->adsrState = LJ_YM2612_UNKNOWN;
 
+	slotPtr->keyScale = 0;
+
+	slotPtr->attackRate = 0;
+	slotPtr->decayRate = 0;
+	slotPtr->sustainRate = 0;
+	slotPtr->releaseRate = 0;
+
 	slotPtr->carrierOutputMask = 0x0;
+
+	slotPtr->am = 0;
 
 	slotPtr->keyOn = 0;
 
@@ -1039,6 +1119,15 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	LJ_YM2612_validRegisters[LJ_TOTAL_LEVEL] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_TOTAL_LEVEL] = "TOTAL_LEVEL";
 
+	LJ_YM2612_validRegisters[LJ_RATE_SCALE_ATTACK_RATE] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_RATE_SCALE_ATTACK_RATE] = "RATE_SCALE_ATTACK_RATE";
+
+	LJ_YM2612_validRegisters[LJ_AM_DECAY_RATE] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_AM_DECAY_RATE] = "AM_DECAY_RATE";
+
+	LJ_YM2612_validRegisters[LJ_SUSTAIN_RATE] = 1;
+	LJ_YM2612_REGISTER_NAMES[LJ_SUSTAIN_RATE] = "SUSTAIN_RATE";
+
 	LJ_YM2612_validRegisters[LJ_SUSTAIN_LEVEL_RELEASE_RATE] = 1;
 	LJ_YM2612_REGISTER_NAMES[LJ_SUSTAIN_LEVEL_RELEASE_RATE] = "SUSTAIN_LEVEL_RELEASE_RATE";
 
@@ -1224,6 +1313,33 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_TOTAL_LEVEL part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
+			}
+			return LJ_YM2612_OK;
+		}
+		else if (regParameter == LJ_RATE_SCALE_ATTACK_RATE)
+		{
+			ym2612_channelSetKeyScaleAttackRate(channelPtr, slot, data);
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf("LJ_RATE_SCALE_ATTACK_RATE part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
+			}
+			return LJ_YM2612_OK;
+		}
+		else if (regParameter == LJ_AM_DECAY_RATE)
+		{
+			ym2612_channelSetAMDecayRate(channelPtr, slot, data);
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf("LJ_AM_DECAY_RATE part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
+			}
+			return LJ_YM2612_OK;
+		}
+		else if (regParameter == LJ_SUSTAIN_RATE)
+		{
+			ym2612_channelSetSustainRate(channelPtr, slot, data);
+			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf("LJ_SUSTAIN_RATE part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
 			return LJ_YM2612_OK;
 		}

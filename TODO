@@ -1,16 +1,14 @@
 High Priority:
 YM2612:shift internal computations to dB so ADSR is logarithmic not linear - scaling is then addition not multiply
-YM2612:implement sustain rate
-YM2612:implement release rate
+YM2612:convert hacky ADSR rates to real YM2612 rates
 
 Medium Priority:
 YM2612:rename internal _channel functions which work on slots to _slot functions and pass in debug flags
 YM2612:compute max freq value and add it on if freq goes -ve because of detune
-YM2612:implement attack rate
-YM2612:implement decay rate
 
 Low Priority:
 YM2612:implement MEM output from OP1 & OP2 for slots - read Steve Strange reply on forums
+YM2612:implement key scale & rate scaling support
 TEST_APP: VGM debug on/off
 
 Future Stuff:
@@ -18,6 +16,7 @@ Future Stuff:
 High Priority:
 YM2612:implement LFO
 YM2612:implement LJ_LR_AMS_PMS = 0xB4 (AMS, PMS)
+YM2612:implement LJ_AM_DR = 0x60 (AM part)
 YM2612:implement SSG
 YM2612:implement timers
 YM2612:add read API call 

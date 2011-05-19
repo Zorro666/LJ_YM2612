@@ -264,17 +264,17 @@ int main(int argc, char* argv[])
 					/* rate scale + attack rate */
 					if ((vgmInstruction.R & 0xF0) == 0x50)
 					{
-						result = LJ_VGM_TEST_OK;
+						result = LJ_VGM_TEST_ERROR;
 					}
 					/* amplitude modulation + decay 1 rate */
 					if ((vgmInstruction.R & 0xF0) == 0x60)
 					{
-						result = LJ_VGM_TEST_OK;
+						result = LJ_VGM_TEST_ERROR;
 					}
 					/* decay 2 rate */
 					if ((vgmInstruction.R & 0xF0) == 0x70)
 					{
-						result = LJ_VGM_TEST_OK;
+						result = LJ_VGM_TEST_ERROR;
 					}
 					/* secondary amplitude + release rate */
 					if ((vgmInstruction.R & 0xF0) == 0x80)
