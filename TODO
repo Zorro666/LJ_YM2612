@@ -1,9 +1,13 @@
 High Priority:
-YM2612:change API to use data value (D0-7) + !CS !RD !WR A1 A0 pins
-YM2612:compute max freq value and add it on if freq goes -ve because of detune
+YM2612:shift internal computations to dB so ADSR is logarithmic not linear - scaling is then addition not multiply
+YM2612:implement sustain rate
+YM2612:implement release rate
 
 Medium Priority:
-YM2612:implement ADSR
+YM2612:rename internal _channel functions which work on slots to _slot functions and pass in debug flags
+YM2612:compute max freq value and add it on if freq goes -ve because of detune
+YM2612:implement attack rate
+YM2612:implement decay rate
 
 Low Priority:
 YM2612:implement MEM output from OP1 & OP2 for slots - read Steve Strange reply on forums
@@ -19,7 +23,6 @@ YM2612:implement timers
 YM2612:add read API call 
 
 Medium Priority:
-YM2612: error handling for unknown/unsupported register (be nice to make it say UNKNOWN REGISTER)
 
 Low Priority:
 TEST_APP:test all block & fnum values then put output into FFT to output the frequency
