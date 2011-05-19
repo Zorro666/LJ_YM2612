@@ -243,6 +243,7 @@ struct LJ_YM2612
 	int dacValue;
 	LJ_YM_UINT32 dacEnable;
 
+	LJ_YM_UINT8 D07;
 	LJ_YM_UINT8 regAddress;
 	LJ_YM_UINT8 slotWriteAddr;	
 
@@ -878,6 +879,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	ym2612->baseFreqScale = 0.0f;
 	ym2612->regAddress = 0x0;	
 	ym2612->slotWriteAddr = 0xFF;	
+	ym2612->D07 = 0x0;
 	ym2612->clockRate = 0;
 	ym2612->outputSampleRate = 0;
 	ym2612->ch2Mode = 0;
@@ -1526,6 +1528,59 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 	}
 
 	return LJ_YM2612_OK;
+}
+
+/* To set a value on the data pins D0-D7 - use for register address and register data value */
+/* call setAddressPinsCSRDWRA1A0 to copy the data in D0-D7 to either the register address or register data setting */
+LJ_YM2612_RESULT LJ_YM2612_setDataPinsD07(LJ_YM2612* const ym2612, LJ_YM_UINT8 data)
+{
+	if (ym2612 == NULL)
+	{
+		fprintf(stderr, "LJ_YM2612_setDataPinsD07:ym2612 is NULL\n");
+		return LJ_YM2612_ERROR;
+	}
+	ym2612->D07 = data;
+	return LJ_YM2612_OK;
+}
+
+/* To write data must have: notCS = 0, notRD = 1, notWR = 0 */
+/* A1 = 0, A0 = 0 : D0-D7 is latched as the register address for part 0 i.e. Genesis memory address 0x4000 */
+/* A1 = 0, A0 = 1 : D0-D7 is written to the latched register address for part 0 i.e. Genesis memory address 0x4001 */
+/* A1 = 1, A0 = 0 : D0-D7 is latched as the register address for part 1 i.e. Genesis memory address 0x4002 */
+/* A1 = 1, A0 = 1 : D0-D7 is written to the latched register address for part 1 i.e. Genesis memory address 0x4003 */
+LJ_YM2612_RESULT LJ_YM2612_setAddressPinsCSRDWRA1A0(LJ_YM2612* const ym2612, LJ_YM_UINT8 notCS, LJ_YM_UINT8 notRD, LJ_YM_UINT8 notWR, 
+																						 				LJ_YM_UINT8 A1, LJ_YM_UINT8 A0)
+{
+	if (ym2612 == NULL)
+	{
+		fprintf(stderr, "LJ_YM2612_setAddressPinsCSRDWRA1A0:ym2612 is NULL\n");
+		return LJ_YM2612_ERROR;
+	}
+	if (notCS != 0)
+	{
+		/* !CS != 0 is inactive mode on chip e.g ignored */
+		return LJ_YM2612_OK;
+	}
+	if (notRD == notWR)
+	{
+		/* bad setting */
+		fprintf(stderr, "LJ_YM2612_setAddressPinsCSRDWRA1A0:bad setting !RD, !WR must be opposite of each other %d %d\n", notRD, notWR);
+		return LJ_YM2612_ERROR;
+	}
+	if ((notRD == 0) && (notWR == 1))
+	{
+		/* !RD = 0 !WR = 1 means a read not a write */
+		/* Read not supported yet */
+		fprintf(stderr, "LJ_YM2612_setAddressPinsCSRDWRA1A0:read is not supported\n");
+		return LJ_YM2612_ERROR;
+	}
+	if ((notRD == 1) && (notWR == 0))
+	{
+		/* !RD = 1 !WR = 0 means a write */
+		return LJ_YM2612_OK;
+	}
+	fprintf(stderr, "LJ_YM2612_setAddressPinsCSRDWRA1A0:unknown combination of pins\n");
+	return LJ_YM2612_ERROR;
 }
 
 LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, LJ_YM_UINT8 data)

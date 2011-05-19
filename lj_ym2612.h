@@ -32,7 +32,17 @@ LJ_YM2612_RESULT LJ_YM2612_setFlags(LJ_YM2612* const ym2612, const unsigned int 
 
 LJ_YM2612_RESULT LJ_YM2612_destroy(LJ_YM2612* const ym2612);
 
-LJ_YM2612_RESULT LJ_YM2612_write(LJ_YM2612* const ym2612, LJ_YM_UINT16 address, LJ_YM_UINT8 data);
+/* To set a value on the data pins D0-D7 - use for register address and register data value */
+/* call setAddressPinsCSRDWRA1A0 to copy the data in D0-D7 to either the register address or register data setting */
+LJ_YM2612_RESULT LJ_YM2612_setDataPinsD07(LJ_YM2612* const ym2612, LJ_YM_UINT8 data);
+
+/* To write data must have: notCS = 0, notRD = 1, notWR = 0 */
+/* A1 = 0, A0 = 0 : D0-D7 is latched as the register address for part 0 i.e. Genesis memory address 0x4000 */
+/* A1 = 0, A0 = 1 : D0-D7 is written to the latched register address for part 0 i.e. Genesis memory address 0x4001 */
+/* A1 = 1, A0 = 0 : D0-D7 is latched as the register address for part 1 i.e. Genesis memory address 0x4002 */
+/* A1 = 1, A0 = 1 : D0-D7 is written to the latched register address for part 1 i.e. Genesis memory address 0x4003 */
+LJ_YM2612_RESULT LJ_YM2612_setAddressPinsCSRDWRA1A0(LJ_YM2612* const ym2612, LJ_YM_UINT8 notCS, LJ_YM_UINT8 notRD, LJ_YM_UINT8 notWR, 
+																						 				LJ_YM_UINT8 A1, LJ_YM_UINT8 A0);
 
 LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles, LJ_YM_INT16* output[2]);
 
