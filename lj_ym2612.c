@@ -791,9 +791,9 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 
 	/* Fvalue = (144 * freq * 2^20 / masterClock) / 2^(B-1) */
 	/* e.g. D = 293.7Hz F = 692.8 B=4 */
-	/* freq = F * 2^(B-1) * baseFreqScale / ( 2^20 ) */
-	/* freqScale = (chipClock/sampleRateOutput) / ( 144 ); */
-	ym2612->baseFreqScale = ((float)clock / (float)rate ) / 144.0f;
+	/* freq = F * 2^(B-1) * baseFreqScale / (2^20) */
+	/* freqScale = (chipClock/sampleRateOutput) / (144); */
+	ym2612->baseFreqScale = ((float)clock / (float)rate) / 144.0f;
 
 	for (i = 0; i < LJ_YM2612_FNUM_TABLE_NUM_ENTRIES; i++)
 	{
@@ -818,7 +818,7 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 	for (i = 0; i < LJ_YM2612_TL_TABLE_NUM_ENTRIES; i++)
 	{
 		/* From the docs each step is -0.75dB = x0.9172759 = 2^(-1/8) */
-		const float value = -i * ( 1.0f / 8.0f );
+		const float value = -i * (1.0f / 8.0f);
 		const float tlValue = pow(2.0f, value);
 		const int scaledTL = (int)(tlValue * (float)(1 << LJ_YM2612_TL_SCALE_BITS));
 		LJ_YM2612_tlTable[i] = scaledTL;
@@ -833,7 +833,7 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 		{
 			int detuneScaleTableValue = LJ_YM2612_detuneScaleTable[i*32+keycode];
 			float detuneMultiple = (float)detuneScaleTableValue * (0.529f/10.0f);
-			int detFPValue = detuneScaleTableValue * (( 529 * (1<<16) / 10000 ));
+			int detFPValue = detuneScaleTableValue * ((529 * (1<<16) / 10000));
 			float fpValue = (float)detFPValue / (float)(1<<16);
 			printf("detuneMultiple FD=%d keycode=%d %f (%d) %f\n", i, keycode, detuneMultiple, detuneScaleTableValue,fpValue);
 		}
@@ -970,13 +970,18 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 			if ((i >= 0x30) && (i <= 0x90))
 			{
 				/* 0x30-0x90 = settings per channel per slot (channel = bottom 2 bits of reg, slot = reg / 4) */
+				/* ignore registers which would be channel=3 they are invalid */
 				int regBase = (i >> 4) << 4;
 				int j;
 				for (j = 0; j < 16; j++)
 				{
 					const char* const regBaseName = LJ_YM2612_REGISTER_NAMES[regBase];
-					LJ_YM2612_validRegisters[regBase+j] = 1;
-					LJ_YM2612_REGISTER_NAMES[regBase+j] = regBaseName;
+					const int reg = regBase+j;
+					if ((reg & 0x3) != 0x3)
+					{
+						LJ_YM2612_validRegisters[reg] = 1;
+						LJ_YM2612_REGISTER_NAMES[reg] = regBaseName;
+					}
 				}
 			}
 			if ((i >= 0xA0) && (i <= 0xB6))
@@ -985,13 +990,18 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 				/* 0xA8->0xAE - settings per slot (slot = bottom 2 bits of reg) */
 				/* 0xA9 = slot 0, 0xAA = slot 1, 0xA8 = slot 2, 0xA2 = slot 3 */
 				/* 0xAD = slot 0, 0xAE = slot 1, 0xAC = slot 2, 0xA6 = slot 3 */
+				/* ignore registers which would be channel=3 they are invalid */
 				int regBase = (i >> 2) << 2;
 				int j;
 				for (j = 0; j < 3; j++)
 				{
 					const char* const regBaseName = LJ_YM2612_REGISTER_NAMES[regBase];
-					LJ_YM2612_validRegisters[regBase+j] = 1;
-					LJ_YM2612_REGISTER_NAMES[regBase+j] = regBaseName;
+					const int reg = regBase+j;
+					if ((reg & 0x3) != 0x3)
+					{
+						LJ_YM2612_validRegisters[reg] = 1;
+						LJ_YM2612_REGISTER_NAMES[reg] = regBaseName;
+					}
 				}
 			}
 		}
@@ -1031,7 +1041,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 	ym2612->part[part].reg[reg] = data;
 	if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 	{
-		printf( "ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
+		printf("ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
 	}
 
 	if (reg == LJ_LFO_EN_LFO_FREQ)
@@ -1100,6 +1110,12 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 
 		LJ_YM2612_CHANNEL* const channelPtr = &ym2612->part[part].channel[channel];
 
+		if (channel == 0x3)
+		{
+			fprintf(stderr, "ym2612:setRegister 0x%X %s 0x%X invalid channel 0x3\n", reg, LJ_YM2612_REGISTER_NAMES[reg], data);
+			return LJ_YM2612_ERROR;
+		}
+
 		if (regParameter == LJ_DETUNE_MULT)
 		{
 			ym2612_channelSetDetuneMult(channelPtr, slot, data);
@@ -1126,13 +1142,20 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 		const int regParameter = reg & 0xFC;
 
 		LJ_YM2612_CHANNEL* const channelPtr = &ym2612->part[part].channel[channel];
+
+		if (channel == 0x3)
+		{
+			fprintf(stderr, "ym2612:setRegister 0x%X %s 0x%X invalid channel 0x3\n", reg, LJ_YM2612_REGISTER_NAMES[reg], data);
+			return LJ_YM2612_ERROR;
+		}
+
 		if (regParameter == LJ_FREQLSB)
 		{
 			/* 0xA0-0xA2 Frequency number LSB = Bits 0-7 (bottom 8 bits of frequency number) */
 			ym2612_channelSetFreqBlock(channelPtr, data);
 			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
-				printf( "LJ_FREQLSB part:%d channel:%d data:0x%X\n", part, channel, data);
+				printf("LJ_FREQLSB part:%d channel:%d data:0x%X\n", part, channel, data);
 			}
 			return LJ_YM2612_OK;
 		}
@@ -1142,7 +1165,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			ym2612_channelSetBlockFnumMSB(channelPtr, data);
 			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
-				printf( "LJ_BLOCK_FREQMSB part:%d channel:%d data:0x%X\n", part, channel, data);
+				printf("LJ_BLOCK_FREQMSB part:%d channel:%d data:0x%X\n", part, channel, data);
 			}
 			return LJ_YM2612_OK;
 		}
@@ -1163,7 +1186,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 				ym2612_SetChannel2FreqBlock(ym2612, slot, data);
 				if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 				{
-					printf( "LJ_CH2_FREQLSB slot:%d slotParameter:%d data:0x%X\n", slot, slotParameter, data);
+					printf("LJ_CH2_FREQLSB slot:%d slotParameter:%d data:0x%X\n", slot, slotParameter, data);
 				}
 			}
 			return LJ_YM2612_OK;
@@ -1185,7 +1208,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 				ym2612_SetChannel2BlockFnumMSB(ym2612, slot, data);
 				if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 				{
-					printf( "LJ_CH2_BLOCK_FREQMSB slot:%d slotParameter:%d data:0x%X\n", slot, slotParameter, data);
+					printf("LJ_CH2_BLOCK_FREQMSB slot:%d slotParameter:%d data:0x%X\n", slot, slotParameter, data);
 				}
 			}
 			return LJ_YM2612_OK;
@@ -1196,7 +1219,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			ym2612_channelSetFeedbackAlgorithm(channelPtr, data);
 			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
-				printf( "LJ_FEEDBACK_ALGO part:%d channel:%d data:0x%X\n", part, channel, data);
+				printf("LJ_FEEDBACK_ALGO part:%d channel:%d data:0x%X\n", part, channel, data);
 			}
 			return LJ_YM2612_OK;
 		}
@@ -1206,7 +1229,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612, LJ_YM_UINT8 part, L
 			ym2612_channelSetLeftRightAmsPms(channelPtr, data);
 			if (ym2612->debugFlags & LJ_YM2612_DEBUG)
 			{
-				printf( "LJ_LR_AMS_PMS part:%d channel:%d data:0x%X\n", part, channel, data);
+				printf("LJ_LR_AMS_PMS part:%d channel:%d data:0x%X\n", part, channel, data);
 			}
 			return LJ_YM2612_OK;
 		}
