@@ -34,7 +34,7 @@ void* device_ym2612_create(const int clockRate, const int outputSampleRate, cons
 
 int device_ym2612_write(void* const ym2612, const int address, const int data)
 {
-	return ym2612_write(ym2612, address, data);
+	return ym2612_write(ym2612, address, (UINT8)data);
 }
 
 int device_ym2612_generateOutput(void* const ym2612, const int numCycles, short* output[2])
@@ -53,7 +53,7 @@ int device_ym2612_destroy(void* ym2612)
 	return LJ_VGM_TEST_OK;
 }
 
-const char* const getWavOutputName(const char* const inputName)
+char* getWavOutputName(const char* const inputName)
 {
 	static char wavOutputName[256];
 	char* ext;
@@ -81,5 +81,8 @@ void allocFree(void* v)
 
 void ym2612_update_request(void *param)
 {
+	if (param)
+	{
+	}
 }
 

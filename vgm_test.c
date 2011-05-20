@@ -26,7 +26,7 @@ void* device_ym2612_create(const int clockRate, const int outputSampleRate, cons
 	{
 		const int channel = ((flags >> DEVICE_YM2612_ONECHANNEL_SHIFT) & DEVICE_YM2612_ONECHANNEL_MASK);
 		ymFlags |= LJ_YM2612_ONECHANNEL;
-		ymFlags |= (channel << LJ_YM2612_ONECHANNEL_SHIFT);
+		ymFlags |= ((unsigned int)channel << LJ_YM2612_ONECHANNEL_SHIFT);
 		printf("flags:0x%X\n", ymFlags);
 	}
 	LJ_YM2612_setFlags(ym2612, ymFlags);
@@ -41,7 +41,7 @@ int device_ym2612_write(void* const ym2612, const int address, const int data)
 	const LJ_YM_UINT8 notWR = 0;
 	const LJ_YM_UINT8 A0 = (address >> 0) & 0x1;
 	const LJ_YM_UINT8 A1 = (address >> 1) & 0x1;
-	result = LJ_YM2612_setDataPinsD07(ym2612, data);
+	result = LJ_YM2612_setDataPinsD07(ym2612, (LJ_YM_UINT8)data);
 	result = LJ_YM2612_setAddressPinsCSRDWRA1A0(ym2612, notCS, notRD, notWR, A1, A0);
 	
 	return result;
@@ -57,7 +57,7 @@ int device_ym2612_destroy(void* ym2612)
 	return LJ_YM2612_destroy(ym2612);
 }
 
-const char* const getWavOutputName(const char* const inputName)
+char* getWavOutputName(const char* const inputName)
 {
 	static char wavOutputName[256];
 	char* ext;

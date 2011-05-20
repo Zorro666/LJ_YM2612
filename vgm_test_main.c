@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
 	if (channel >= 0)
 	{
 		flags |= DEVICE_YM2612_ONECHANNEL;
-		flags |= (channel << DEVICE_YM2612_ONECHANNEL_SHIFT);
+		flags |= ((unsigned int)channel << DEVICE_YM2612_ONECHANNEL_SHIFT);
 		printf("Channel:%d flags:0x%X\n", channel, flags);
 	}
 

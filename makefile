@@ -12,7 +12,7 @@ PROJECTS:=\
 all: $(PROJECTS)
 
 C_COMPILE:=gcc -c
-C_COMPILE_FLAGS:=-g -Wall -Werror -ansi -pedantic-errors
+C_COMPILE_FLAGS:=-g -Wall -Wextra -Wuninitialized -Winit-self -Wstrict-aliasing -Wfloat-equal -Wshadow -Wconversion -Werror -ansi -pedantic-errors
 
 LINK:=gcc
 LINK_FLAGS:=-g -lm

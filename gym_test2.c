@@ -5,7 +5,8 @@
 #include <malloc.h>
 #include <stdio.h>
 
-int main(int argc, char* argv[])
+/*int main(int argc, char** argv)*/
+int main()
 {
 	int result = LJ_GYM_OK;
 
@@ -82,7 +83,10 @@ void allocFree(void* v)
 	free(v);
 }
 
-void ym2612_update_request(void *param)
+void ym2612_update_request(void* param)
 {
+	if (param)
+	{
+	}
 }
 

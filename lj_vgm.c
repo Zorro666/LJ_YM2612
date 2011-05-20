@@ -326,7 +326,7 @@ static LJ_VGM_RESULT vgm_open(LJ_VGM_FILE* const vgmFile, const char* const fnam
 		return LJ_VGM_ERROR;
 	}
 
-	result = fread(&vgmFile->header, sizeof(vgmFile->header), 1, fh);
+	result = (int)fread(&vgmFile->header, sizeof(vgmFile->header), 1, fh);
 	if (result != 1)
 	{
 		fprintf(stderr, "vgm_open: failed to read header result:%d\n", result);
@@ -358,7 +358,7 @@ static LJ_VGM_RESULT vgm_open(LJ_VGM_FILE* const vgmFile, const char* const fnam
 	vgmFile->cmdCount = 0;
 	vgmFile->dataStart = 0;
 
-	dataStart = vgmFile->header.vgmOffset;
+	dataStart = (int)vgmFile->header.vgmOffset;
 	if (dataStart == 0x0)
 	{
 		dataStart = 0x40-0xC;
@@ -510,7 +510,7 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 			return LJ_VGM_ERROR;
 		}
 
-		vgmFile->pos += 7 + vgmFile->dataNum;
+		vgmFile->pos += (int)(7 + vgmFile->dataNum);
 		vgmFile->cmdCount += 1;
 		
 		vgmFile->dataSeekOffset = 0;
@@ -595,8 +595,8 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 		vgmInstr->cmd = LJ_VGM_YM2612_WRITE_DATA;
 
 		vgmInstr->dataSeekOffset = vgmFile->dataSeekOffset;
-		vgmInstr->waitSamples = vgmFile->waitSamples;
-		vgmInstr->waitSamplesData = vgmFile->waitSamples;
+		vgmInstr->waitSamples = (LJ_VGM_INT32)(vgmFile->waitSamples);
+		vgmInstr->waitSamplesData = (LJ_VGM_INT32)(vgmFile->waitSamples);
 
 		vgmInstr->R = 0x2A;
 		vgmInstr->D = vgmFile->data[vgmFile->dataCurrentOffset];
@@ -613,14 +613,14 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 		vgmFile->pos += 1;
 		vgmFile->cmdCount += 1;
 
-		vgmFile->waitSamples = waitSamples + 1;
+		vgmFile->waitSamples = (LJ_VGM_UINT32)(waitSamples + 1);
 
 		vgmInstr->pos = pos;
 		vgmInstr->cmdCount = cmdCount;
 		vgmInstr->cmd = LJ_VGM_WAIT_N_SAMPLES;
 
-		vgmInstr->waitSamples = vgmFile->waitSamples;
-		vgmInstr->waitSamplesData = vgmFile->waitSamples;
+		vgmInstr->waitSamples = (LJ_VGM_INT32)(vgmFile->waitSamples);
+		vgmInstr->waitSamplesData = (LJ_VGM_INT32)(vgmFile->waitSamples);
 
 		return LJ_VGM_OK;
 	}
@@ -688,8 +688,8 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 		vgmInstr->cmdCount = cmdCount;
 		vgmInstr->cmd = cmd;
 
-		vgmInstr->waitSamples = vgmFile->waitSamples;
-		vgmInstr->waitSamplesData = vgmFile->waitSamples;
+		vgmInstr->waitSamples = (LJ_VGM_INT32)(vgmFile->waitSamples);
+		vgmInstr->waitSamplesData = (LJ_VGM_INT32)(vgmFile->waitSamples);
 
 		return LJ_VGM_OK;
 	}
@@ -717,8 +717,8 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 		vgmInstr->cmdCount = cmdCount;
 		vgmInstr->cmd = cmd;
 
-		vgmInstr->waitSamples = vgmFile->waitSamples;
-		vgmInstr->waitSamplesData = vgmFile->waitSamples;
+		vgmInstr->waitSamples = (LJ_VGM_INT32)(vgmFile->waitSamples);
+		vgmInstr->waitSamplesData = (LJ_VGM_INT32)(vgmFile->waitSamples);
 
 		return LJ_VGM_OK;
 	}
@@ -734,8 +734,8 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 		vgmInstr->cmdCount = cmdCount;
 		vgmInstr->cmd = cmd;
 
-		vgmInstr->waitSamples = vgmFile->waitSamples;
-		vgmInstr->waitSamplesData = vgmFile->waitSamples;
+		vgmInstr->waitSamples = (LJ_VGM_INT32)(vgmFile->waitSamples);
+		vgmInstr->waitSamplesData = (LJ_VGM_INT32)(vgmFile->waitSamples);
 
 		return LJ_VGM_OK;
 	}

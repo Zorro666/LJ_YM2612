@@ -136,7 +136,7 @@ LJ_WAV_FILE* LJ_WAV_create( const char* const filename, const LJ_WAV_FORMAT form
 	riffHeader.chunkSize = 0; /* 4 + (8 + 16) + (8 + (wBitsPerSamples * 8 * nChannels * numSamples)) */
 	riffHeader.wavID = LJ_MAKEFOURCC('W','A','V','E');
 
-	result = fwrite(&riffHeader, sizeof(LJ_WAV_RIFF_HEADER), 1, fileH);
+	result = (int)fwrite(&riffHeader, sizeof(LJ_WAV_RIFF_HEADER), 1, fileH);
 	if (result != 1)
 	{
 		fprintf(stderr,"LJ_WAV_create: failed to write WAV_RIFF_HEADER file '%s'\n", filename);
@@ -146,13 +146,13 @@ LJ_WAV_FILE* LJ_WAV_create( const char* const filename, const LJ_WAV_FORMAT form
 	wavHeader.chunkID = LJ_MAKEFOURCC('f','m','t',' ');
 	wavHeader.chunkSize = 16;
 	wavHeader.wFormatTag = format;
-	wavHeader.nChannels = numChannels;
-	wavHeader.nSamplesPerSec = sampleRate;
-	wavHeader.nAvgBytesPerSec = sampleRate * numBytesPerChannel * numChannels;
-	wavHeader.nBlockAlign = numBytesPerChannel * numChannels;
-	wavHeader.wBitsPerSample = 8 * numBytesPerChannel;
+	wavHeader.nChannels = (LJ_WAV_UINT16)numChannels;
+	wavHeader.nSamplesPerSec = (LJ_WAV_UINT32)sampleRate;
+	wavHeader.nAvgBytesPerSec = (LJ_WAV_UINT32)sampleRate * (LJ_WAV_UINT32)numBytesPerChannel * (LJ_WAV_UINT32)numChannels;
+	wavHeader.nBlockAlign = (LJ_WAV_UINT16)(numBytesPerChannel * numChannels);
+	wavHeader.wBitsPerSample = (LJ_WAV_UINT16)(8 * numBytesPerChannel);
 
-	result = fwrite(&wavHeader, sizeof(LJ_WAV_FORMAT_HEADER), 1, fileH);
+	result = (int)fwrite(&wavHeader, sizeof(LJ_WAV_FORMAT_HEADER), 1, fileH);
 	if (result != 1)
 	{
 		fprintf(stderr,"LJ_WAV_create: failed to write WAV_FORMAT_HEADER file '%s'\n", filename);
@@ -162,7 +162,7 @@ LJ_WAV_FILE* LJ_WAV_create( const char* const filename, const LJ_WAV_FORMAT form
 	dataHeader.chunkID = LJ_MAKEFOURCC('d','a','t','a');
 	dataHeader.chunkSize = 0; /* wBitsPerSamples * 8 * nChannels * numSamples */
 
-	result = fwrite(&dataHeader, sizeof(LJ_WAV_DATA_HEADER), 1, fileH);
+	result = (int)fwrite(&dataHeader, sizeof(LJ_WAV_DATA_HEADER), 1, fileH);
 	if (result != 1)
 	{
 		fprintf(stderr,"LJ_WAV_create: failed to write WAV_DATA_HEADER file '%s'\n", filename);
@@ -188,7 +188,7 @@ LJ_WAV_RESULT LJ_WAV_FILE_writeChannel( LJ_WAV_FILE* const wavFile, void* sample
 		return LJ_WAV_ERROR;
 	}
 
-	result = fwrite(sampleData, wavFile->numBytesPerChannel, 1, wavFile->fileH);
+	result = (int)fwrite(sampleData, (size_t)(wavFile->numBytesPerChannel), 1, wavFile->fileH);
 	wavFile->numBytesWritten += wavFile->numBytesPerChannel;
 
 	return LJ_WAV_OK;
@@ -219,7 +219,7 @@ LJ_WAV_RESULT LJ_WAV_close(LJ_WAV_FILE* const wavFile)
 		fclose(wavFile->fileH);
 		return LJ_WAV_ERROR;
 	}
-	result = fwrite(&riffChunkSize, sizeof(riffChunkSize), 1, wavFile->fileH);
+	result = (int)fwrite(&riffChunkSize, sizeof(riffChunkSize), 1, wavFile->fileH);
 	if (result != 1)
 	{
 		fprintf(stderr,"LJ_WAV_close: error writing riffChunkSize:%d at offset:%d\n", riffChunkSize, riffChunkSizeOffset);
@@ -234,7 +234,7 @@ LJ_WAV_RESULT LJ_WAV_close(LJ_WAV_FILE* const wavFile)
 		fclose(wavFile->fileH);
 		return LJ_WAV_ERROR;
 	}
-	result = fwrite(&dataChunkSize, sizeof(dataChunkSize), 1, wavFile->fileH);
+	result = (int)fwrite(&dataChunkSize, sizeof(dataChunkSize), 1, wavFile->fileH);
 	if (result != 1)
 	{
 		fprintf(stderr,"LJ_WAV_close: error writing dataChunkSize:%d at offset:%d\n", dataChunkSize, dataChunkSizeOffset);
