@@ -1480,6 +1480,18 @@ LJ_YM2612* LJ_YM2612_create(const int clockRate, const int outputSampleRate)
 
 	ym2612_makeData(ym2612);
 
+	/* Set left, right bits to on by default at startup */
+
+	/* Part 0 channel 0, 1, 2 */
+	ym2612_setRegister(ym2612, 0, LJ_LR_AMS_PMS+0, (1<<7)|(1<<6));
+	ym2612_setRegister(ym2612, 0, LJ_LR_AMS_PMS+1, (1<<7)|(1<<6));
+	ym2612_setRegister(ym2612, 0, LJ_LR_AMS_PMS+2, (1<<7)|(1<<6));
+
+	/* Part 1 channel 0, 1, 2 */
+	ym2612_setRegister(ym2612, 1, LJ_LR_AMS_PMS+0, (1<<7)|(1<<6));
+	ym2612_setRegister(ym2612, 1, LJ_LR_AMS_PMS+1, (1<<7)|(1<<6));
+	ym2612_setRegister(ym2612, 1, LJ_LR_AMS_PMS+2, (1<<7)|(1<<6));
+
 	return ym2612;
 }
 
