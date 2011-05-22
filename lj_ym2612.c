@@ -198,6 +198,7 @@ struct LJ_YM2612_SLOT
 	int id;
 
 	int omega;
+	int keycode;
 	int omegaDelta;
 	int totalLevel;
 	int sustainLevelDB;
@@ -391,71 +392,84 @@ static int ym2612_computeOmegaDelta(const int fnum, const int block, const int m
 static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT32 egCounter)
 {
 	const LJ_YM2612_ADSR adsrState = slotPtr->adsrState;
+	int keycode =	slotPtr->keycode;
+
 	int slotVolumeDB = LJ_YM2612_ATTENUATIONDB_MAX;
+	int attenuationDB = slotPtr->attenuationDB;
 	int scaledVolume = 0;
-	int keyRateScale = 0;
-	LJ_YM_UINT32 egRateUpdateMask;
+
+	int keyRateScale = keycode >> (3-keycode);
 	int invertOutput = 0;
+
+	keyRateScale = keycode >> 3;
 
 	if (adsrState == LJ_YM2612_ATTACK)
 	{
+		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->attackRate, keyRateScale);
 		invertOutput = 1;
-		egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->attackRate, keyRateScale);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
-			slotPtr->attenuationDBDelta = +3;
-			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
+			slotPtr->attenuationDBDelta = +1;
+			/* inverted exponential curve: attenuation += increment * ((1024-attenuation) / 16 + 1) : NEMESIS */
+			/* inverted exponential curve: attenuation += (increment * ~attenuation) / 16 : MAME without invert output */
+			/*attenuationDB -= slotPtr->attenuationDBDelta * (((attenuationDB) >> 4) + 1);*/
+			printf("1. attDB:%d ~attDB:%d ~attDB/16:%d\n", attenuationDB, ~attenuationDB, ~attenuationDB >> 4);
+			attenuationDB += (slotPtr->attenuationDBDelta * ~attenuationDB) >> 4;
+			printf("2. attDB:%d\n", attenuationDB);
+			invertOutput = 0;
 
-			if (slotPtr->attenuationDB >= LJ_YM2612_ATTENUATIONDB_MAX)
+			if (attenuationDB <= 0)
 			{
 				invertOutput = 0;
-				slotPtr->attenuationDB = 0;
+				attenuationDB = 0;
 				slotPtr->adsrState = LJ_YM2612_DECAY;
 			}
 		}
 	}
 	else if (adsrState == LJ_YM2612_DECAY)
 	{
-		egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->decayRate, keyRateScale);
+		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->decayRate, keyRateScale);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			slotPtr->attenuationDBDelta = +1;
-			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
-			if (slotPtr->attenuationDB >= slotPtr->sustainLevelDB)
+			attenuationDB += slotPtr->attenuationDBDelta;
+			if (attenuationDB >= slotPtr->sustainLevelDB)
 			{
-				slotPtr->attenuationDB = slotPtr->sustainLevelDB;
+				attenuationDB = slotPtr->sustainLevelDB;
 				slotPtr->adsrState = LJ_YM2612_SUSTAIN;
 			}
 		}
 	}
 	else if (adsrState == LJ_YM2612_SUSTAIN)
 	{
-		egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->sustainRate, keyRateScale);
+		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->sustainRate, keyRateScale);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			slotPtr->attenuationDBDelta = +1;
-			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
+			attenuationDB += slotPtr->attenuationDBDelta;
 		}
 	}
 	else if (adsrState == LJ_YM2612_RELEASE)
 	{
-		egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->releaseRate, keyRateScale);
+		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->releaseRate, keyRateScale);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			slotPtr->attenuationDBDelta = +1;
-			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
+			attenuationDB += slotPtr->attenuationDBDelta;
 		}
 	}
 
 	if (invertOutput == 1)
 	{
-			/* Attack is inverse of DB */
-			slotVolumeDB = LJ_YM2612_ATTENUATIONDB_MAX - slotPtr->attenuationDB;
+		/* Attack is inverse of DB */
+		slotVolumeDB = LJ_YM2612_ATTENUATIONDB_MAX - attenuationDB;
 	}
 	else
 	{
-		slotVolumeDB = slotPtr->attenuationDB;
+		slotVolumeDB = attenuationDB;
 	}
+	slotPtr->attenuationDB = attenuationDB;
+
 	/* Convert slotVolumeDB into volume */
 	{
 		/* slotVolumeDB is a logarithmic scale of 10-bits, TL is 7-bits and is 2^(-1/8), move to 10-bits gives 2^(-1/(8*8)) */
@@ -937,13 +951,14 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 {
 	slotPtr->volume = 0;
-	slotPtr->attenuationDB = 0;
+	slotPtr->attenuationDB = 1023;
 	slotPtr->attenuationDBDelta = 0;
 
 	slotPtr->detune = 0;
 	slotPtr->multiple = 0;
 	slotPtr->omega = 0;
 	slotPtr->omegaDelta = 0;
+	slotPtr->keycode = 0;
 
 	slotPtr->totalLevel = 0;
 	slotPtr->sustainLevelDB = 0;
@@ -1766,6 +1781,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 				if ((slotPtr->omegaDirty == 1) || (omegaDirty == 1))
 				{
 					ym2612_slotComputeOmegaDelta(slotPtr, slotFnum, slotBlock, slotKeycode, debugFlags);
+					slotPtr->keycode = slotKeycode;
 					slotPtr->omegaDirty = 0;
 				}
 	

@@ -639,15 +639,15 @@ static LJ_VGM_UINT8 noteSLProgram[] = {
 		LJ_TEST_PART_0, 0x44, 0x7F,	/* Total Level - channel 0 slot 2 (*0.000001f) */
 		LJ_TEST_PART_0, 0x48, 0x7F,	/* Total Level - channel 0 slot 1 (*0.000001f) */
 		LJ_TEST_PART_0, 0x4C, 0x7F,	/* Total Level - channel 0 slot 3 (*0.000001f) */
-		LJ_TEST_PART_0, 0x50, 0x15,	/* RS/AR - channel 0 slot 0 */
-		LJ_TEST_PART_0, 0x54, 0x1F,	/* RS/AR - channel 0 slot 2 */
-		LJ_TEST_PART_0, 0x58, 0x1F,	/* RS/AR - channel 0 slot 1 */
-		LJ_TEST_PART_0, 0x5C, 0x1F,	/* RS/AR - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x50, 0x18,	/* RS/AR - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x54, 0x0F,	/* RS/AR - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x58, 0x0F,	/* RS/AR - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x5C, 0x0F,	/* RS/AR - channel 0 slot 3 */
 		LJ_TEST_PART_0, 0x60, 0x18,	/* AM/D1R - channel 0 slot 0 */
 		LJ_TEST_PART_0, 0x64, 0x1F,	/* AM/D1R - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x68, 0x1F,	/* AM/D1R - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x6C, 0x0F,	/* AM/D1R - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x70, 0x1A,	/* D2R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x70, 0x18,	/* D2R - channel 0 slot 0 */
 		LJ_TEST_PART_0, 0x74, 0x00,	/* D2R - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x78, 0x00,	/* D2R - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x7C, 0x00,	/* D2R - channel 0 slot 3 */

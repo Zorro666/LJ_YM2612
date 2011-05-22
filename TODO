@@ -3,6 +3,7 @@ YM2612:tidyup ADSR update code with helper functions to rate shift counter to al
 YM2612:ADSR update numbers can be computed once per output (ADSR rates+key scale rate)- not inside updateEG
 YM2612:add ADSR delta calculation either a table or work out the equation that makes it
 YM2612:attack phase attenuation update output is not correct - log in volume not nearly linear
+YM2612:implement keyrate scaling
 
 Medium Priority:
 YM2612:rename internal _channel functions which work on slots to _slot functions and pass in debug flags
