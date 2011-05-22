@@ -45,6 +45,7 @@ B4H+	L		R		AMS				###########	FMS
 typedef struct LJ_YM2612_PART LJ_YM2612_PART;
 typedef struct LJ_YM2612_CHANNEL LJ_YM2612_CHANNEL;
 typedef struct LJ_YM2612_SLOT LJ_YM2612_SLOT;
+typedef struct LJ_YM2612_EG LJ_YM2612_EG;
 typedef struct LJ_YM2612_CHANNEL2_SLOT_DATA LJ_YM2612_CHANNEL2_SLOT_DATA;
 
 #define LJ_YM2612_NUM_REGISTERS (0xFF)
@@ -116,6 +117,10 @@ static int LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES];
 #define LJ_YM2612_SIN_TABLE_MASK ((1 << LJ_YM2612_SIN_TABLE_BITS) - 1)
 static int LJ_YM2612_sinTable[LJ_YM2612_SIN_TABLE_NUM_ENTRIES];
 
+/* Attenation envelop generation is 10-bits */
+#define LJ_YM2612_ATTENUATIONDB_BITS (10)
+#define LJ_YM2612_ATTENUATIONDB_MAX ((1 << 10) - 1)
+
 /* Right shift for delta phi = LJ_YM2612_VOLUME_SCALE_BITS - LJ_YM2612_SIN_TABLE_BITS - 2 */
 /* >> LJ_YM2612_VOLUME_SCALE_BITS = to remove the volume scale in the output from the sin table */
 /* << LJ_YM2612_SIN_TABLE_BITS = to put the output back into the range of the sin table */
@@ -171,6 +176,15 @@ static int LJ_YM2612_slTable[LJ_YM2612_SL_TABLE_NUM_ENTRIES];
 /* The slots referenced in the registers are not 0,1,2,3 *sigh* */
 static LJ_YM_UINT8 LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2, 1, 3 };
 
+/* EG circuit timer units fixed point */
+#define LJ_YM2612_EG_TIMER_NUM_BITS (16)
+#define LJ_YM2612_EG_TIMER_NUM_ENTRIES (1 << LJ_YM2612_EG_TIMER_NUM_BITS)
+#define LJ_YM2612_EG_TIMER_MASK ((1 << LJ_YM2612_EG_TIMER_NUM_BITS) - 1)
+
+/* Some argument on this value from looking at the forums: MAME = 3, Nemesis (on PAL MD) adamant it is 2.4375 */
+#define LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE (3.0f) /* MAME */
+/* #define LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE (2.4375f) */ /* NEMESIS */
+
 typedef enum LJ_YM2612_ADSR {
 	LJ_YM2612_UNKNOWN,
 	LJ_YM2612_ATTACK,
@@ -186,10 +200,11 @@ struct LJ_YM2612_SLOT
 	int omega;
 	int omegaDelta;
 	int totalLevel;
-	int sustainLevel;
+	int sustainLevelDB;
 
 	int volume;
-	int volumeDelta;
+	int attenuationDB;
+	int attenuationDBDelta;
 
 	/* Algorithm support */
 	int fmInputDelta;
@@ -214,6 +229,14 @@ struct LJ_YM2612_SLOT
 	LJ_YM_UINT8 keyOn;
 
 	LJ_YM_UINT8 omegaDirty;
+};
+
+struct LJ_YM2612_EG 
+{
+	LJ_YM_UINT32 timer;
+	LJ_YM_UINT32 timerAddPerOutputSample;
+	LJ_YM_UINT32 timerPerUpdate;
+	LJ_YM_UINT32 counter;
 };
 
 struct LJ_YM2612_CHANNEL
@@ -265,6 +288,7 @@ struct LJ_YM2612
 	LJ_YM2612_PART part[LJ_YM2612_NUM_PARTS];
 	LJ_YM2612_CHANNEL2_SLOT_DATA channel2slotData[LJ_YM2612_NUM_SLOTS_PER_CHANNEL-1];
 	LJ_YM2612_CHANNEL* channels[LJ_YM2612_NUM_CHANNELS_TOTAL];
+	LJ_YM2612_EG eg;
 
 	float baseFreqScale;
 
@@ -331,42 +355,160 @@ static int ym2612_computeOmegaDelta(const int fnum, const int block, const int m
 	return omegaDelta;
 }
 
-static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr)
+static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT32 egCounter)
 {
 	const LJ_YM2612_ADSR adsrState = slotPtr->adsrState;
+	int slotVolumeDB = LJ_YM2612_ATTENUATIONDB_MAX;
+	int scaledVolume = 0;
+	int keyRateScale = 0;
+	int egRate;
+	int egRateShift;
+	LJ_YM_UINT32 egRateUpdateMask;
 
-	slotPtr->volume += slotPtr->volumeDelta;
+	/* From the current rate you get a shift width (1,2,4,8,...) and you only update the envelop every N times of the global counter */
+	/* The rate = ADSRrate * 2 + keyRateScale but rate = 0 if ADSRrate = 0 and clamped between 0->63 */
 
 	if (adsrState == LJ_YM2612_ATTACK)
 	{
-		slotPtr->volumeDelta = +slotPtr->attackRate;
-		if (slotPtr->volume >= LJ_YM2612_VOLUME_MAX)
+		/* Put this into a helper function per ADSR rate value */
+		egRate = slotPtr->attackRate * 2 + keyRateScale;
+		if ((egRate < 0) || (slotPtr->attackRate == 0))
 		{
-			slotPtr->volume = LJ_YM2612_VOLUME_MAX;
-			slotPtr->adsrState = LJ_YM2612_DECAY;
-			slotPtr->volumeDelta = -slotPtr->decayRate;
+			egRate = 0;
 		}
-		return;
+		if (egRate > 63)
+		{
+			egRate = 63;
+		}
+		/* EG rate shift counter is 11 - (egRate / 4 ) but clamped to 0 can't be negative */
+		egRateShift = 11 - (egRate >> 2);
+		if (egRateShift < 0)
+		{
+			egRateShift = 0;
+		}
+		/* if (egCounter % (1 << egRateShift) == 0) then do an update */
+		/* logically the same as if (egCounter & ((1 << egRateShift)-1) == 0x0) */
+		egRateUpdateMask = (LJ_YM_UINT32)((1 << egRateShift) -1);
+		if ((egCounter & egRateUpdateMask) == 0)
+		{
+			slotPtr->attenuationDBDelta = +3;
+			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
+
+			if (slotPtr->attenuationDB >= LJ_YM2612_ATTENUATIONDB_MAX)
+			{
+				slotPtr->attenuationDB = 0;
+				slotVolumeDB = 0;
+				slotPtr->adsrState = LJ_YM2612_DECAY;
+				slotPtr->attenuationDBDelta = +1;
+			}
+		}
 	}
 	else if (adsrState == LJ_YM2612_DECAY)
 	{
-		if (slotPtr->volume <= slotPtr->sustainLevel)
+		/* Put this into a helper function per ADSR rate value */
+		egRate = slotPtr->decayRate * 2 + keyRateScale;
+		if ((egRate < 0) || (slotPtr->decayRate == 0))
 		{
-			slotPtr->volume = slotPtr->sustainLevel;
-			slotPtr->adsrState = LJ_YM2612_SUSTAIN;
-			slotPtr->volumeDelta = -slotPtr->sustainRate;
+			egRate = 0;
 		}
-		return;
+		if (egRate > 63)
+		{
+			egRate = 63;
+		}
+		/* EG rate shift counter is 11 - (egRate / 4 ) but clamped to 0 can't be negative */
+		egRateShift = 11 - (egRate >> 2);
+		if (egRateShift < 0)
+		{
+			egRateShift = 0;
+		}
+		/* if (egCounter % (1 << egRateShift) == 0) then do an update */
+		/* logically the same as if (egCounter & ((1 << egRateShift)-1) == 0x0) */
+		egRateUpdateMask = (LJ_YM_UINT32)((1 << egRateShift) -1);
+		if ((egCounter & egRateUpdateMask) == 0)
+		{
+			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
+			if (slotPtr->attenuationDB >= slotPtr->sustainLevelDB)
+			{
+				slotPtr->attenuationDB = slotPtr->sustainLevelDB;
+				slotPtr->adsrState = LJ_YM2612_SUSTAIN;
+				slotPtr->attenuationDBDelta = +1;
+			}
+		}
 	}
 	else if (adsrState == LJ_YM2612_SUSTAIN)
 	{
-		return;
+		/* Put this into a helper function per ADSR rate value */
+		egRate = slotPtr->sustainRate * 2 + keyRateScale;
+		if ((egRate < 0) || (slotPtr->sustainRate == 0))
+		{
+			egRate = 0;
+		}
+		if (egRate > 63)
+		{
+			egRate = 63;
+		}
+		/* EG rate shift counter is 11 - (egRate / 4 ) but clamped to 0 can't be negative */
+		egRateShift = 11 - (egRate >> 2);
+		if (egRateShift < 0)
+		{
+			egRateShift = 0;
+		}
+		/* if (egCounter % (1 << egRateShift) == 0) then do an update */
+		/* logically the same as if (egCounter & ((1 << egRateShift)-1) == 0x0) */
+		egRateUpdateMask = (LJ_YM_UINT32)((1 << egRateShift) -1);
+		if ((egCounter & egRateUpdateMask) == 0)
+		{
+			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
+		}
+		slotVolumeDB = slotPtr->attenuationDB;
 	}
 	else if (adsrState == LJ_YM2612_RELEASE)
 	{
-		slotPtr->volumeDelta = -slotPtr->releaseRate;
-		return;
+		/* Put this into a helper function per ADSR rate value */
+		egRate = slotPtr->sustainRate * 2 + keyRateScale;
+		if ((egRate < 0) || (slotPtr->sustainRate == 0))
+		{
+			egRate = 0;
+		}
+		if (egRate > 63)
+		{
+			egRate = 63;
+		}
+		/* EG rate shift counter is 11 - (egRate / 4 ) but clamped to 0 can't be negative */
+		egRateShift = 11 - (egRate >> 2);
+		if (egRateShift < 0)
+		{
+			egRateShift = 0;
+		}
+		/* if (egCounter % (1 << egRateShift) == 0) then do an update */
+		/* logically the same as if (egCounter & ((1 << egRateShift)-1) == 0x0) */
+		egRateUpdateMask = (LJ_YM_UINT32)((1 << egRateShift) -1);
+		if ((egCounter & egRateUpdateMask) == 0)
+		{
+			slotPtr->attenuationDBDelta = +1;
+			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
+		}
+		slotVolumeDB = slotPtr->attenuationDB;
 	}
+
+	/* Convert slotVolumeDB into volume */
+	/* Each slotVolumeDB is 3dB with a scale of 10-bits, each step = x0.707105 = 2^(-1/2) */
+	if (adsrState == LJ_YM2612_ATTACK)
+	{
+			/* Attack is inverse of DB */
+			slotVolumeDB = LJ_YM2612_ATTENUATIONDB_MAX - slotPtr->attenuationDB;
+	}
+	else
+	{
+		slotVolumeDB = slotPtr->attenuationDB;
+	}
+	{
+		const float dbScale = -(float)slotVolumeDB * (1.0f / 64.0f);
+		const float value = (float)pow(2.0f, dbScale);
+		scaledVolume = (int)(value * (float)(1 << LJ_YM2612_VOLUME_SCALE_BITS));
+	}
+
+	slotPtr->volume = scaledVolume;
 }
 
 static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const int fnum, const int block, const int keycode, 
@@ -717,7 +859,8 @@ static void ym2612_channelSetSustainLevelReleaseRate(LJ_YM2612_CHANNEL* const ch
 
 	/* Convert from 4-bits to usual 5-bits for rates */
 	slotPtr->releaseRate = (LJ_YM_UINT8)((RR << 1) + 1);
-	slotPtr->sustainLevel = SLscale;
+	slotPtr->sustainLevelDB = SLscale;
+	slotPtr->sustainLevelDB = (SL << 5);
 
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -820,7 +963,7 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 				slotPtr->omega = 0;
 				slotPtr->fmInputDelta = 0;
 				slotPtr->adsrState = LJ_YM2612_ATTACK;
-				slotPtr->volumeDelta = 0;
+				slotPtr->attenuationDBDelta = 0;
 			}
 		}
 		else
@@ -838,14 +981,16 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 {
 	slotPtr->volume = 0;
-	slotPtr->volumeDelta = 0;
+	slotPtr->attenuationDB = 0;
+	slotPtr->attenuationDBDelta = 0;
+
 	slotPtr->detune = 0;
 	slotPtr->multiple = 0;
 	slotPtr->omega = 0;
 	slotPtr->omegaDelta = 0;
 
 	slotPtr->totalLevel = 0;
-	slotPtr->sustainLevel = 0;
+	slotPtr->sustainLevelDB = 0;
 
 	slotPtr->fmInputDelta = 0;
 	slotPtr->modulationOutput[0] = NULL;
@@ -901,19 +1046,41 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
 	channelPtr->id = 0;
 }
 
-static void ym2612_partClear(LJ_YM2612_PART* const part)
+static void ym2612_partClear(LJ_YM2612_PART* const partPtr)
 {
 	int i;
 	for (i = 0; i < LJ_YM2612_NUM_REGISTERS; i++)
 	{
-		part->reg[i] = 0x0;
+		partPtr->reg[i] = 0x0;
 	}
 	for (i = 0; i < LJ_YM2612_NUM_CHANNELS_PER_PART; i++)
 	{
-		LJ_YM2612_CHANNEL* const channelPtr = &(part->channel[i]);
+		LJ_YM2612_CHANNEL* const channelPtr = &(partPtr->channel[i]);
 		ym2612_channelClear(channelPtr);
-		channelPtr->id = part->id*LJ_YM2612_NUM_CHANNELS_PER_PART+i;
+		channelPtr->id = partPtr->id*LJ_YM2612_NUM_CHANNELS_PER_PART+i;
 	}
+}
+
+static void ym2612_egMakeData(LJ_YM2612_EG* const egPtr, LJ_YM2612* ym2612)
+{
+	egPtr->timer = 0;
+
+	/* FM output timer is (clockRate/144) but update code is every sampleRate times of that in the use of this code */
+	/* This is a counter in the units of FM output samples : which is (clockRate/sampleRate)/144 = ym2612->baseFreqScale */
+	egPtr->timerAddPerOutputSample = (LJ_YM_UINT32)( (float)ym2612->baseFreqScale * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
+
+	/* Some argument on this value from looking at the forums: MAME = 3, Nemesis (on PAL MD) adamant it is 2.4375 */
+	egPtr->timerPerUpdate = (LJ_YM_UINT32)( (float)LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
+
+	egPtr->counter = 0;
+}
+
+static void ym2612_egClear(LJ_YM2612_EG* const egPtr)
+{
+	egPtr->timer = 0;
+	egPtr->timerAddPerOutputSample = 0;
+	egPtr->timerPerUpdate = 0;
+	egPtr->counter = 0;
 }
 
 static void ym2612_SetChannel2FreqBlock(LJ_YM2612* const ym2612, const LJ_YM_UINT8 slot, const LJ_YM_UINT8 fnumLSB)
@@ -1040,6 +1207,8 @@ static void ym2612_makeData(LJ_YM2612* const ym2612)
 		}
 	}
 */
+
+	ym2612_egMakeData(&ym2612->eg, ym2612);
 }
 
 static void ym2612_clear(LJ_YM2612* const ym2612)
@@ -1059,11 +1228,13 @@ static void ym2612_clear(LJ_YM2612* const ym2612)
 	ym2612->lfoEnable = 0;
 	ym2612->lfoFreq = 0;
 
+	ym2612_egClear(&ym2612->eg);
+
 	for (i = 0; i < LJ_YM2612_NUM_PARTS; i++)
 	{
-		LJ_YM2612_PART* const part = &(ym2612->part[i]);
-		ym2612_partClear(part);
-		part->id = i;
+		LJ_YM2612_PART* const partPtr = &(ym2612->part[i]);
+		ym2612_partClear(partPtr);
+		partPtr->id = i;
 	}
 	for (i = 0; i < LJ_YM2612_NUM_PARTS; i++)
 	{
@@ -1760,25 +1931,44 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612, int numCycles
 
 		outputLeft[sample] = outL;
 		outputRight[sample] = outR;
-	}
 
-	/* Update volumes and frequency position */
-	for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_TOTAL; channel++)
-	{
-		LJ_YM2612_CHANNEL* const channelPtr = ym2612->channels[channel];
-
-		for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
+		/* Update volumes and frequency position */
+		for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_TOTAL; channel++)
 		{
-			LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
+			LJ_YM2612_CHANNEL* const channelPtr = ym2612->channels[channel];
 
-			slotPtr->omega += slotPtr->omegaDelta;
-
-			ym2612_slotUpdateEG(slotPtr);
-
-			slotPtr->volume = LJ_YM2612_CLAMP_VOLUME(slotPtr->volume);
-			if (slotPtr->volume < 0)
+			for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 			{
-				slotPtr->volume = 0;
+				LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
+
+				slotPtr->omega += slotPtr->omegaDelta;
+			}
+		}
+
+		/* EG update */
+		ym2612->eg.timer += ym2612->eg.timerAddPerOutputSample;
+		while (ym2612->eg.timer >= ym2612->eg.timerPerUpdate)
+		{
+			/* Update the envelope */
+			ym2612->eg.timer -= ym2612->eg.timerAddPerOutputSample;
+			ym2612->eg.counter++;
+
+			for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_TOTAL; channel++)
+			{
+				LJ_YM2612_CHANNEL* const channelPtr = ym2612->channels[channel];
+
+				for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
+				{
+					LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
+
+					ym2612_slotUpdateEG(slotPtr, ym2612->eg.counter);
+
+					slotPtr->volume = LJ_YM2612_CLAMP_VOLUME(slotPtr->volume);
+					if (slotPtr->volume < 0)
+					{
+						slotPtr->volume = 0;
+					}
+				}
 			}
 		}
 	}
