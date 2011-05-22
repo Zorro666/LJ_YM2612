@@ -1,6 +1,8 @@
 High Priority:
-YM2612:shift internal computations to dB so ADSR is logarithmic not linear - scaling is then addition not multiply
-YM2612:convert hacky ADSR rates to real YM2612 rates
+YM2612:tidyup ADSR update code with helper functions to rate shift counter to all phases
+YM2612:ADSR update numbers can be computed once per output (ADSR rates+key scale rate)- not inside updateEG
+YM2612:add ADSR delta calculation either a table or work out the equation that makes it
+YM2612:attack phase attenuation update output is not correct - log in volume not nearly linear
 
 Medium Priority:
 YM2612:rename internal _channel functions which work on slots to _slot functions and pass in debug flags
