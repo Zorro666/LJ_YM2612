@@ -309,6 +309,39 @@ struct LJ_YM2612
 	LJ_YM_UINT8 lfoFreq;
 };
 
+/* From the current rate you get a shift width (1,2,4,8,...) and you only update the envelop every N times of the global counter */
+/* The rate = ADSRrate * 2 + keyRateScale but rate = 0 if ADSRrate = 0 and clamped between 0->63 */
+static LJ_YM_UINT32 ym2612_computeEGUpdateMask(const int adsrRate, const int keyRateScale)
+{
+	int egRate;
+	int egRateShift;
+	LJ_YM_UINT32 egRateUpdateMask;
+
+	egRate = adsrRate * 2 + keyRateScale;
+	if ((egRate < 0) || (adsrRate == 0))
+	{
+		egRate = 0;
+	}
+	if (egRate > 63)
+	{
+		egRate = 63;
+	}
+
+	/* EG rate shift counter is 11 - (egRate / 4 ) but clamped to 0 can't be negative */
+	egRateShift = 11 - (egRate >> 2);
+
+	if (egRateShift < 0)
+	{
+		egRateShift = 0;
+	}
+
+	/* if (egCounter % (1 << egRateShift) == 0) then do an update */
+	/* logically the same as if (egCounter & ((1 << egRateShift)-1) == 0x0) */
+	egRateUpdateMask = (LJ_YM_UINT32)((1 << egRateShift) -1);
+
+	return egRateUpdateMask;
+}
+
 static int LJ_YM2612_CLAMP_VOLUME(const int volume) 
 {
 	if (volume > LJ_YM2612_VOLUME_MAX)
@@ -361,34 +394,13 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	int slotVolumeDB = LJ_YM2612_ATTENUATIONDB_MAX;
 	int scaledVolume = 0;
 	int keyRateScale = 0;
-	int egRate;
-	int egRateShift;
 	LJ_YM_UINT32 egRateUpdateMask;
-
-	/* From the current rate you get a shift width (1,2,4,8,...) and you only update the envelop every N times of the global counter */
-	/* The rate = ADSRrate * 2 + keyRateScale but rate = 0 if ADSRrate = 0 and clamped between 0->63 */
+	int invertOutput = 0;
 
 	if (adsrState == LJ_YM2612_ATTACK)
 	{
-		/* Put this into a helper function per ADSR rate value */
-		egRate = slotPtr->attackRate * 2 + keyRateScale;
-		if ((egRate < 0) || (slotPtr->attackRate == 0))
-		{
-			egRate = 0;
-		}
-		if (egRate > 63)
-		{
-			egRate = 63;
-		}
-		/* EG rate shift counter is 11 - (egRate / 4 ) but clamped to 0 can't be negative */
-		egRateShift = 11 - (egRate >> 2);
-		if (egRateShift < 0)
-		{
-			egRateShift = 0;
-		}
-		/* if (egCounter % (1 << egRateShift) == 0) then do an update */
-		/* logically the same as if (egCounter & ((1 << egRateShift)-1) == 0x0) */
-		egRateUpdateMask = (LJ_YM_UINT32)((1 << egRateShift) -1);
+		invertOutput = 1;
+		egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->attackRate, keyRateScale);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			slotPtr->attenuationDBDelta = +3;
@@ -396,104 +408,46 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 
 			if (slotPtr->attenuationDB >= LJ_YM2612_ATTENUATIONDB_MAX)
 			{
+				invertOutput = 0;
 				slotPtr->attenuationDB = 0;
-				slotVolumeDB = 0;
 				slotPtr->adsrState = LJ_YM2612_DECAY;
-				slotPtr->attenuationDBDelta = +1;
 			}
 		}
 	}
 	else if (adsrState == LJ_YM2612_DECAY)
 	{
-		/* Put this into a helper function per ADSR rate value */
-		egRate = slotPtr->decayRate * 2 + keyRateScale;
-		if ((egRate < 0) || (slotPtr->decayRate == 0))
-		{
-			egRate = 0;
-		}
-		if (egRate > 63)
-		{
-			egRate = 63;
-		}
-		/* EG rate shift counter is 11 - (egRate / 4 ) but clamped to 0 can't be negative */
-		egRateShift = 11 - (egRate >> 2);
-		if (egRateShift < 0)
-		{
-			egRateShift = 0;
-		}
-		/* if (egCounter % (1 << egRateShift) == 0) then do an update */
-		/* logically the same as if (egCounter & ((1 << egRateShift)-1) == 0x0) */
-		egRateUpdateMask = (LJ_YM_UINT32)((1 << egRateShift) -1);
+		egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->decayRate, keyRateScale);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
+			slotPtr->attenuationDBDelta = +1;
 			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
 			if (slotPtr->attenuationDB >= slotPtr->sustainLevelDB)
 			{
 				slotPtr->attenuationDB = slotPtr->sustainLevelDB;
 				slotPtr->adsrState = LJ_YM2612_SUSTAIN;
-				slotPtr->attenuationDBDelta = +1;
 			}
 		}
 	}
 	else if (adsrState == LJ_YM2612_SUSTAIN)
 	{
-		/* Put this into a helper function per ADSR rate value */
-		egRate = slotPtr->sustainRate * 2 + keyRateScale;
-		if ((egRate < 0) || (slotPtr->sustainRate == 0))
-		{
-			egRate = 0;
-		}
-		if (egRate > 63)
-		{
-			egRate = 63;
-		}
-		/* EG rate shift counter is 11 - (egRate / 4 ) but clamped to 0 can't be negative */
-		egRateShift = 11 - (egRate >> 2);
-		if (egRateShift < 0)
-		{
-			egRateShift = 0;
-		}
-		/* if (egCounter % (1 << egRateShift) == 0) then do an update */
-		/* logically the same as if (egCounter & ((1 << egRateShift)-1) == 0x0) */
-		egRateUpdateMask = (LJ_YM_UINT32)((1 << egRateShift) -1);
-		if ((egCounter & egRateUpdateMask) == 0)
-		{
-			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
-		}
-		slotVolumeDB = slotPtr->attenuationDB;
-	}
-	else if (adsrState == LJ_YM2612_RELEASE)
-	{
-		/* Put this into a helper function per ADSR rate value */
-		egRate = slotPtr->sustainRate * 2 + keyRateScale;
-		if ((egRate < 0) || (slotPtr->sustainRate == 0))
-		{
-			egRate = 0;
-		}
-		if (egRate > 63)
-		{
-			egRate = 63;
-		}
-		/* EG rate shift counter is 11 - (egRate / 4 ) but clamped to 0 can't be negative */
-		egRateShift = 11 - (egRate >> 2);
-		if (egRateShift < 0)
-		{
-			egRateShift = 0;
-		}
-		/* if (egCounter % (1 << egRateShift) == 0) then do an update */
-		/* logically the same as if (egCounter & ((1 << egRateShift)-1) == 0x0) */
-		egRateUpdateMask = (LJ_YM_UINT32)((1 << egRateShift) -1);
+		egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->sustainRate, keyRateScale);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			slotPtr->attenuationDBDelta = +1;
 			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
 		}
-		slotVolumeDB = slotPtr->attenuationDB;
+	}
+	else if (adsrState == LJ_YM2612_RELEASE)
+	{
+		egRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->releaseRate, keyRateScale);
+		if ((egCounter & egRateUpdateMask) == 0)
+		{
+			slotPtr->attenuationDBDelta = +1;
+			slotPtr->attenuationDB += slotPtr->attenuationDBDelta;
+		}
 	}
 
-	/* Convert slotVolumeDB into volume */
-	/* Each slotVolumeDB is 3dB with a scale of 10-bits, each step = x0.707105 = 2^(-1/2) */
-	if (adsrState == LJ_YM2612_ATTACK)
+	if (invertOutput == 1)
 	{
 			/* Attack is inverse of DB */
 			slotVolumeDB = LJ_YM2612_ATTENUATIONDB_MAX - slotPtr->attenuationDB;
@@ -502,7 +456,9 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	{
 		slotVolumeDB = slotPtr->attenuationDB;
 	}
+	/* Convert slotVolumeDB into volume */
 	{
+		/* slotVolumeDB is a logarithmic scale of 10-bits, TL is 7-bits and is 2^(-1/8), move to 10-bits gives 2^(-1/(8*8)) */
 		const float dbScale = -(float)slotVolumeDB * (1.0f / 64.0f);
 		const float value = (float)pow(2.0f, dbScale);
 		scaledVolume = (int)(value * (float)(1 << LJ_YM2612_VOLUME_SCALE_BITS));
