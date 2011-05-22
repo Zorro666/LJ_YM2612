@@ -261,26 +261,6 @@ int main(int argc, char* argv[])
 				{
 					fprintf(stderr,"ERROR: VGM:%d ERROR processing command\n",sampleCount);
 					result = LJ_VGM_TEST_ERROR;
-					/* rate scale + attack rate */
-					if ((vgmInstruction.R & 0xF0) == 0x50)
-					{
-						result = LJ_VGM_TEST_ERROR;
-					}
-					/* amplitude modulation + decay 1 rate */
-					if ((vgmInstruction.R & 0xF0) == 0x60)
-					{
-						result = LJ_VGM_TEST_ERROR;
-					}
-					/* decay 2 rate */
-					if ((vgmInstruction.R & 0xF0) == 0x70)
-					{
-						result = LJ_VGM_TEST_ERROR;
-					}
-					/* secondary amplitude + release rate */
-					if ((vgmInstruction.R & 0xF0) == 0x80)
-					{
-						result = LJ_VGM_TEST_ERROR;
-					}
 					/* SSG params */
 					if ((vgmInstruction.R & 0xF0) == 0x90)
 					{
@@ -655,7 +635,7 @@ static LJ_VGM_UINT8 noteSLProgram[] = {
 		LJ_TEST_PART_0, 0x34, 0x01,	/* DT1/MUL - channel 0 slot 2 : DT=0 MUL=1 */
 		LJ_TEST_PART_0, 0x38, 0x01,	/* DT1/MUL - channel 0 slot 1 : DT=0 MUL=1 */
 		LJ_TEST_PART_0, 0x3C, 0x01,	/* DT1/MUL - channel 0 slot 3 : DT=0 MUL=1 */
-		LJ_TEST_PART_0, 0x40, 0x08,	/* Total Level - channel 0 slot 0 (*1) */
+		LJ_TEST_PART_0, 0x40, 0x02,	/* Total Level - channel 0 slot 0 (*1) */
 		LJ_TEST_PART_0, 0x44, 0x7F,	/* Total Level - channel 0 slot 2 (*0.000001f) */
 		LJ_TEST_PART_0, 0x48, 0x7F,	/* Total Level - channel 0 slot 1 (*0.000001f) */
 		LJ_TEST_PART_0, 0x4C, 0x7F,	/* Total Level - channel 0 slot 3 (*0.000001f) */
@@ -667,14 +647,14 @@ static LJ_VGM_UINT8 noteSLProgram[] = {
 		LJ_TEST_PART_0, 0x64, 0x1F,	/* AM/D1R - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x68, 0x1F,	/* AM/D1R - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x6C, 0x0F,	/* AM/D1R - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x70, 0x00,	/* D2R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x70, 0x1A,	/* D2R - channel 0 slot 0 */
 		LJ_TEST_PART_0, 0x74, 0x00,	/* D2R - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x78, 0x00,	/* D2R - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x7C, 0x00,	/* D2R - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x80, 0x1F,	/* D1L/RR - channel 0 slot 0 */
-		LJ_TEST_PART_0, 0x84, 0x1F,	/* D1L/RR - channel 0 slot 2 */
-		LJ_TEST_PART_0, 0x88, 0x1F,	/* D1L/RR - channel 0 slot 1 */
-		LJ_TEST_PART_0, 0x8C, 0x1F,	/* D1L/RR - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x80, 0x1B,	/* D1L/RR - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x84, 0x0F,	/* D1L/RR - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x88, 0x0F,	/* D1L/RR - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x8C, 0x0F,	/* D1L/RR - channel 0 slot 3 */
 		LJ_TEST_PART_0, 0x90, 0x00,	/* SSG - channel 0 slot 0 */
 		LJ_TEST_PART_0, 0x94, 0x00,	/* SSG - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x98, 0x00,	/* SSG - channel 0 slot 1 */
