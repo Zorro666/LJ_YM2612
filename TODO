@@ -1,9 +1,7 @@
 High Priority:
-YM2612:tidyup ADSR update code with helper functions to rate shift counter to all phases
 YM2612:ADSR update numbers can be computed once per output (ADSR rates+key scale rate)- not inside updateEG
 YM2612:add ADSR delta calculation either a table or work out the equation that makes it
-YM2612:attack phase attenuation update output is not correct - log in volume not nearly linear
-YM2612:implement keyrate scaling
+YM2612:more tidyup of ADSR code
 
 Medium Priority:
 YM2612:rename internal _channel functions which work on slots to _slot functions and pass in debug flags
@@ -12,6 +10,7 @@ YM2612:compute max freq value and add it on if freq goes -ve because of detune
 Low Priority:
 YM2612:implement MEM output from OP1 & OP2 for slots - read Steve Strange reply on forums
 YM2612:implement key scale & rate scaling support
+YM2612:sort out edge cases of setting ADSR registers and the outcome e.g. change SL force decay->sustain
 TEST_APP: VGM debug on/off
 
 Future Stuff:
