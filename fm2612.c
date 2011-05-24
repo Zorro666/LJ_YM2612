@@ -1265,6 +1265,7 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
         /* update attenuation level */
         SLOT->volume = prevVolume + ((~prevVolume * EG_inc)>>4);
 /*
+				printf("Attack: EG_inc:%d rate:%d eg_sel_ar:%d eg_sh_ar:%d\n", EG_inc, SLOT->ar-32,SLOT->eg_sel_ar, SLOT->eg_sh_ar);
 				printf("Attack[%d]: new-volume:%d pre-volume:%d delta:%d inc:%d mask:%d timer_add:%d timer_overflow;%d\n", count,
 					SLOT->volume, prevVolume, (SLOT->volume-prevVolume), EG_inc, ((1<<SLOT->eg_sh_ar)-1), OPN->eg_timer_add, OPN->eg_timer_overflow);
 				count++;
