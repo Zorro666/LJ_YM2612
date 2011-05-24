@@ -1260,32 +1260,39 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 			case EG_ATT:    /* attack phase */
 			if (!(OPN->eg_cnt & (UINT32)((1<<SLOT->eg_sh_ar)-1)))
 			{
-			        /* update attenuation level */
-			        SLOT->volume += (~SLOT->volume * (eg_inc[SLOT->eg_sel_ar + ((OPN->eg_cnt>>SLOT->eg_sh_ar)&7)]))>>4;
+				const int prevVolume = SLOT->volume;
+				UINT8 EG_inc = eg_inc[SLOT->eg_sel_ar + ((OPN->eg_cnt>>SLOT->eg_sh_ar)&7)];
+        /* update attenuation level */
+        SLOT->volume = prevVolume + ((~prevVolume * EG_inc)>>4);
+/*
+				printf("Attack[%d]: new-volume:%d pre-volume:%d delta:%d inc:%d mask:%d timer_add:%d timer_overflow;%d\n", count,
+					SLOT->volume, prevVolume, (SLOT->volume-prevVolume), EG_inc, ((1<<SLOT->eg_sh_ar)-1), OPN->eg_timer_add, OPN->eg_timer_overflow);
+				count++;
+*/
 
-			        /* check phase transition*/
-			        if (SLOT->volume <= MIN_ATT_INDEX)
-			        {
-				        SLOT->volume = MIN_ATT_INDEX;
-				        SLOT->state = (SLOT->sl == MIN_ATT_INDEX) ? EG_SUS : EG_DEC; /* special case where SL=0 */
-			        }
+        /* check phase transition*/
+        if (SLOT->volume <= MIN_ATT_INDEX)
+        {
+	        SLOT->volume = MIN_ATT_INDEX;
+	        SLOT->state = (SLOT->sl == MIN_ATT_INDEX) ? EG_SUS : EG_DEC; /* special case where SL=0 */
+        }
 
-			        /* recalculate EG output */
-			        if ((SLOT->ssg&0x08) && (SLOT->ssgn ^ (SLOT->ssg&0x04)))  /* SSG-EG Output Inversion */
+        /* recalculate EG output */
+        if ((SLOT->ssg&0x08) && (SLOT->ssgn ^ (SLOT->ssg&0x04)))  /* SSG-EG Output Inversion */
 					SLOT->vol_out = ((UINT32)(0x200 - SLOT->volume) & MAX_ATT_INDEX) + SLOT->tl;
-			        else
-				        SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
+        else
+	        SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
 			}
 			break;
 
 			case EG_DEC:  /* decay phase */
 			if (!(OPN->eg_cnt & (UINT32)((1<<SLOT->eg_sh_d1r)-1)))
 			{
-			        /* SSG EG type */
-			        if (SLOT->ssg&0x08)
-			        {
-				        /* update attenuation level */
-				        if (SLOT->volume < 0x200)
+        /* SSG EG type */
+        if (SLOT->ssg&0x08)
+        {
+	        /* update attenuation level */
+	        if (SLOT->volume < 0x200)
 					{
 						SLOT->volume += 4 * eg_inc[SLOT->eg_sel_d1r + ((OPN->eg_cnt>>SLOT->eg_sh_d1r)&7)];
 
@@ -1296,28 +1303,29 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 							SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
 					}
 
-			        }
-			        else
-			        {
+        }
+        else
+        {
+					const UINT8 EG_inc = eg_inc[SLOT->eg_sel_d1r + ((OPN->eg_cnt>>SLOT->eg_sh_d1r)&7)];
 					/* update attenuation level */
-					SLOT->volume += eg_inc[SLOT->eg_sel_d1r + ((OPN->eg_cnt>>SLOT->eg_sh_d1r)&7)];
+					SLOT->volume += EG_inc;
 
 					/* recalculate EG output */
 					SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
-			        }
+        }
 
-			        /* check phase transition*/
-			        if (SLOT->volume >= (INT32)(SLOT->sl))
-				        SLOT->state = EG_SUS;
+        /* check phase transition*/
+        if (SLOT->volume >= (INT32)(SLOT->sl))
+		        SLOT->state = EG_SUS;
 			}
 			break;
 
 			case EG_SUS:  /* sustain phase */
 			if (!(OPN->eg_cnt & (UINT32)((1<<SLOT->eg_sh_d2r)-1)))
 			{
-			        /* SSG EG type */
-			        if (SLOT->ssg&0x08)
-			        {
+        /* SSG EG type */
+        if (SLOT->ssg&0x08)
+        {
 					/* update attenuation level */
 					if (SLOT->volume < 0x200)
 					{
@@ -1329,54 +1337,55 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 						else
 							SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
 					}
-			        }
-			        else
-			        {
-				        /* update attenuation level */
-				        SLOT->volume += eg_inc[SLOT->eg_sel_d2r + ((OPN->eg_cnt>>SLOT->eg_sh_d2r)&7)];
+        }
+        else
+        {
+					const UINT8 EG_inc = eg_inc[SLOT->eg_sel_d2r + ((OPN->eg_cnt>>SLOT->eg_sh_d2r)&7)];
+	        /* update attenuation level */
+	        SLOT->volume += EG_inc;
 
-				        /* check phase transition*/
-				        if ( SLOT->volume >= MAX_ATT_INDEX )
-					        SLOT->volume = MAX_ATT_INDEX;
-				        /* do not change SLOT->state (verified on real chip) */
+	        /* check phase transition*/
+	        if ( SLOT->volume >= MAX_ATT_INDEX )
+		        SLOT->volume = MAX_ATT_INDEX;
+	        /* do not change SLOT->state (verified on real chip) */
 
-				        /* recalculate EG output */
-				        SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
-			        }
+	        /* recalculate EG output */
+	        SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
+        }
 			}
 			break;
 
 			case EG_REL:  /* release phase */
 			if (!(OPN->eg_cnt & (UINT32)((1<<SLOT->eg_sh_rr)-1)))
 			{
-			        /* SSG EG type */
-			        if (SLOT->ssg&0x08)
-			        {
-				        /* update attenuation level */
-				        if (SLOT->volume < 0x200)
-					        SLOT->volume += 4 * eg_inc[SLOT->eg_sel_rr + ((OPN->eg_cnt>>SLOT->eg_sh_rr)&7)];
+        /* SSG EG type */
+        if (SLOT->ssg&0x08)
+        {
+	        /* update attenuation level */
+	        if (SLOT->volume < 0x200)
+			        SLOT->volume += 4 * eg_inc[SLOT->eg_sel_rr + ((OPN->eg_cnt>>SLOT->eg_sh_rr)&7)];
 					/* check phase transition */
 					if (SLOT->volume >= 0x200)
 					{
 						SLOT->volume = MAX_ATT_INDEX;
 						SLOT->state = EG_OFF;
 					}
-			        }
-			        else
-			        {
-				        /* update attenuation level */
-				        SLOT->volume += eg_inc[SLOT->eg_sel_rr + ((OPN->eg_cnt>>SLOT->eg_sh_rr)&7)];
+        }
+        else
+        {
+	        /* update attenuation level */
+	        SLOT->volume += eg_inc[SLOT->eg_sel_rr + ((OPN->eg_cnt>>SLOT->eg_sh_rr)&7)];
 
-				        /* check phase transition*/
-				        if (SLOT->volume >= MAX_ATT_INDEX)
-				        {
-					        SLOT->volume = MAX_ATT_INDEX;
-					        SLOT->state = EG_OFF;
-				        }
-			        }
+	        /* check phase transition*/
+	        if (SLOT->volume >= MAX_ATT_INDEX)
+	        {
+		        SLOT->volume = MAX_ATT_INDEX;
+		        SLOT->state = EG_OFF;
+	        }
+        }
 
-			        /* recalculate EG output */
-			        SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
+        /* recalculate EG output */
+        SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
 
 			}
 			break;
@@ -1384,7 +1393,7 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 
 		out = ((UINT32)SLOT->volume);
 
-                /* negate output (changes come from alternate bit, init comes from attack bit) */
+    /* negate output (changes come from alternate bit, init comes from attack bit) */
 		if ((SLOT->ssg&0x08) && (SLOT->ssgn&2) && (SLOT->state > EG_REL))
 			out ^= MAX_ATT_INDEX;
 
