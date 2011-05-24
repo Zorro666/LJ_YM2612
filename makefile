@@ -8,6 +8,7 @@ PROJECTS:=\
 		  gym_test2\
 		  vgm_test\
 		  vgm_test2\
+		  jake_test\
 
 all: $(PROJECTS)
 
