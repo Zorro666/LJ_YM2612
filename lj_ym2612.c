@@ -435,7 +435,7 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 			/* inverted exponential curve: attenuation -= (((increment * attenuation)+15) / 16) : JAKE */
 			attenuationDB = oldDB - deltaDB;
 
-			printf("ATTACK:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);
+			/*printf("ATTACK:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);*/
 
 			if ((attenuationDB == 0) || (attenuationDB > 0x3FF))
 			{
@@ -456,7 +456,7 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		}
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
-			printf("DECAY:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);
+			/*printf("DECAY:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);*/
 			attenuationDB += slotPtr->attenuationDBDelta;
 			if (attenuationDB >= slotPtr->sustainLevelDB)
 			{
@@ -477,7 +477,7 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		}
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
-			printf("SUSTAIN:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);
+			/*printf("SUSTAIN:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);*/
 			attenuationDB += slotPtr->attenuationDBDelta;
 		}
 	}
@@ -493,7 +493,7 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		}
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
-			printf("RELEASE:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);
+			/*printf("RELEASE:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);*/
 			attenuationDB += slotPtr->attenuationDBDelta;
 		}
 	}
