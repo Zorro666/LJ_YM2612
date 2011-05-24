@@ -15,10 +15,12 @@ gym_test
 gym_test2
 vgm_test
 vgm_test2
+jake_test
 gym_test.exe
 gym_test2.exe
 vgm_test.exe
 vgm_test2.exe
+jake_test.exe
 output.raw
 temp.txt
 test.txt
