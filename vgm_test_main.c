@@ -639,7 +639,7 @@ static LJ_VGM_UINT8 noteSLProgram[] = {
 		LJ_TEST_PART_0, 0x44, 0x7F,	/* Total Level - channel 0 slot 2 (*0.000001f) */
 		LJ_TEST_PART_0, 0x48, 0x7F,	/* Total Level - channel 0 slot 1 (*0.000001f) */
 		LJ_TEST_PART_0, 0x4C, 0x7F,	/* Total Level - channel 0 slot 3 (*0.000001f) */
-		LJ_TEST_PART_0, 0x50, 0x55,	/* RS/AR - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x50, 0x57,	/* RS/AR - channel 0 slot 0 */
 		LJ_TEST_PART_0, 0x54, 0x0F,	/* RS/AR - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x58, 0x0F,	/* RS/AR - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x5C, 0x0F,	/* RS/AR - channel 0 slot 3 */
