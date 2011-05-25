@@ -328,10 +328,9 @@ static LJ_YM_UINT32 ym2612_computeEGRate(const int adsrRate, const int keyRateSc
 }
 
 /* From the current rate you get a shift width (1,2,4,8,...) and you only update the envelop every N times of the global counter */
-static LJ_YM_UINT32 ym2612_computeEGUpdateMask(LJ_YM_UINT32 egRate)
+static LJ_YM_UINT32 ym2612_computeEGUpdateShift(LJ_YM_UINT32 egRate)
 {
 	int egRateShift;
-	LJ_YM_UINT32 egRateUpdateMask;
 
 	/* EG rate shift counter is 11 - (egRate / 4 ) but clamped to 0 can't be negative */
 	egRateShift = 11 - ((int)egRate >> 2);
@@ -340,12 +339,33 @@ static LJ_YM_UINT32 ym2612_computeEGUpdateMask(LJ_YM_UINT32 egRate)
 	{
 		egRateShift = 0;
 	}
+	return (LJ_YM_UINT32)egRateShift;
+}
 
+static LJ_YM_UINT32 ym2612_computeEGUpdateMask(LJ_YM_UINT32 egRateShift)
+{
+	LJ_YM_UINT32 egRateUpdateMask;
 	/* if (egCounter % (1 << egRateShift) == 0) then do an update */
 	/* logically the same as if (egCounter & ((1 << egRateShift)-1) == 0x0) */
-	egRateUpdateMask = (LJ_YM_UINT32)((1 << egRateShift) -1);
+	egRateUpdateMask = ((1U << egRateShift) -1U);
 
 	return egRateUpdateMask;
+}
+
+LJ_YM_UINT32 ym2612_computeEGAttenuationDelta(LJ_YM_UINT32 egRate, LJ_YM_UINT32 egCounter, LJ_YM_UINT32 egRateUpdateShift)
+{
+	LJ_YM_UINT32 attenuationDelta = 0;
+	/* cycle is 0-7 within how many times this phase has been updated */
+	const LJ_YM_UINT32 cycle = (egCounter >> egRateUpdateShift) & 0x7;
+
+	/* Hack until work out nicer algorithm or end up with table */
+	attenuationDelta = (1U << ((egRate >> 2U) -12U));
+	if ((attenuationDelta == 0) || (attenuationDelta > 8))
+	{
+		/* Rough approximation alternate on/off */
+		attenuationDelta = (cycle & 0x1);
+	}
+	return attenuationDelta;
 }
 
 static int LJ_YM2612_CLAMP_VOLUME(const int volume) 
@@ -419,23 +439,19 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	if (adsrState == LJ_YM2612_ATTACK)
 	{
 		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->attackRate, keyRateScale);
-		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRate);
-		/* Hack until work out nicer algorithm or end up with table */
-		slotPtr->attenuationDBDelta = (1U << ((egRate >> 2U) -12U));
-		if ((slotPtr->attenuationDBDelta == 0) || (slotPtr->attenuationDBDelta > 8))
-		{
-			slotPtr->attenuationDBDelta = 1;
-		}
-
+		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
+		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRateUpdateShift);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			const LJ_YM_UINT32 oldDB = attenuationDB;
-			const LJ_YM_UINT32 deltaDB = (((oldDB * slotPtr->attenuationDBDelta)+15) >> 4);
+			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
+			const LJ_YM_UINT32 deltaDB = (((oldDB * egAttenuationDelta)+15) >> 4);
 			/* inverted exponential curve: attenuation += increment * ((1024-attenuation) / 16 + 1) : NEMESIS */
 			/* inverted exponential curve: attenuation -= (((increment * attenuation)+15) / 16) : JAKE */
 			attenuationDB = oldDB - deltaDB;
 
-			/*printf("ATTACK:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);*/
+			printf("ATTACK:attDBdelta:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n", 
+					egAttenuationDelta, egRate, egCounter, egRateUpdateShift);
 
 			if ((attenuationDB == 0) || (attenuationDB > 0x3FF))
 			{
@@ -447,17 +463,13 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	else if (adsrState == LJ_YM2612_DECAY)
 	{
 		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->decayRate, keyRateScale);
-		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRate);
-		/* Hack until work out nicer algorithm or end up with table */
-		slotPtr->attenuationDBDelta = (1U << ((egRate >> 2U) -12U));
-		if ((slotPtr->attenuationDBDelta == 0) || (slotPtr->attenuationDBDelta > 8))
-		{
-			slotPtr->attenuationDBDelta = 1;
-		}
+		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
+		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRateUpdateShift);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
-			/*printf("DECAY:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);*/
-			attenuationDB += slotPtr->attenuationDBDelta;
+			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
+			attenuationDB += egAttenuationDelta;
+			/*printf("DECAY:attDBdelta:%d egRate:%d\n", egAttenuationDelta, egRate);*/
 			if (attenuationDB >= slotPtr->sustainLevelDB)
 			{
 				attenuationDB = slotPtr->sustainLevelDB;
@@ -468,33 +480,25 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	else if (adsrState == LJ_YM2612_SUSTAIN)
 	{
 		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->sustainRate, keyRateScale);
-		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRate);
-		/* Hack until work out nicer algorithm or end up with table */
-		slotPtr->attenuationDBDelta = (1U << ((egRate >> 2U) -12U));
-		if ((slotPtr->attenuationDBDelta == 0) || (slotPtr->attenuationDBDelta > 8))
-		{
-			slotPtr->attenuationDBDelta = 1;
-		}
+		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
+		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRateUpdateShift);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
-			/*printf("SUSTAIN:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);*/
-			attenuationDB += slotPtr->attenuationDBDelta;
+			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
+			attenuationDB += egAttenuationDelta;
+			/*printf("SUSTAIN:attDBdelta:%d egRate:%d\n", egAttenuationDelta, egRate);*/
 		}
 	}
 	else if (adsrState == LJ_YM2612_RELEASE)
 	{
 		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->releaseRate, keyRateScale);
-		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRate);
-		/* Hack until work out nicer algorithm or end up with table */
-		slotPtr->attenuationDBDelta = (1U << ((egRate >> 2U) -12U));
-		if ((slotPtr->attenuationDBDelta == 0) || (slotPtr->attenuationDBDelta > 8))
-		{
-			slotPtr->attenuationDBDelta = 1;
-		}
+		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
+		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRateUpdateShift);
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
-			/*printf("RELEASE:attDBdelta:%d egRate:%d\n", slotPtr->attenuationDBDelta, egRate);*/
-			attenuationDB += slotPtr->attenuationDBDelta;
+			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
+			attenuationDB += egAttenuationDelta;
+			/*printf("RELEASE:attDBdelta:%d egRate:%d\n", egAttenuationDelta, egRate);*/
 		}
 	}
 
@@ -508,6 +512,10 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	else
 	{
 		slotVolumeDB = attenuationDB;
+	}
+	if (attenuationDB > 0x3FF)
+	{
+		attenuationDB = 0x3FF;
 	}
 	slotPtr->attenuationDB = attenuationDB;
 
