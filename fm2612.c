@@ -164,8 +164,6 @@
 
 #define FREQ_MASK		((1<<FREQ_SH)-1)
 
-#define MAXOUT    (+32767)
-#define MINOUT    (-32768)
 
 /* envelope generator */
 #define ENV_BITS		10
@@ -504,36 +502,6 @@ static INT32 lfo_pm_table[128*8*32]; /* 128 combinations of 7 bits meaningful (o
 #define SLOT2 2
 #define SLOT3 1
 #define SLOT4 3
-
-/* bit0 = Right enable , bit1 = Left enable */
-#define OUTD_RIGHT  1
-#define OUTD_LEFT   2
-#define OUTD_CENTER 3
-
-
-/* save output as raw 16-bit sample */
-/*define SAVE_SAMPLE */
-
-#ifdef SAVE_SAMPLE
-static FILE *sample[1];
-	#if 1	/*save to MONO file */
-		#define SAVE_ALL_CHANNELS \
-		{	signed int pom = lt; \
-			fputc((unsigned short)pom&0xff,sample[0]); \
-			fputc(((unsigned short)pom>>8)&0xff,sample[0]); \
-		}
-	#else	/*save to STEREO file */
-		#define SAVE_ALL_CHANNELS \
-		{	signed int pom = lt; \
-			fputc((unsigned short)pom&0xff,sample[0]); \
-			fputc(((unsigned short)pom>>8)&0xff,sample[0]); \
-			pom = rt; \
-			fputc((unsigned short)pom&0xff,sample[0]); \
-			fputc(((unsigned short)pom>>8)&0xff,sample[0]); \
-		}
-	#endif
-#endif
-
 
 /* struct describing a single operator (SLOT) */
 typedef struct
@@ -959,7 +927,7 @@ INLINE void TimerAOver(FM_ST *ST)
 	/* set status (if enabled) */
 	if(ST->mode & 0x04) FM_STATUS_SET(ST,0x01);
 	/* clear or reload the counter */
-	ST->TAC = (1024-ST->TA);
+	ST->TAC += (1024-ST->TA);
 	if (ST->timer_handler) (ST->timer_handler)(ST->param,0,(int)ST->TAC * (int)ST->timer_prescaler,(int)ST->clock);
 }
 /* Timer B Overflow */
@@ -968,7 +936,7 @@ INLINE void TimerBOver(FM_ST *ST)
 	/* set status (if enabled) */
 	if(ST->mode & 0x08) FM_STATUS_SET(ST,0x02);
 	/* clear or reload the counter */
-	ST->TBC = ( 256-ST->TB)<<4;
+	ST->TBC += ( 256-ST->TB)<<4;
 	if (ST->timer_handler) (ST->timer_handler)(ST->param,1,(int)ST->TBC * (int)ST->timer_prescaler,(int)ST->clock);
 }
 
@@ -1866,10 +1834,13 @@ static void OPNWriteReg(FM_OPN *OPN, int r, int v)
 		SLOT->ssg  =  v&0x0f;
 
 	      /* recalculate EG output */
-		if ((SLOT->ssg&0x08) && (SLOT->ssgn ^ (SLOT->ssg&0x04)) && (SLOT->state > EG_REL))
+      if (SLOT->state > EG_REL)
+      {
+        if ((SLOT->ssg&0x08) && (SLOT->ssgn ^ (SLOT->ssg&0x04)))
 			SLOT->vol_out = ((UINT32)(0x200 - SLOT->volume) & MAX_ATT_INDEX) + SLOT->tl;
 		else
 			SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
+      }
 
 		/* SSG-EG envelope shapes :
 
@@ -2136,8 +2107,8 @@ static void init_tables(void)
 		/*            any value above 13 (included) would be discarded.                             */
 		for (i=1; i<13; i++)
 		{
-			tl_tab[ x*2+0 + i*2*TL_RES_LEN ] =  tl_tab[ x*2+0 ]>>i;
-			tl_tab[ x*2+1 + i*2*TL_RES_LEN ] = -tl_tab[ x*2+0 + i*2*TL_RES_LEN ];
+      tl_tab[ x*2+0 + i*2*TL_RES_LEN ] =  (tl_tab[ x*2+0 ]>>i);
+      tl_tab[ x*2+1 + i*2*TL_RES_LEN ] = -tl_tab[ x*2+0 + i*2*TL_RES_LEN ];
 		}
 	}
 
@@ -2363,12 +2334,15 @@ void ym2612_update_one(void *chip, FMSAMPLE **buffer, int length)
 		INTERNAL_TIMER_A( &OPN->ST , cch[2] )
 
 		/* CSM Mode Key ON still disabled */
-		/* CSM Mode Key OFF (verified by Nemesis on real hardware) */
-		FM_KEYOFF_CSM(cch[2],SLOT1);
-		FM_KEYOFF_CSM(cch[2],SLOT2);
-		FM_KEYOFF_CSM(cch[2],SLOT3);
-		FM_KEYOFF_CSM(cch[2],SLOT4);
-		OPN->SL3.key_csm = 0;
+    if (OPN->SL3.key_csm & 2)
+    {
+			/* CSM Mode Key OFF (verified by Nemesis on real hardware) */
+			FM_KEYOFF_CSM(cch[2],SLOT1);
+			FM_KEYOFF_CSM(cch[2],SLOT2);
+			FM_KEYOFF_CSM(cch[2],SLOT3);
+			FM_KEYOFF_CSM(cch[2],SLOT4);
+			OPN->SL3.key_csm = 0;
+		}
 	}
 
 	/* timer B control */
