@@ -182,9 +182,8 @@ static LJ_YM_UINT8 LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2
 /* EG circuit timer units fixed point */
 #define LJ_YM2612_EG_TIMER_NUM_BITS (16)
 
-/* Some argument on this value from looking at the forums: MAME = 3, Nemesis (on PAL MD) adamant it is 2.4375 */
-#define LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE (3.0f) /* MAME */
-/* #define LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE (2.4375f) */ /* NEMESIS */
+/* From looking at the forums */
+#define LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE (3.0f) 
 
 /* Timer A & Timer B units fixed point */
 #define LJ_YM2612_TIMER_NUM_BITS (16)
@@ -2102,7 +2101,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					ym2612Ptr->statusA = 0x1;
 				}
 				/* See forum posts by Nemesis - timer A is at FM sample output (144 clock cycles) - docs are wrong */
-				ym2612Ptr->timerAcounter = ((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
+				ym2612Ptr->timerAcounter += ((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
 
 				/* TODO:CSM mode handling here */
 			}
@@ -2119,7 +2118,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					ym2612Ptr->statusB = 0x1;
 				}
 				/* timer B is *16 compared to timer A which at FM sample output (144 clock cycles) */
-				ym2612Ptr->timerBcounter = (((256 - ym2612Ptr->timerBvalue) << 4) << LJ_YM2612_TIMER_NUM_BITS);
+				ym2612Ptr->timerBcounter += (((256 - ym2612Ptr->timerBvalue) << 4) << LJ_YM2612_TIMER_NUM_BITS);
 			}
 		}
 	}
