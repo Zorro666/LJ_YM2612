@@ -181,12 +181,13 @@ static LJ_YM_UINT8 LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2
 
 /* EG circuit timer units fixed point */
 #define LJ_YM2612_EG_TIMER_NUM_BITS (16)
-#define LJ_YM2612_EG_TIMER_NUM_ENTRIES (1 << LJ_YM2612_EG_TIMER_NUM_BITS)
-#define LJ_YM2612_EG_TIMER_MASK ((1 << LJ_YM2612_EG_TIMER_NUM_BITS) - 1)
 
 /* Some argument on this value from looking at the forums: MAME = 3, Nemesis (on PAL MD) adamant it is 2.4375 */
 #define LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE (3.0f) /* MAME */
 /* #define LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE (2.4375f) */ /* NEMESIS */
+
+/* Timer A & Timer B units fixed point */
+#define LJ_YM2612_TIMER_NUM_BITS (16)
 
 typedef enum LJ_YM2612_ADSR {
 	LJ_YM2612_UNKNOWN,
@@ -304,6 +305,7 @@ struct LJ_YM2612
 	int dacValue;
 	int dacEnable;
 
+	LJ_YM_UINT8 statusOutput;
 	LJ_YM_UINT8 D07;
 	LJ_YM_UINT8 regAddress;
 	LJ_YM_UINT8 slotWriteAddr;	
@@ -1125,6 +1127,7 @@ static void ym2612_setTimers(LJ_YM2612* const ym2612Ptr)
 	/* Reset B = Bit 5, Reset A = Bit 4, Enable B = Bit 3, Enable A = Bit 2, Start B = Bit 1, Start A = Bit 0 */
 	if (timerMode & 0x01)
 	{
+		/* See forum posts by Nemesis - only load register if it is stopped */
 		if (ym2612Ptr->timerAcounter == 0)
 		{
 			ym2612Ptr->timerAcounter = ym2612Ptr->timerAvalue;
@@ -1136,6 +1139,7 @@ static void ym2612_setTimers(LJ_YM2612* const ym2612Ptr)
 	}
 	if (timerMode & 0x02)
 	{
+		/* See forum posts by Nemesis - only load register if it is stopped */
 		if (ym2612Ptr->timerBcounter == 0)
 		{
 			ym2612Ptr->timerBcounter = ym2612Ptr->timerBvalue;
@@ -1282,6 +1286,11 @@ static void ym2612_makeData(LJ_YM2612* const ym2612Ptr)
 */
 
 	ym2612_egMakeData(&ym2612Ptr->eg, ym2612Ptr);
+
+	/* FM output timer is (clockRate/144) but update code is every sampleRate times of that in the use of this code */
+	/* This is a counter in the units of FM output samples : which is (clockRate/sampleRate)/144 = ym2612Ptr->baseFreqScale */
+	/* which is the base units for Timer A and Timer B is 16*base units */
+	ym2612Ptr->timerAddPerOutputSample = (int)( (float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_TIMER_NUM_BITS));
 }
 
 static void ym2612_clear(LJ_YM2612* const ym2612Ptr)
@@ -1294,6 +1303,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612Ptr)
 	ym2612Ptr->baseFreqScale = 0.0f;
 	ym2612Ptr->regAddress = 0x0;	
 	ym2612Ptr->slotWriteAddr = 0xFF;	
+	ym2612Ptr->statusOutput = 0x0;
 	ym2612Ptr->D07 = 0x0;
 	ym2612Ptr->clockRate = 0;
 	ym2612Ptr->outputSampleRate = 0;
@@ -2088,8 +2098,9 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				{
 					ym2612Ptr->statusA = 0x1;
 				}
-				/* timer A is at FM sample output (144 clock cycles) */
-				ym2612Ptr->timerAcounter = (1024 - ym2612Ptr->timerAvalue);
+				/* See forum posts by Nemesis - timer A is at FM sample output (144 clock cycles) - docs are wrong */
+				ym2612Ptr->timerAcounter = (int)((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
+
 				/* TODO:CSM mode handling here */
 			}
 		}
@@ -2105,7 +2116,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					ym2612Ptr->statusB = 0x1;
 				}
 				/* timer B is *16 compared to timer A which at FM sample output (144 clock cycles) */
-				ym2612Ptr->timerBcounter = (256 - ym2612Ptr->timerBvalue) << 4;
+				ym2612Ptr->timerBcounter = (int)(((256 - ym2612Ptr->timerBvalue) << 4) << LJ_YM2612_TIMER_NUM_BITS);
 			}
 		}
 	}
@@ -2126,11 +2137,48 @@ LJ_YM2612_RESULT LJ_YM2612_setDataPinsD07(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT
 	return LJ_YM2612_OK;
 }
 
+/* To read a value on the data pins D0-D7 - use to get back the status register */
+/* call setAddressPinsCSRDWRA1A0 to put the status register output onto the pins */
+LJ_YM2612_RESULT LJ_YM2612_getDataPinsD07(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8* const data)
+{
+	LJ_YM_UINT8 statusValue;
+	if (ym2612Ptr == NULL)
+	{
+		fprintf(stderr, "LJ_YM2612_getDataPinsD07:ym2612 is NULL\n");
+		return LJ_YM2612_ERROR;
+	}
+
+	if (data == NULL)
+	{
+		fprintf(stderr, "LJ_YM2612_getDataPinsD07:data is NULL\n");
+		return LJ_YM2612_ERROR;
+	}
+
+	if (ym2612Ptr->statusOutput == 0)
+	{
+		fprintf(stderr, "LJ_YM2612_getDataPinsD07:ym2612 address pins not set to read mode\n");
+		return LJ_YM2612_ERROR;
+	}
+	/* A1 = 0, A0 = 0 : D0-D7 will then contain status 0 value - timer A */
+	/* A1 = 1, A0 = 0 : D0-D7 will then contain status 1 value - timer B */
+	/* But Nemesis forum posts say any combination of A1/A0 work and just return the same status value */
+	statusValue = 0;
+	statusValue = (LJ_YM_UINT8)(statusValue | ((ym2612Ptr->statusA & 0x1) << 0));
+	statusValue = (LJ_YM_UINT8)(statusValue | ((ym2612Ptr->statusB & 0x1) << 1));
+	*data = statusValue;
+
+	return LJ_YM2612_OK;
+}
+
 /* To write data must have: notCS = 0, notRD = 1, notWR = 0 */
 /* A1 = 0, A0 = 0 : D0-D7 is latched as the register address for part 0 i.e. Genesis memory address 0x4000 */
 /* A1 = 0, A0 = 1 : D0-D7 is written to the latched register address for part 0 i.e. Genesis memory address 0x4001 */
 /* A1 = 1, A0 = 0 : D0-D7 is latched as the register address for part 1 i.e. Genesis memory address 0x4002 */
 /* A1 = 1, A0 = 1 : D0-D7 is written to the latched register address for part 1 i.e. Genesis memory address 0x4003 */
+/* To read data must have: notCS = 0, notRD = 0, notWR = 1 */
+/* A1 = 0, A0 = 0 : D0-D7 will then contain status 0 value - timer A */
+/* A1 = 1, A0 = 0 : D0-D7 will then contain status 1 value - timer B */
+/* Nemesis forum posts say any combination of A1/A0 work and just return the same status value */
 LJ_YM2612_RESULT LJ_YM2612_setAddressPinsCSRDWRA1A0(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 notCS, LJ_YM_UINT8 notRD, LJ_YM_UINT8 notWR, 
 																						 				LJ_YM_UINT8 A1, LJ_YM_UINT8 A0)
 {
@@ -2146,14 +2194,15 @@ LJ_YM2612_RESULT LJ_YM2612_setAddressPinsCSRDWRA1A0(LJ_YM2612* const ym2612Ptr, 
 	}
 	if ((notRD == 0) && (notWR == 1))
 	{
-		/* !RD = 0 !WR = 1 means a read not a write */
-		/* Read not supported yet */
-		fprintf(stderr, "LJ_YM2612_setAddressPinsCSRDWRA1A0:read is not supported\n");
-		return LJ_YM2612_ERROR;
+		/* !RD = 0 !WR = 1 means a read */
+		ym2612Ptr->statusOutput = 1;
+		return LJ_YM2612_OK;
 	}
 	if ((notRD == 1) && (notWR == 0))
 	{
 		/* !RD = 1 !WR = 0 means a write */
+		ym2612Ptr->statusOutput = 0;
+
 		/* A0 = 0 means D0-7 is register address, A1 is part 0/1 */
 		if ((A0 == 0) && ((A1 == 0) || (A1 == 1)))
 		{
