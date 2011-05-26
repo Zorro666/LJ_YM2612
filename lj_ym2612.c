@@ -1521,7 +1521,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 	else if (reg == LJ_TIMER_A_LSB)
 	{
 		/* 0x25 TIMER A LSB : Bits 0-1 = bottom 2-bits of timer A value */
-		ym2612Ptr->timerAvalue = (LJ_YM_UINT16)(ym2612Ptr->timerAvalue | (data & 0x3));
+		ym2612Ptr->timerAvalue = (LJ_YM_UINT16)((ym2612Ptr->timerAvalue & ~0x3) | (data & 0x3));
 	}
 	else if (reg == LJ_TIMER_B)
 	{
