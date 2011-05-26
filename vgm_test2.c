@@ -37,6 +37,13 @@ int device_ym2612_write(void* const ym2612, const int address, const int data)
 	return ym2612_write(ym2612, address, (UINT8)data);
 }
 
+int device_ym2612_getStatus(void* const ym2612, const int address, unsigned char* status)
+{
+	int result = LJ_VGM_TEST_OK;
+	*status = ym2612_read(ym2612, address);
+	return result;
+}
+
 int device_ym2612_generateOutput(void* const ym2612, const int numCycles, short* output[2])
 {
 	FMSAMPLE* fmOutput[2];

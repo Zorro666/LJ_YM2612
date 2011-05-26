@@ -14,6 +14,7 @@ enum DVICE_YM2612_FLAGS {
 void* device_ym2612_create(const int clockRate, const int outputSamplerate, const unsigned int flags);
 int device_ym2612_write(void* const ym2612, const int address, const int data);
 int device_ym2612_generateOutput(void* const ym2612, const int numCycles, short* output[2]);
+int device_ym2612_getStatus(void* const ym2612, const int address, unsigned char* status);
 int device_ym2612_destroy(void* ym2612);
 
 char* getWavOutputName(const char* const inputName);

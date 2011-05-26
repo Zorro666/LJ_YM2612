@@ -47,6 +47,20 @@ int device_ym2612_write(void* const ym2612, const int address, const int data)
 	return result;
 }
 
+int device_ym2612_getStatus(void* const ym2612, const int address, unsigned char* status)
+{
+	int result = LJ_VGM_TEST_ERROR;
+	const LJ_YM_UINT8 notCS = 0;
+	const LJ_YM_UINT8 notRD = 0;
+	const LJ_YM_UINT8 notWR = 1;
+	const LJ_YM_UINT8 A0 = (address >> 0) & 0x1;
+	const LJ_YM_UINT8 A1 = (address >> 1) & 0x1;
+	result = LJ_YM2612_setAddressPinsCSRDWRA1A0(ym2612, notCS, notRD, notWR, A1, A0);
+	result = LJ_YM2612_getDataPinsD07(ym2612, status);
+	
+	return result;
+}
+
 int device_ym2612_generateOutput(void* const ym2612, const int numCycles, short* output[2])
 {
 	return LJ_YM2612_generateOutput(ym2612, numCycles, output);
