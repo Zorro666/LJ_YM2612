@@ -189,7 +189,7 @@ static LJ_YM_UINT8 LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2
 #define LJ_YM2612_TIMER_NUM_BITS (16)
 
 typedef enum LJ_YM2612_ADSR {
-	LJ_YM2612_UNKNOWN,
+	LJ_YM2612_OFF,
 	LJ_YM2612_ATTACK,
 	LJ_YM2612_DECAY,
 	LJ_YM2612_SUSTAIN,
@@ -230,7 +230,7 @@ struct LJ_YM2612_SLOT
 	LJ_YM_UINT8 detune;
 	LJ_YM_UINT8 multiple;
 
-	LJ_YM_UINT8 keyOn;
+	LJ_YM_UINT8 normalKeyOn;
 
 	LJ_YM_UINT8 omegaDirty;
 };
@@ -309,6 +309,7 @@ struct LJ_YM2612
 	LJ_YM_UINT8 regAddress;
 	LJ_YM_UINT8 slotWriteAddr;	
 
+	LJ_YM_UINT8 csmKeyOn;
 	LJ_YM_UINT8 ch2Mode;
 	LJ_YM_UINT8 lfoEnable;
 	LJ_YM_UINT8 lfoFreq;
@@ -427,6 +428,41 @@ static int ym2612_computeOmegaDelta(const int fnum, const int block, const int m
 	omegaDelta = (omegaDelta * multiple) >> 1;
 
 	return omegaDelta;
+}
+
+static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 csmKeyOn, const LJ_YM_UINT32 debugFlags)
+{
+	/* Only key on if keyed off normally and CSM mode key off */
+	if ((slotPtr->normalKeyOn == 0) && (csmKeyOn == 0))
+	{
+		/* TODO: handle special cases of going straight into decay/sustain */
+		slotPtr->omega = 0;
+		slotPtr->fmInputDelta = 0;
+		slotPtr->adsrState = LJ_YM2612_ATTACK;
+		slotPtr->attenuationDBDelta = 0;
+	}
+
+	if (debugFlags & LJ_YM2612_DEBUG)
+	{
+	}
+}
+
+static void ym2612_slotKeyOFF(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT32 debugFlags)
+{
+	/* Handle the channel being OFF (release mode leads to volume being 0) OR ADSR state OFF */
+	slotPtr->adsrState = LJ_YM2612_RELEASE;
+
+	if (debugFlags & LJ_YM2612_DEBUG)
+	{
+	}
+}
+
+static void ym2612_slotCSMKeyOFF(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT32 debugFlags)
+{
+	if (slotPtr->normalKeyOn == 0)
+	{
+		ym2612_slotKeyOFF(slotPtr, debugFlags);
+	}
 }
 
 static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT32 egCounter)
@@ -979,10 +1015,11 @@ static void ym2612_channelSetBlockFnumMSB(LJ_YM2612_CHANNEL* const channelPtr, c
 	channelPtr->block_fnumMSB = data;
 }
 
-static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 slotOnOff)
+static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 csmKeyOn, const LJ_YM_UINT8 slotOnOff)
 {
 	int i;
 	int slotMask = 0x1;
+	LJ_YM_UINT32 debugFlags = channelPtr->debugFlags;
 	/* Set the start of wave */
 	for (i = 0; i < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; i++)
 	{
@@ -991,22 +1028,17 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 
 		if (slotOnOff & slotMask)
 		{
-			if (slotPtr->keyOn == 0)
-			{
-				slotPtr->keyOn = 1;
-				slotPtr->omega = 0;
-				slotPtr->fmInputDelta = 0;
-				slotPtr->adsrState = LJ_YM2612_ATTACK;
-				slotPtr->attenuationDBDelta = 0;
-			}
+			ym2612_slotKeyON(slotPtr, csmKeyOn, debugFlags);
+			slotPtr->normalKeyOn = 1;
 		}
 		else
 		{
-			if (slotPtr->keyOn == 1)
+			/* Only key off if keyed on normally and CSM mode key off */
+			if ((slotPtr->normalKeyOn == 1) && (csmKeyOn == 0))
 			{
-				slotPtr->keyOn = 0;
-				slotPtr->adsrState = LJ_YM2612_RELEASE;
+				ym2612_slotKeyOFF(slotPtr, debugFlags);
 			}
+			slotPtr->normalKeyOn = 0;
 		}
 		slotMask = slotMask << 1;
 	}
@@ -1032,7 +1064,7 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 	slotPtr->modulationOutput[1] = NULL;
 	slotPtr->modulationOutput[2] = NULL;
 
-	slotPtr->adsrState = LJ_YM2612_UNKNOWN;
+	slotPtr->adsrState = LJ_YM2612_OFF;
 
 	slotPtr->keyScale = 0;
 
@@ -1045,7 +1077,7 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 
 	slotPtr->am = 0;
 
-	slotPtr->keyOn = 0;
+	slotPtr->normalKeyOn = 0;
 
 	slotPtr->omegaDirty = 1;
 
@@ -1120,9 +1152,11 @@ static void ym2612_egClear(LJ_YM2612_EG* const egPtr)
 	egPtr->counter = 0;
 }
 
-static void ym2612_setTimers(LJ_YM2612* const ym2612Ptr)
+static void ym2612_timerModeChanged(LJ_YM2612* const ym2612Ptr)
 {
 	const LJ_YM_UINT8 timerMode = ym2612Ptr->timerMode;
+	const LJ_YM_UINT8 csmKeyOn = ym2612Ptr->csmKeyOn;
+	const LJ_YM_UINT32 debugFlags = ym2612Ptr->debugFlags;
 	/* Reset B = Bit 5, Reset A = Bit 4, Enable B = Bit 3, Enable A = Bit 2, Start B = Bit 1, Start A = Bit 0 */
 	if (timerMode & 0x01)
 	{
@@ -1158,6 +1192,19 @@ static void ym2612_setTimers(LJ_YM2612* const ym2612Ptr)
 	if (timerMode & 0x20)
 	{
 		ym2612Ptr->statusB = 0x0;
+	}
+	/* if CSM mode got turned off when they were on then key off */
+	if (((ym2612Ptr->ch2Mode & 0x80) == 0x0) && (csmKeyOn ==1))
+	{
+		/* Key OFF via CSM */
+		LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
+		int slot;
+		for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
+		{
+			LJ_YM2612_SLOT* const slotPtr = &(ch2Ptr->slot[slot]);
+			ym2612_slotCSMKeyOFF(slotPtr, debugFlags);
+		}
+    ym2612Ptr->csmKeyOn = 0;
 	}
 }
 
@@ -1309,6 +1356,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612Ptr)
 	ym2612Ptr->D07 = 0x0;
 	ym2612Ptr->clockRate = 0;
 	ym2612Ptr->outputSampleRate = 0;
+	ym2612Ptr->csmKeyOn = 0;
 	ym2612Ptr->ch2Mode = 0;
 	ym2612Ptr->lfoEnable = 0;
 	ym2612Ptr->lfoFreq = 0;
@@ -1534,7 +1582,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		ym2612Ptr->ch2Mode = (data >> 6) & 0x3;
 	
 		ym2612Ptr->timerMode = (data & 0x3F);
-		ym2612_setTimers(ym2612Ptr);
+		ym2612_timerModeChanged(ym2612Ptr);
 		return LJ_YM2612_OK;
 	}
 	else if (reg == LJ_DAC_EN)
@@ -1564,7 +1612,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 			
 			LJ_YM2612_CHANNEL* const channelPtr = &ym2612Ptr->part[partParam].channel[channel];
 
-			ym2612_channelKeyOnOff(channelPtr, slotOnOff);
+			ym2612_channelKeyOnOff(channelPtr, ym2612Ptr->csmKeyOn, slotOnOff);
 			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_KEY_ONFF part:%d channel:%d slotOnOff:0x%X data:0x%X\n", partParam, channel, slotOnOff, data);
@@ -1869,6 +1917,9 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 		int mixedRight = 0;
 		short outL = 0;
 		short outR = 0;
+
+		const LJ_YM_UINT8 csmKeyOn = ym2612Ptr->csmKeyOn;
+		LJ_YM_UINT8 csmKeyOff = ym2612Ptr->csmKeyOn;
 	
 		/* DAC enable blocks channel 5 */
 		const int numChannelsToProcess = ym2612Ptr->dacEnable ? LJ_YM2612_NUM_CHANNELS_TOTAL-1 : LJ_YM2612_NUM_CHANNELS_TOTAL;
@@ -2089,6 +2140,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				}
 			}
 		}
+
 		/* Timer A update */
 		if (ym2612Ptr->timerAcounter > 0)
 		{
@@ -2103,9 +2155,35 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				/* See forum posts by Nemesis - timer A is at FM sample output (144 clock cycles) - docs are wrong */
 				ym2612Ptr->timerAcounter += ((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
 
-				/* TODO:CSM mode handling here */
+				/* CSM mode */
+      	if ((ym2612Ptr->ch2Mode & 0x80) == 0x80)
+				{
+					/* Key ON via CSM */
+					LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
+					for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
+					{
+						LJ_YM2612_SLOT* const slotPtr = &(ch2Ptr->slot[slot]);
+						ym2612_slotKeyON(slotPtr, csmKeyOn, debugFlags);
+					}
+					ym2612Ptr->csmKeyOn = 1;
+					csmKeyOff = 0;
+				}
 			}
 		}
+
+		/* If CSM key on was on before this timer A update then do CSM key off unless timer did overflow */
+		if (csmKeyOff == 1)
+		{
+			/* Key OFF via CSM */
+			LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
+			for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
+			{
+				LJ_YM2612_SLOT* const slotPtr = &(ch2Ptr->slot[slot]);
+				ym2612_slotCSMKeyOFF(slotPtr, debugFlags);
+			}
+      ym2612Ptr->csmKeyOn = 0;
+		}
+
 		/* Timer B update */
 		if (ym2612Ptr->timerBcounter > 0)
 		{
