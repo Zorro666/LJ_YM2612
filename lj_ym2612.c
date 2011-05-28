@@ -208,7 +208,6 @@ struct LJ_YM2612_SLOT
 
 	int volume;
 	unsigned int attenuationDB;
-	unsigned int attenuationDBDelta;
 
 	/* Algorithm support */
 	int fmInputDelta;
@@ -298,6 +297,7 @@ struct LJ_YM2612
 
 	LJ_YM_UINT32 clockRate;
 	LJ_YM_UINT32 outputSampleRate;
+	LJ_YM_UINT32 sampleCount;
 
 	LJ_YM_UINT32 debugFlags;
 
@@ -435,11 +435,11 @@ static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 cs
 	/* Only key on if keyed off normally and CSM mode key off */
 	if ((slotPtr->normalKeyOn == 0) && (csmKeyOn == 0))
 	{
+		printf("Slot[%d] key on\n",slotPtr->id);
 		/* TODO: handle special cases of going straight into decay/sustain */
 		slotPtr->omega = 0;
 		slotPtr->fmInputDelta = 0;
 		slotPtr->adsrState = LJ_YM2612_ATTACK;
-		slotPtr->attenuationDBDelta = 0;
 	}
 
 	if (debugFlags & LJ_YM2612_DEBUG)
@@ -1048,7 +1048,6 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 {
 	slotPtr->volume = 0;
 	slotPtr->attenuationDB = 1023;
-	slotPtr->attenuationDBDelta = 0;
 
 	slotPtr->detune = 0;
 	slotPtr->multiple = 0;
@@ -1194,7 +1193,7 @@ static void ym2612_timerModeChanged(LJ_YM2612* const ym2612Ptr)
 		ym2612Ptr->statusB = 0x0;
 	}
 	/* if CSM mode got turned off when they were on then key off */
-	if (((ym2612Ptr->ch2Mode & 0x80) == 0x0) && (csmKeyOn ==1))
+	if (((ym2612Ptr->ch2Mode & 0x2) == 0x0) && (csmKeyOn ==1))
 	{
 		/* Key OFF via CSM */
 		LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
@@ -1356,6 +1355,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612Ptr)
 	ym2612Ptr->D07 = 0x0;
 	ym2612Ptr->clockRate = 0;
 	ym2612Ptr->outputSampleRate = 0;
+	ym2612Ptr->sampleCount = 0;
 	ym2612Ptr->csmKeyOn = 0;
 	ym2612Ptr->ch2Mode = 0;
 	ym2612Ptr->lfoEnable = 0;
@@ -2156,10 +2156,11 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				ym2612Ptr->timerAcounter += ((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
 
 				/* CSM mode */
-      	if ((ym2612Ptr->ch2Mode & 0x80) == 0x80)
+      	if ((ym2612Ptr->ch2Mode & 0x2) == 0x2)
 				{
 					/* Key ON via CSM */
 					LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
+					printf("%d CSM KeyON\n", ym2612Ptr->sampleCount);
 					for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 					{
 						LJ_YM2612_SLOT* const slotPtr = &(ch2Ptr->slot[slot]);
@@ -2176,6 +2177,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 		{
 			/* Key OFF via CSM */
 			LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
+			printf("%d CSM KeyOFF\n", ym2612Ptr->sampleCount);
 			for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 			{
 				LJ_YM2612_SLOT* const slotPtr = &(ch2Ptr->slot[slot]);
@@ -2199,6 +2201,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				ym2612Ptr->timerBcounter += (((256 - ym2612Ptr->timerBvalue) << 4) << LJ_YM2612_TIMER_NUM_BITS);
 			}
 		}
+
+		ym2612Ptr->sampleCount++;
 	}
 
 	return LJ_YM2612_OK;
