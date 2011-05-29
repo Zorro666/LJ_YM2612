@@ -975,7 +975,7 @@ static LJ_VGM_UINT8 timerProgram[] = {
 		LJ_TEST_PART_0, 0x24, 0x00,	/* Timer A MSB */
 		LJ_TEST_PART_0, 0x25, 0x00,	/* Timer A LSB */
 		LJ_TEST_PART_0, 0x26, 0x00,	/* Timer B */
-		LJ_TEST_PART_0, 0x27, 0x0F,	/* Channel 3 mode normal : Timer A & B enable : Timer A & B load */
+		LJ_TEST_PART_0, 0x27, 0x8F,	/* Channel 2 mode CSM : Timer A & B enable : Timer A & B load */
 		LJ_TEST_PART_0, 0x28, 0x00,	/* All channels off */
 		LJ_TEST_PART_0, 0x28, 0x01,	/* All channels off */
 		LJ_TEST_PART_0, 0x28, 0x02,	/* All channels off */
@@ -983,42 +983,41 @@ static LJ_VGM_UINT8 timerProgram[] = {
 		LJ_TEST_PART_0, 0x28, 0x05,	/* All channels off */
 		LJ_TEST_PART_0, 0x28, 0x06,	/* All channels off */
 		LJ_TEST_PART_0, 0x2B, 0x00,	/* DAC off */
-		LJ_TEST_PART_0, 0x30, 0x01,	/* DT1/MUL - channel 0 slot 0 : DT=0 MUL=1 */
-		LJ_TEST_PART_0, 0x34, 0x01,	/* DT1/MUL - channel 0 slot 2 : DT=0 MUL=1 */
-		LJ_TEST_PART_0, 0x38, 0x01,	/* DT1/MUL - channel 0 slot 1 : DT=0 MUL=1 */
-		LJ_TEST_PART_0, 0x3C, 0x01,	/* DT1/MUL - channel 0 slot 3 : DT=0 MUL=1 */
-		LJ_TEST_PART_0, 0x40, 0x02,	/* Total Level - channel 0 slot 0 (*1) */
-		LJ_TEST_PART_0, 0x44, 0x7F,	/* Total Level - channel 0 slot 2 (*0.000001f) */
-		LJ_TEST_PART_0, 0x48, 0x7F,	/* Total Level - channel 0 slot 1 (*0.000001f) */
-		LJ_TEST_PART_0, 0x4C, 0x7F,	/* Total Level - channel 0 slot 3 (*0.000001f) */
-		LJ_TEST_PART_0, 0x50, 0x57,	/* RS/AR - channel 0 slot 0 */
-		LJ_TEST_PART_0, 0x54, 0x0F,	/* RS/AR - channel 0 slot 2 */
-		LJ_TEST_PART_0, 0x58, 0x0F,	/* RS/AR - channel 0 slot 1 */
-		LJ_TEST_PART_0, 0x5C, 0x0F,	/* RS/AR - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x60, 0x15,	/* AM/D1R - channel 0 slot 0 */
-		LJ_TEST_PART_0, 0x64, 0x1F,	/* AM/D1R - channel 0 slot 2 */
-		LJ_TEST_PART_0, 0x68, 0x1F,	/* AM/D1R - channel 0 slot 1 */
-		LJ_TEST_PART_0, 0x6C, 0x0F,	/* AM/D1R - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x70, 0x15,	/* D2R - channel 0 slot 0 */
-		LJ_TEST_PART_0, 0x74, 0x00,	/* D2R - channel 0 slot 2 */
-		LJ_TEST_PART_0, 0x78, 0x00,	/* D2R - channel 0 slot 1 */
-		LJ_TEST_PART_0, 0x7C, 0x00,	/* D2R - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x80, 0x15,	/* D1L/RR - channel 0 slot 0 */
-		LJ_TEST_PART_0, 0x84, 0x0F,	/* D1L/RR - channel 0 slot 2 */
-		LJ_TEST_PART_0, 0x88, 0x0F,	/* D1L/RR - channel 0 slot 1 */
-		LJ_TEST_PART_0, 0x8C, 0x0F,	/* D1L/RR - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x90, 0x00,	/* SSG - channel 0 slot 0 */
-		LJ_TEST_PART_0, 0x94, 0x00,	/* SSG - channel 0 slot 2 */
-		LJ_TEST_PART_0, 0x98, 0x00,	/* SSG - channel 0 slot 1 */
-		LJ_TEST_PART_0, 0x9C, 0x00,	/* SSG - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0xB0, 0x07,	/* Feedback/algorithm (FB=0, ALG=7) */
-		LJ_TEST_PART_0, 0xB4, 0xC0,	/* Both speakers on */
-		LJ_TEST_PART_0, 0x28, 0x00,	/* Key off */
-		LJ_TEST_PART_0, 0xA4, 0x34,	/* Set frequency (BLOCK=6) */
-		LJ_TEST_PART_0, 0xA0, 0x69,	/* Set frequency FREQ=???) */
-		LJ_TEST_PART_0, 0x28, 0x10,	/* Key on (slot 0, channel 0) */
+		LJ_TEST_PART_0, 0x32, 0x01,	/* DT1/MUL - channel 0 slot 0 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x36, 0x01,	/* DT1/MUL - channel 0 slot 2 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x3A, 0x01,	/* DT1/MUL - channel 0 slot 1 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x3E, 0x01,	/* DT1/MUL - channel 0 slot 3 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x42, 0x08,	/* Total Level - channel 2 slot 0 (*1) */
+		LJ_TEST_PART_0, 0x46, 0x7F,	/* Total Level - channel 2 slot 2 (*0.000001f) */
+		LJ_TEST_PART_0, 0x4A, 0x7F,	/* Total Level - channel 2 slot 1 (*0.000001f) */
+		LJ_TEST_PART_0, 0x4E, 0x7F,	/* Total Level - channel 2 slot 3 (*0.000001f) */
+		LJ_TEST_PART_0, 0x52, 0x1F,	/* RS/AR - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x56, 0x0F,	/* RS/AR - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x5A, 0x0F,	/* RS/AR - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x5E, 0x0F,	/* RS/AR - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x62, 0x15,	/* AM/D1R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x66, 0x1F,	/* AM/D1R - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x6A, 0x1F,	/* AM/D1R - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x6E, 0x0F,	/* AM/D1R - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x72, 0x15,	/* D2R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x76, 0x00,	/* D2R - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x7A, 0x00,	/* D2R - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x7E, 0x00,	/* D2R - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x82, 0x0B,	/* D1L/RR - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x86, 0x0F,	/* D1L/RR - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x8A, 0x0F,	/* D1L/RR - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x8E, 0x0F,	/* D1L/RR - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x92, 0x00,	/* SSG - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x96, 0x00,	/* SSG - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x9A, 0x00,	/* SSG - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x9E, 0x00,	/* SSG - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0xB2, 0x07,	/* Feedback/algorithm (FB=0, ALG=7) */
+		LJ_TEST_PART_0, 0xB6, 0xC0,	/* Both speakers on */
+		LJ_TEST_PART_0, 0xA6, 0x34,	/* Set frequency (BLOCK=6) */
+		LJ_TEST_PART_0, 0xA2, 0x69,	/* Set frequency FREQ=???) */
+		LJ_TEST_PART_0, 0xAD, 0x2F,	/* Set frequency (BLOCK=5) - slot 0 */
+		LJ_TEST_PART_0, 0xA9, 0x69,	/* Set frequency FREQ=???) - slot 0 */
 		LJ_TEST_OUTPUT, 0xB0, 0x00,	/* OUTPUT SAMPLES */
-		LJ_TEST_PART_0, 0x28, 0x00,	/* Key off */
 		LJ_TEST_OUTPUT, 0x30, 0x00,	/* OUTPUT SAMPLES */
 		LJ_TEST_FINISH, 0xFF, 0xFF,	/* END PROGRAM */
 };
