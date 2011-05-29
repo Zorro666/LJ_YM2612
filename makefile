@@ -81,7 +81,7 @@ test:
 FORCE:
 
 tags:
-	@ctags -R --exclude=CMakeFiles --c++-kinds=+p --fields=+iaS --extra=+q .
+	@ctags -R --exclude=CMakeFiles --exclude=fm2612.c --c++-kinds=+p --fields=+iaS --extra=+q .
 
 clean: FORCE
 	@$(RM) -vf $(OBJFILES)
