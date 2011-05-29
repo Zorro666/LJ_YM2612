@@ -1,15 +1,13 @@
 High Priority:
-YM2612:key on : inf attack rate include key rate scaling
-
-Medium Priority:
-YM2612:ADSR update numbers can be computed once per output (ADSR rates+key scale rate)- not inside updateEG
-YM2612:rename internal _channel functions which work on slots to _slot functions and pass in debug flags
+YM2612:timer A & B values could be cached instead of re-computing
 YM2612:compute max freq value and add it on if freq goes -ve because of detune
 
+Medium Priority:
+YM2612:rename internal _channel functions which work on slots to _slot functions and pass in debug flags
+YM2612:ADSR update numbers can be computed once per output (ADSR rates+key scale rate)- not inside updateEG
+
 Low Priority:
-YM2612:timer A & B values could be cached instead of re-computing
 TEST_APP: VGM debug on/off
-YM2612:ADSR delta calculation work out the equation that makes it
 
 Future Stuff:
 
@@ -29,3 +27,4 @@ VGM:expose header info
 Low Priority:
 TEST_APP:test all block & fnum values then put output into FFT to output the frequency
 TEST_APP:have real time graph plotting thingy
+YM2612:ADSR delta calculation work out the equation that makes it
