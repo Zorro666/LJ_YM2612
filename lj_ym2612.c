@@ -120,10 +120,6 @@ static int LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES];
 #define LJ_YM2612_SIN_TABLE_MASK ((1 << LJ_YM2612_SIN_TABLE_BITS) - 1)
 static int LJ_YM2612_sinTable[LJ_YM2612_SIN_TABLE_NUM_ENTRIES];
 
-/* Attenation envelop generation is 10-bits */
-#define LJ_YM2612_ATTENUATIONDB_BITS (10)
-#define LJ_YM2612_ATTENUATIONDB_MAX ((1 << 10) - 1)
-
 /* Right shift for delta phi = LJ_YM2612_VOLUME_SCALE_BITS - LJ_YM2612_SIN_TABLE_BITS - 2 */
 /* >> LJ_YM2612_VOLUME_SCALE_BITS = to remove the volume scale in the output from the sin table */
 /* << LJ_YM2612_SIN_TABLE_BITS = to put the output back into the range of the sin table */
@@ -179,6 +175,10 @@ static LJ_YM_UINT32 LJ_YM2612_slTable[LJ_YM2612_SL_TABLE_NUM_ENTRIES];
 /* The slots referenced in the registers are not 0,1,2,3 *sigh* */
 static LJ_YM_UINT8 LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2, 1, 3 };
 
+#define LJ_YM2612_EG_ATTENUATION_DB_NUM_BITS (10)
+#define LJ_YM2612_EG_ATTENUATION_DB_MIN (0)
+#define LJ_YM2612_EG_ATTENUATION_DB_MAX ((1 << LJ_YM2612_EG_ATTENUATION_DB_NUM_BITS) - 1)
+
 /* EG circuit timer units fixed point */
 #define LJ_YM2612_EG_TIMER_NUM_BITS (16)
 
@@ -189,11 +189,11 @@ static LJ_YM_UINT8 LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2
 #define LJ_YM2612_TIMER_NUM_BITS (16)
 
 typedef enum LJ_YM2612_ADSR {
-	LJ_YM2612_OFF,
-	LJ_YM2612_ATTACK,
-	LJ_YM2612_DECAY,
-	LJ_YM2612_SUSTAIN,
-	LJ_YM2612_RELEASE
+	LJ_YM2612_ADSR_OFF,
+	LJ_YM2612_ADSR_ATTACK,
+	LJ_YM2612_ADSR_DECAY,
+	LJ_YM2612_ADSR_SUSTAIN,
+	LJ_YM2612_ADSR_RELEASE
 } LJ_YM2612_ADSR;
 
 struct LJ_YM2612_SLOT
@@ -485,11 +485,10 @@ static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 cs
 		{
 			printf("Slot[%d] key on\n",slotPtr->id);
 		}
-		/* TODO: handle special cases of going straight into decay/sustain */
 		slotPtr->omega = 0;
 		slotPtr->fmInputDelta = 0;
-		slotPtr->adsrState = LJ_YM2612_ATTACK;
-		/* Test for the infinite attack rates (30,31)- needed for CSM mode to make noise */
+		slotPtr->adsrState = LJ_YM2612_ADSR_ATTACK;
+		/* Test for the infinite attack rates (30,31)- e.g. for CSM mode to make noise */
 		/* TODO: need to include key rate scale addition */
 		if (slotPtr->attackRate > 29)
 		{
@@ -497,8 +496,20 @@ static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 cs
 			{
 				printf("Slot[%d] csmKeyOn:%d Inf attack rate key on\n", slotPtr->id, csmKeyOn);
 			}
-			slotPtr->attenuationDB = 0;
+			slotPtr->attenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MIN;
 			slotPtr->volume = LJ_YM2612_VOLUME_MAX;
+		}
+		/* handle special cases of going straight into decay/sustain */
+		if (slotPtr->volume == LJ_YM2612_VOLUME_MAX)
+		{
+			if (slotPtr->sustainLevelDB == LJ_YM2612_EG_ATTENUATION_DB_MIN)
+			{
+				slotPtr->adsrState = LJ_YM2612_ADSR_SUSTAIN;
+			}
+			else
+			{
+				slotPtr->adsrState = LJ_YM2612_ADSR_DECAY;
+			}
 		}
 	}
 
@@ -510,7 +521,12 @@ static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 cs
 static void ym2612_slotKeyOFF(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT32 debugFlags)
 {
 	/* Handle the channel being OFF (release mode leads to volume being 0) OR ADSR state OFF */
-	slotPtr->adsrState = LJ_YM2612_RELEASE;
+	slotPtr->adsrState = LJ_YM2612_ADSR_RELEASE;
+
+	if (slotPtr->attenuationDB >= LJ_YM2612_EG_ATTENUATION_DB_MAX)
+	{
+		slotPtr->adsrState = LJ_YM2612_ADSR_OFF;
+	}
 
 	if (debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -535,21 +551,21 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	const int keycode =	slotPtr->keycode;
 	const int keyScale = slotPtr->keyScale;
 
-	LJ_YM_UINT32 slotVolumeDB = LJ_YM2612_ATTENUATIONDB_MAX;
+	LJ_YM_UINT32 slotVolumeDB = LJ_YM2612_EG_ATTENUATION_DB_MAX;
 	LJ_YM_UINT32 attenuationDB = slotPtr->attenuationDB;
 	int scaledVolume = 0;
 
 	const int keyRateScale = keycode >> (3-keyScale);
 	int invertOutput = 0;
 
-	if (attenuationDB > 0x3FF)
+	if (attenuationDB > LJ_YM2612_EG_ATTENUATION_DB_MAX)
 	{
 #if (ADSR_DEBUG)
-		printf("attenuationDB > 0x3FF %d\n", attenuationDB);
+		printf("attenuationDB > LJ_YM2612_EG_ATTENUATION_DB_MAX (%d) %d\n", LJ_YM2612_EG_ATTENUATION_DB_MAX, attenuationDB);
 #endif 
-		attenuationDB = 0x3FF;
+		attenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MAX;
 	}
-	attenuationDB &= 0x3FF;
+	attenuationDB &= LJ_YM2612_EG_ATTENUATION_DB_MAX;
 
 	/* Step towards the correct values but still not correct : eqRate -> increment */
 	/* 0x3C = 8 */
@@ -558,7 +574,7 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	/* 0x30 = 1 */
 	/* <0x30 = 0 : set it to 1 */
 
-	if (adsrState == LJ_YM2612_ATTACK)
+	if (adsrState == LJ_YM2612_ADSR_ATTACK)
 	{
 		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->attackRate, keyRateScale);
 		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
@@ -577,14 +593,21 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->attackRate, keycode, keyRateScale, slotPtr->keyScale, egRate, egCounter, egRateUpdateShift);
 #endif
 
-			if ((attenuationDB == 0) || (attenuationDB > 0x3FF))
+			if ((attenuationDB == LJ_YM2612_EG_ATTENUATION_DB_MIN) || (attenuationDB > LJ_YM2612_EG_ATTENUATION_DB_MAX))
 			{
-				attenuationDB = 0;
-				slotPtr->adsrState = LJ_YM2612_DECAY;
+				attenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MIN;
+				if (slotPtr->sustainLevelDB == LJ_YM2612_EG_ATTENUATION_DB_MIN)
+				{
+					slotPtr->adsrState = LJ_YM2612_ADSR_SUSTAIN;
+				}
+				else
+				{
+					slotPtr->adsrState = LJ_YM2612_ADSR_DECAY;
+				}
 			}
 		}
 	}
-	else if (adsrState == LJ_YM2612_DECAY)
+	else if (adsrState == LJ_YM2612_ADSR_DECAY)
 	{
 		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->decayRate, keyRateScale);
 		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
@@ -600,11 +623,11 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 			if (attenuationDB >= slotPtr->sustainLevelDB)
 			{
 				attenuationDB = slotPtr->sustainLevelDB;
-				slotPtr->adsrState = LJ_YM2612_SUSTAIN;
+				slotPtr->adsrState = LJ_YM2612_ADSR_SUSTAIN;
 			}
 		}
 	}
-	else if (adsrState == LJ_YM2612_SUSTAIN)
+	else if (adsrState == LJ_YM2612_ADSR_SUSTAIN)
 	{
 		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->sustainRate, keyRateScale);
 		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
@@ -619,7 +642,7 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 #endif
 		}
 	}
-	else if (adsrState == LJ_YM2612_RELEASE)
+	else if (adsrState == LJ_YM2612_ADSR_RELEASE)
 	{
 		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->releaseRate, keyRateScale);
 		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
@@ -633,26 +656,31 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->releaseRate, egRate, egCounter, egRateUpdateShift);
 #endif
 		}
+		if (attenuationDB >= LJ_YM2612_EG_ATTENUATION_DB_MAX)
+		{
+			slotPtr->adsrState = LJ_YM2612_ADSR_OFF;
+		}
 	}
 
 	if (invertOutput == 1)
 	{
 		/* Attack is inverse of DB */
-		/*slotVolumeDB = LJ_YM2612_ATTENUATIONDB_MAX - attenuationDB;*/
+		/*slotVolumeDB = LJ_YM2612_EG_ATTENUATION_DB_MAX - attenuationDB;*/
 		slotVolumeDB = ~attenuationDB;
-		slotVolumeDB &= 0x3FF;
+		slotVolumeDB &= LJ_YM2612_EG_ATTENUATION_DB_MAX;
 	}
 	else
 	{
 		slotVolumeDB = attenuationDB;
 	}
-	if (attenuationDB > 0x3FF)
+	if (attenuationDB > LJ_YM2612_EG_ATTENUATION_DB_MAX)
 	{
-		attenuationDB = 0x3FF;
+		attenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MAX;
 	}
 	slotPtr->attenuationDB = attenuationDB;
 
 	/* Convert slotVolumeDB into volume */
+	/* TODO: make this a table */
 	{
 		/* slotVolumeDB is a logarithmic scale of 10-bits, TL is 7-bits and is 2^(-1/8), move to 10-bits gives 2^(-1/(8*8)) */
 		const float dbScale = -(float)slotVolumeDB * (1.0f / 64.0f);
@@ -1013,6 +1041,10 @@ static void ym2612_channelSetSustainLevelReleaseRate(LJ_YM2612_CHANNEL* const ch
 	slotPtr->releaseRate = (LJ_YM_UINT8)((RR << 1) + 1);
 	slotPtr->sustainLevelDB = SLscale;
 	slotPtr->sustainLevelDB = (SL << 5U);
+	if ((slotPtr->adsrState == LJ_YM2612_ADSR_DECAY) && (slotPtr->attenuationDB >= slotPtr->sustainLevelDB))
+	{
+		slotPtr->adsrState = LJ_YM2612_ADSR_SUSTAIN;
+	}
 
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -1145,7 +1177,7 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 	slotPtr->modulationOutput[1] = NULL;
 	slotPtr->modulationOutput[2] = NULL;
 
-	slotPtr->adsrState = LJ_YM2612_OFF;
+	slotPtr->adsrState = LJ_YM2612_ADSR_OFF;
 
 	slotPtr->keyScale = 0;
 
