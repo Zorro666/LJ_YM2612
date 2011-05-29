@@ -372,15 +372,61 @@ LJ_YM_UINT32 ym2612_computeEGAttenuationDelta(LJ_YM_UINT32 egRate, LJ_YM_UINT32 
 {
 	LJ_YM_UINT32 attenuationDelta = 0;
 	/* cycle is 0-7 within how many times this phase has been updated */
+	/* cycle counts in the comments start from 0 e.g. 0th, 1st, etc */
 	const LJ_YM_UINT32 cycle = (egCounter >> egRateUpdateShift) & 0x7;
 
-	/* Hack until work out nicer algorithm or end up with table */
-	attenuationDelta = (1U << ((egRate >> 2U) -12U));
-	if ((attenuationDelta == 0) || (attenuationDelta > 8))
+	if (egRate < 48)
 	{
-		/* Rough approximation alternate on/off */
+		/* Basic approximation alternate on/off */
 		attenuationDelta = (cycle & 0x1);
+
+		/* Set to 1 for the 4th cycle if rate would be 0 on the 0th cycle if bottom bit of rate = 0x1 */
+		attenuationDelta |= (egRate & 0x1) & (((cycle & 0x4) >> 2) & ~(cycle & 0x1) & ~((cycle & 0x2)>>1));
+
+		/* Set to 1 for the 2nd and 6th cycle for rate bottom bits = 0x10 and 0x11 */
+		attenuationDelta |= ((cycle & 0x2) >> 1) & ((egRate & 0x2) >> 1);
+
+		if (egRate < 8)
+		{
+			if (egRate < 2)
+			{
+				/* Special case for rates 0-1 */
+				attenuationDelta = 0;
+			}
+			else if (egRate < 6)
+			{
+				/* Special case for rates 2-5 */
+				attenuationDelta = (cycle & 0x1);
+			}
+			else
+			{
+				/* Special case for rates 6-7 */
+				attenuationDelta = (cycle & 0x1);
+				attenuationDelta |= ((cycle & 0x2) >> 1) & ((egRate & 0x2) >> 1);
+			}
+		}
 	}
+	else
+	{
+		/* Basic level for attenuation delta */
+		const LJ_YM_UINT32 rateMajor = (egRate >> 2U);
+		LJ_YM_UINT32 shiftAmount = 0;
+		attenuationDelta = (1U << (rateMajor - 12U));
+
+		/* Doubled on the 1st & 3rd cycle when rate bottom bit = 0x10 or 0x11 */
+		shiftAmount |= ((cycle & 0x1) & ((egRate & 0x2) >> 1));
+
+		/* Doubled on the 3rd cycle when rate bottom bit = 0x1 */
+		shiftAmount |= ((cycle & 0x1) & ((cycle & 0x2) >> 1) & (egRate & 0x1));
+
+		/* Doubled on the 2nd cycle when rate bottom bits = 0x11 */
+		shiftAmount |= (((cycle & 0x2) >> 1) & ((egRate & 0x2) >> 1) & (egRate & 0x1));
+
+		shiftAmount = shiftAmount & ((attenuationDelta) | ((attenuationDelta & 0x2) >> 1) | ((attenuationDelta & 0x4) >> 2));
+
+		attenuationDelta = attenuationDelta << shiftAmount;
+	}
+
 	return attenuationDelta;
 }
 
@@ -484,7 +530,7 @@ static void ym2612_slotCSMKeyOFF(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT
 
 static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT32 egCounter)
 {
-#define ADSR_DEBUG (1)
+#define ADSR_DEBUG (0)
 	const LJ_YM2612_ADSR adsrState = slotPtr->adsrState;
 	const int keycode =	slotPtr->keycode;
 	const int keyScale = slotPtr->keyScale;
@@ -498,9 +544,9 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 
 	if (attenuationDB > 0x3FF)
 	{
-#if defined(ADSR_DEBUG)
+#if (ADSR_DEBUG)
 		printf("attenuationDB > 0x3FF %d\n", attenuationDB);
-#endif /* #if defined(ADSR_DEBUG) */
+#endif 
 		attenuationDB = 0x3FF;
 	}
 	attenuationDB &= 0x3FF;
@@ -526,10 +572,10 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 			/* inverted exponential curve: attenuation -= (((increment * attenuation)+15) / 16) : JAKE */
 			attenuationDB = oldDB - deltaDB;
 
-#if defined(ADSR_DEBUG)
+#if (ADSR_DEBUG)
 			printf("ATTACK[%d]:attDBdelta:%d attDB:%d AR:%d kcode:%d krs:%d keyscale:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n",
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->attackRate, keycode, keyRateScale, slotPtr->keyScale, egRate, egCounter, egRateUpdateShift);
-#endif /* #if defined(ADSR_DEBUG) */
+#endif
 
 			if ((attenuationDB == 0) || (attenuationDB > 0x3FF))
 			{
@@ -547,10 +593,10 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
 			attenuationDB += egAttenuationDelta;
-#if defined(ADSR_DEBUG)
+#if (ADSR_DEBUG)
 			printf("DECAY[%d]:attDBdelta:%d attDB:%d DR:%d egRate:%d egCounter:%d egRateShift:%d\n", 
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->decayRate, egRate, egCounter, egRateUpdateShift);
-#endif /* #if defined(ADSR_DEBUG) */
+#endif
 			if (attenuationDB >= slotPtr->sustainLevelDB)
 			{
 				attenuationDB = slotPtr->sustainLevelDB;
@@ -567,10 +613,10 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
 			attenuationDB += egAttenuationDelta;
-#if defined(ADSR_DEBUG)
+#if (ADSR_DEBUG)
 			printf("SUSTAIN[%d]:attDBdelta:%d attDB:%d SR:%d krs:%d egRate:%d egCounter:%d egRateShift:%d\n", 
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->sustainRate, keyRateScale, egRate, egCounter, egRateUpdateShift);
-#endif /* #if defined(ADSR_DEBUG) */
+#endif
 		}
 	}
 	else if (adsrState == LJ_YM2612_RELEASE)
@@ -582,10 +628,10 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
 			attenuationDB += egAttenuationDelta;
-#if defined(ADSR_DEBUG)
+#if (ADSR_DEBUG)
 			printf("RELEASE[%d]:attDBdelta:%d attDB:%d RR:%d egRate:%d egCounter:%d egRateShift:%d\n", 
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->releaseRate, egRate, egCounter, egRateUpdateShift);
-#endif /* #if defined(ADSR_DEBUG) */
+#endif
 		}
 	}
 
@@ -1163,20 +1209,47 @@ static void ym2612_partClear(LJ_YM2612_PART* const partPtr)
 	}
 }
 
+static void ym2612_egDebugOutputDeltas(void)
+{
+	LJ_YM_UINT32 i;
+	for (i = 0; i < 64; i++)
+	{
+		const LJ_YM_UINT32 egRate = i;
+		const LJ_YM_UINT32 egRateUpdateShift = 0;
+		LJ_YM_UINT32 cycle;
+		for (cycle = 0; cycle < 8; cycle++)
+		{
+			const LJ_YM_UINT32 delta = ym2612_computeEGAttenuationDelta(egRate, cycle, egRateUpdateShift);
+			printf("%d,", delta);
+		}
+		printf("    ");
+		if ((i & 0x3) == 0x03)
+		{
+			printf("    %2d->%2d\n", (int)i&~0x3,i);
+		}
+	}
+}
+
 static void ym2612_egMakeData(LJ_YM2612_EG* const egPtr, LJ_YM2612* ym2612Ptr)
 {
 	egPtr->timer = 0;
 
 	/* FM output timer is (clockRate/144) but update code is every sampleRate times of that in the use of this code */
 	/* This is a counter in the units of FM output samples : which is (clockRate/sampleRate)/144 = ym2612Ptr->baseFreqScale */
-	egPtr->timerAddPerOutputSample = (LJ_YM_UINT32)( (float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
+	egPtr->timerAddPerOutputSample = (LJ_YM_UINT32)((float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
 
 	/* Some argument on this value from looking at the forums: MAME = 3, Nemesis (on PAL MD) adamant it is 2.4375 */
-	egPtr->timerPerUpdate = (LJ_YM_UINT32)( (float)LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
+	egPtr->timerPerUpdate = (LJ_YM_UINT32)((float)LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
 
 	egPtr->counter = 0;
 
 	/*printf("EG timerAdd:%d EG timerPerUpdate:%d\n", egPtr->timerAddPerOutputSample, egPtr->timerPerUpdate);*/
+
+	/* Debug output of the EG deltas */
+	if (0)
+	{
+		ym2612_egDebugOutputDeltas();
+	}
 }
 
 static void ym2612_egClear(LJ_YM2612_EG* const egPtr)
@@ -1373,7 +1446,7 @@ static void ym2612_makeData(LJ_YM2612* const ym2612Ptr)
 	/* FM output timer is (clockRate/144) but update code is every sampleRate times of that in the use of this code */
 	/* This is a counter in the units of FM output samples : which is (clockRate/sampleRate)/144 = ym2612Ptr->baseFreqScale */
 	/* which is the base units for Timer A and Timer B is 16*base units */
-	ym2612Ptr->timerAddPerOutputSample = (int)( (float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_TIMER_NUM_BITS));
+	ym2612Ptr->timerAddPerOutputSample = (int)((float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_TIMER_NUM_BITS));
 	/*printf("timerAdd:%d\n", ym2612Ptr->timerAddPerOutputSample);*/
 }
 
