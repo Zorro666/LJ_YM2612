@@ -587,10 +587,13 @@ typedef struct
 	UINT8		status;				/* status flag          */
 	UINT32		mode;				/* mode  CSM / 3SLOT    */
 	UINT8		fn_h;				/* freq latch           */
+  INT32   TimerBase;      /* Timer base time      */
 	UINT8		prescaler_sel;		/* prescaler selector   */
 	INT32		TA;					/* timer a              */
+  INT32   TAL;        /* timer a base          */
 	INT32		TAC;				/* timer a counter      */
 	UINT8		TB;					/* timer b              */
+	INT32		TBL;				/* timer b base      */
 	INT32		TBC;				/* timer b counter      */
 	/* local time tables */
 	INT32		dt_tab[8][32];		/* DeTune table         */
@@ -846,77 +849,102 @@ INLINE void FM_KEYOFF_CSM(FM_CH *CH , int s )
 	}
 }
 
-/* OPN Mode Register Write */
-INLINE void set_timers( FM_OPN *OPN, FM_ST *ST, void *n, int v )
+/* CSM Key Controll */
+INLINE void CSMKeyControll(FM_OPN *OPN, FM_CH *CH)
 {
-	/* b7 = CSM MODE */
-	/* b6 = 3 slot mode */
-	/* b5 = reset b */
-	/* b4 = reset a */
-	/* b3 = timer enable b */
-	/* b2 = timer enable a */
-	/* b1 = load b */
-	/* b0 = load a */
-	ST->mode = (UINT32)v;
+	/* all key ON (verified by Nemesis on real hardware) */
+	FM_KEYON_CSM(OPN,CH,SLOT1);
+	FM_KEYON_CSM(OPN,CH,SLOT2);
+	FM_KEYON_CSM(OPN,CH,SLOT3);
+	FM_KEYON_CSM(OPN,CH,SLOT4);
+	OPN->SL3.key_csm = 1;
+}
 
-	if ((OPN->ST.mode ^ (UINT32)v) & 0xC0)
-	{
-		/* phase increment need to be recalculated */
-		OPN->P_CH[2].SLOT[SLOT1].Incr=-1;
 
-		/* CSM mode disabled and CSM key ON active*/
-		if (((v & 0xC0) != 0x80) && OPN->SL3.key_csm)
-		{
-			/* CSM Mode Key OFF (verified by Nemesis on real hardware) */
-			FM_KEYOFF_CSM(&OPN->P_CH[2],SLOT1);
-			FM_KEYOFF_CSM(&OPN->P_CH[2],SLOT2);
-			FM_KEYOFF_CSM(&OPN->P_CH[2],SLOT3);
-			FM_KEYOFF_CSM(&OPN->P_CH[2],SLOT4);
-			OPN->SL3.key_csm = 0;
-		}
-	}
+INLINE void INTERNAL_TIMER_A(FM_OPN* OPN, FM_ST* ST, FM_CH* CH)
+{
+  if (ST->mode & 0x01)
+  {
+    if ((ST->TAC -= ST->TimerBase) <= 0)
+    {
+      /* set status (if enabled) */
+      if (ST->mode & 0x04)
+        ST->status |= 0x01;
 
-	/* reset Timer b flag */
-	if( v & 0x20 )
-		FM_STATUS_RESET(ST,0x02);
-	/* reset Timer a flag */
-	if( v & 0x10 )
-		FM_STATUS_RESET(ST,0x01);
-	/* load b */
-	if( v & 0x02 )
+      /* reload the counter */
+      if (ST->TAL)
+        ST->TAC += ST->TAL;
+      else
+        ST->TAC = ST->TAL;
+
+      /* CSM mode auto key on */
+      if ((ST->mode & 0xC0) == 0x80)
+        CSMKeyControll(OPN, CH);
+    }
+  }
+}
+
+INLINE void INTERNAL_TIMER_B(FM_ST* ST, int step)
+{
+  if (ST->mode & 0x02)
+  {
+    if ((ST->TBC -= (ST->TimerBase * step)) <= 0)
+    {
+      /* set status (if enabled) */
+      if (ST->mode & 0x08)
+        ST->status |= 0x02;
+
+      /* reload the counter */
+      if (ST->TBL)
+        ST->TBC += ST->TBL;
+      else
+        ST->TBC = ST->TBL;
+    }
+  }
+}
+
+/* OPN Mode Register Write */
+INLINE void set_timers( FM_OPN *OPN, FM_ST *ST, void* d, int v )
+{
+  /* b7 = CSM MODE */
+  /* b6 = 3 slot mode */
+  /* b5 = reset b */
+  /* b4 = reset a */
+  /* b3 = timer enable b */
+  /* b2 = timer enable a */
+  /* b1 = load b */
+  /* b0 = load a */
+
+  if (((int)ST->mode ^ v) & 0xC0)
+  {
+    /* phase increment need to be recalculated */
+    (OPN->P_CH)[2].SLOT[SLOT1].Incr=-1;
+
+    /* CSM mode disabled and CSM key ON active*/
+    if (((v & 0xC0) != 0x80) && OPN->SL3.key_csm)
+    {
+      /* CSM Mode Key OFF (verified by Nemesis on real hardware) */
+      FM_KEYOFF_CSM(&(OPN->P_CH)[2],SLOT1);
+      FM_KEYOFF_CSM(&(OPN->P_CH)[2],SLOT2);
+      FM_KEYOFF_CSM(&(OPN->P_CH)[2],SLOT3);
+      FM_KEYOFF_CSM(&(OPN->P_CH)[2],SLOT4);
+      OPN->SL3.key_csm = 0;
+    }
+  }
+
+  /* reload Timers */
+  if ((v&1) && !(ST->mode&1))
+    ST->TAC = ST->TAL;
+  if ((v&2) && !(ST->mode&2))
+    ST->TBC = ST->TBL;
+  
+  /* reset Timers flags */
+  ST->status = (UINT8)(ST->status & (~v >> 4)); 
+
+  ST->mode = (UINT32)v;
+
+	if (d)
 	{
-		if( ST->TBC == 0 )
-		{
-			ST->TBC = ( 256-ST->TB)<<4;
-			/* External timer handler */
-			if (ST->timer_handler) (ST->timer_handler)(n,1,(int)ST->TBC * (int)ST->timer_prescaler,(int)ST->clock);
-		}
-	}
-	else
-	{	/* stop timer b */
-		if( ST->TBC != 0 )
-		{
-			ST->TBC = 0;
-			if (ST->timer_handler) (ST->timer_handler)(n,1,0,(int)ST->clock);
-		}
-	}
-	/* load a */
-	if( v & 0x01 )
-	{
-		if( ST->TAC == 0 )
-		{
-			ST->TAC = (1024-ST->TA);
-			/* External timer handler */
-			if (ST->timer_handler) (ST->timer_handler)(n,0,(int)ST->TAC * (int)ST->timer_prescaler,(int)ST->clock);
-		}
-	}
-	else
-	{	/* stop timer a */
-		if( ST->TAC != 0 )
-		{
-			ST->TAC = 0;
-			if (ST->timer_handler) (ST->timer_handler)(n,0,0,(int)ST->clock);
-		}
 	}
 }
 
@@ -941,6 +969,7 @@ INLINE void TimerBOver(FM_ST *ST)
 }
 
 
+#if 0
 #if FM_INTERNAL_TIMER
 /* ----- internal timer mode , update timer */
 
@@ -968,6 +997,7 @@ INLINE void TimerBOver(FM_ST *ST)
 #define INTERNAL_TIMER_A(ST,CSM_CH)
 #define INTERNAL_TIMER_B(ST,step)
 #endif /* FM_INTERNAL_TIMER */
+#endif /* #if 0 */
 
 
 
@@ -1675,17 +1705,6 @@ static void FMCloseTable( void )
 }
 
 
-/* CSM Key Controll */
-INLINE void CSMKeyControll(FM_OPN *OPN, FM_CH *CH)
-{
-	/* all key ON (verified by Nemesis on real hardware) */
-	FM_KEYON_CSM(OPN,CH,SLOT1);
-	FM_KEYON_CSM(OPN,CH,SLOT2);
-	FM_KEYON_CSM(OPN,CH,SLOT3);
-	FM_KEYON_CSM(OPN,CH,SLOT4);
-	OPN->SL3.key_csm = 1;
-}
-
 #ifdef __SAVE_H__
 /* FM channel save , internal state only */
 static void FMsave_state_channel(device_t *device,FM_CH *CH,int num_ch)
@@ -1759,12 +1778,15 @@ static void OPNWriteMode(FM_OPN *OPN, int r, int v)
 		break;
 	case 0x24:	/* timer A High 8*/
 		OPN->ST.TA = (OPN->ST.TA & 0x03)|(((int)v)<<2);
+    OPN->ST.TAL = (1024 - OPN->ST.TA) << TIMER_SH;
 		break;
 	case 0x25:	/* timer A Low 2*/
 		OPN->ST.TA = (OPN->ST.TA & 0x3fc)|(v&3);
+    OPN->ST.TAL = (1024 - OPN->ST.TA) << TIMER_SH;
 		break;
 	case 0x26:	/* timer B */
 		OPN->ST.TB = (UINT8)v;
+    OPN->ST.TBL = (256 - OPN->ST.TB) << (TIMER_SH + 4);
 		break;
 	case 0x27:	/* mode, timer control */
 		set_timers( OPN, &(OPN->ST),OPN->ST.param,v );
@@ -2038,6 +2060,9 @@ static void OPNSetPres(FM_OPN *OPN, int pres, int timer_prescaler, int SSGpres)
 
 	/* LFO timer increment (every samples) */
 	OPN->lfo_timer_add  = (UINT32)((1<<LFO_SH) * OPN->ST.freqbase);
+
+  /* Timers increment (every samples) */
+  OPN->ST.TimerBase = (int) ((1 << TIMER_SH) * OPN->ST.freqbase);
 
 	/* Timer base time */
 	OPN->ST.timer_prescaler = timer_prescaler;
@@ -2331,7 +2356,7 @@ void ym2612_update_one(void *chip, FMSAMPLE **buffer, int length)
 		OPN->SL3.key_csm = (UINT8)(OPN->SL3.key_csm << 1);
 
 		/* timer A control */
-		INTERNAL_TIMER_A( &OPN->ST , cch[2] )
+		INTERNAL_TIMER_A( OPN, &OPN->ST , cch[2] );
 
 		/* CSM Mode Key ON still disabled */
     if (OPN->SL3.key_csm & 2)
@@ -2346,7 +2371,7 @@ void ym2612_update_one(void *chip, FMSAMPLE **buffer, int length)
 	}
 
 	/* timer B control */
-	INTERNAL_TIMER_B(&OPN->ST,length)
+	INTERNAL_TIMER_B(&OPN->ST,length);
 }
 
 #ifdef __SAVE_H__
