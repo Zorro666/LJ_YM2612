@@ -481,6 +481,11 @@ static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 cs
 	/* Only key on if keyed off normally and CSM mode key off */
 	if ((slotPtr->normalKeyOn == 0) && (csmKeyOn == 0))
 	{
+		const int keycode =	slotPtr->keycode;
+		const int keyScale = slotPtr->keyScale;
+		const int keyRateScale = keycode >> (3-keyScale);
+		const int egRate = 2 * slotPtr->attackRate + keyRateScale;
+
 		if (debugFlags & LJ_YM2612_DEBUG)
 		{
 			printf("Slot[%d] key on\n",slotPtr->id);
@@ -489,8 +494,7 @@ static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 cs
 		slotPtr->fmInputDelta = 0;
 		slotPtr->adsrState = LJ_YM2612_ADSR_ATTACK;
 		/* Test for the infinite attack rates (30,31)- e.g. for CSM mode to make noise */
-		/* TODO: need to include key rate scale addition */
-		if (slotPtr->attackRate > 29)
+		if (egRate > 59)
 		{
 			if (debugFlags & LJ_YM2612_DEBUG)
 			{
@@ -550,12 +554,12 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	const LJ_YM2612_ADSR adsrState = slotPtr->adsrState;
 	const int keycode =	slotPtr->keycode;
 	const int keyScale = slotPtr->keyScale;
+	const int keyRateScale = keycode >> (3-keyScale);
 
 	LJ_YM_UINT32 slotVolumeDB = LJ_YM2612_EG_ATTENUATION_DB_MAX;
 	LJ_YM_UINT32 attenuationDB = slotPtr->attenuationDB;
 	int scaledVolume = 0;
 
-	const int keyRateScale = keycode >> (3-keyScale);
 	int invertOutput = 0;
 
 	if (attenuationDB > LJ_YM2612_EG_ATTENUATION_DB_MAX)
