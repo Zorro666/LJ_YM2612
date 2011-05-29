@@ -484,14 +484,16 @@ static void ym2612_slotCSMKeyOFF(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT
 
 static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT32 egCounter)
 {
+#define ADSR_DEBUG (1)
 	const LJ_YM2612_ADSR adsrState = slotPtr->adsrState;
-	int keycode =	slotPtr->keycode;
+	const int keycode =	slotPtr->keycode;
+	const int keyScale = slotPtr->keyScale;
 
 	LJ_YM_UINT32 slotVolumeDB = LJ_YM2612_ATTENUATIONDB_MAX;
 	LJ_YM_UINT32 attenuationDB = slotPtr->attenuationDB;
 	int scaledVolume = 0;
 
-	int keyRateScale = keycode >> (3-keycode);
+	const int keyRateScale = keycode >> (3-keyScale);
 	int invertOutput = 0;
 
 	if (attenuationDB > 0x3FF)
@@ -502,7 +504,6 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		attenuationDB = 0x3FF;
 	}
 	attenuationDB &= 0x3FF;
-	keyRateScale = keycode >> 3;
 
 	/* Step towards the correct values but still not correct : eqRate -> increment */
 	/* 0x3C = 8 */
@@ -526,8 +527,8 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 			attenuationDB = oldDB - deltaDB;
 
 #if defined(ADSR_DEBUG)
-			printf("ATTACK:attDBdelta:%d AR:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n",
-					egAttenuationDelta, slotPtr->attackRate, egRate, egCounter, egRateUpdateShift);
+			printf("ATTACK[%d]:attDBdelta:%d attDB:%d AR:%d kcode:%d krs:%d keyscale:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n",
+					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->attackRate, keycode, keyRateScale, slotPtr->keyScale, egRate, egCounter, egRateUpdateShift);
 #endif /* #if defined(ADSR_DEBUG) */
 
 			if ((attenuationDB == 0) || (attenuationDB > 0x3FF))
@@ -547,7 +548,8 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
 			attenuationDB += egAttenuationDelta;
 #if defined(ADSR_DEBUG)
-			printf("DECAY:attDBdelta:%d egRate:%d\n", egAttenuationDelta, egRate);
+			printf("DECAY[%d]:attDBdelta:%d attDB:%d DR:%d egRate:%d egCounter:%d egRateShift:%d\n", 
+					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->decayRate, egRate, egCounter, egRateUpdateShift);
 #endif /* #if defined(ADSR_DEBUG) */
 			if (attenuationDB >= slotPtr->sustainLevelDB)
 			{
@@ -566,7 +568,8 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
 			attenuationDB += egAttenuationDelta;
 #if defined(ADSR_DEBUG)
-			printf("SUSTAIN:attDBdelta:%d egRate:%d\n", egAttenuationDelta, egRate);
+			printf("SUSTAIN[%d]:attDBdelta:%d attDB:%d SR:%d krs:%d egRate:%d egCounter:%d egRateShift:%d\n", 
+					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->sustainRate, keyRateScale, egRate, egCounter, egRateUpdateShift);
 #endif /* #if defined(ADSR_DEBUG) */
 		}
 	}
@@ -580,7 +583,8 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
 			attenuationDB += egAttenuationDelta;
 #if defined(ADSR_DEBUG)
-			printf("RELEASE[%d]:attDBdelta:%d egRate:%d attenuationDB:%d\n", slotPtr->id, egAttenuationDelta, egRate, attenuationDB);
+			printf("RELEASE[%d]:attDBdelta:%d attDB:%d RR:%d egRate:%d egCounter:%d egRateShift:%d\n", 
+					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->releaseRate, egRate, egCounter, egRateUpdateShift);
 #endif /* #if defined(ADSR_DEBUG) */
 		}
 	}
