@@ -435,11 +435,25 @@ static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 cs
 	/* Only key on if keyed off normally and CSM mode key off */
 	if ((slotPtr->normalKeyOn == 0) && (csmKeyOn == 0))
 	{
-		printf("Slot[%d] key on\n",slotPtr->id);
+		if (debugFlags & LJ_YM2612_DEBUG)
+		{
+			printf("Slot[%d] key on\n",slotPtr->id);
+		}
 		/* TODO: handle special cases of going straight into decay/sustain */
 		slotPtr->omega = 0;
 		slotPtr->fmInputDelta = 0;
 		slotPtr->adsrState = LJ_YM2612_ATTACK;
+		/* Test for the infinite attack rates (30,31)- needed for CSM mode to make noise */
+		/* TODO: need to include key rate scale addition */
+		if (slotPtr->attackRate > 29)
+		{
+			if (debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf("Slot[%d] csmKeyOn:%d Inf attack rate key on\n", slotPtr->id, csmKeyOn);
+			}
+			slotPtr->attenuationDB = 0;
+			slotPtr->volume = LJ_YM2612_VOLUME_MAX;
+		}
 	}
 
 	if (debugFlags & LJ_YM2612_DEBUG)
@@ -463,6 +477,9 @@ static void ym2612_slotCSMKeyOFF(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT
 	{
 		ym2612_slotKeyOFF(slotPtr, debugFlags);
 	}
+	if (debugFlags)
+	{
+	}
 }
 
 static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT32 egCounter)
@@ -477,6 +494,13 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	int keyRateScale = keycode >> (3-keycode);
 	int invertOutput = 0;
 
+	if (attenuationDB > 0x3FF)
+	{
+#if defined(ADSR_DEBUG)
+		printf("attenuationDB > 0x3FF %d\n", attenuationDB);
+#endif /* #if defined(ADSR_DEBUG) */
+		attenuationDB = 0x3FF;
+	}
 	attenuationDB &= 0x3FF;
 	keyRateScale = keycode >> 3;
 
@@ -501,8 +525,10 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 			/* inverted exponential curve: attenuation -= (((increment * attenuation)+15) / 16) : JAKE */
 			attenuationDB = oldDB - deltaDB;
 
-			/*printf("ATTACK:attDBdelta:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n", 
-					egAttenuationDelta, egRate, egCounter, egRateUpdateShift);*/
+#if defined(ADSR_DEBUG)
+			printf("ATTACK:attDBdelta:%d AR:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n",
+					egAttenuationDelta, slotPtr->attackRate, egRate, egCounter, egRateUpdateShift);
+#endif /* #if defined(ADSR_DEBUG) */
 
 			if ((attenuationDB == 0) || (attenuationDB > 0x3FF))
 			{
@@ -520,7 +546,9 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
 			attenuationDB += egAttenuationDelta;
-			/*printf("DECAY:attDBdelta:%d egRate:%d\n", egAttenuationDelta, egRate);*/
+#if defined(ADSR_DEBUG)
+			printf("DECAY:attDBdelta:%d egRate:%d\n", egAttenuationDelta, egRate);
+#endif /* #if defined(ADSR_DEBUG) */
 			if (attenuationDB >= slotPtr->sustainLevelDB)
 			{
 				attenuationDB = slotPtr->sustainLevelDB;
@@ -537,7 +565,9 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
 			attenuationDB += egAttenuationDelta;
-			/*printf("SUSTAIN:attDBdelta:%d egRate:%d\n", egAttenuationDelta, egRate);*/
+#if defined(ADSR_DEBUG)
+			printf("SUSTAIN:attDBdelta:%d egRate:%d\n", egAttenuationDelta, egRate);
+#endif /* #if defined(ADSR_DEBUG) */
 		}
 	}
 	else if (adsrState == LJ_YM2612_RELEASE)
@@ -549,7 +579,9 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
 			attenuationDB += egAttenuationDelta;
-			/*printf("RELEASE:attDBdelta:%d egRate:%d\n", egAttenuationDelta, egRate);*/
+#if defined(ADSR_DEBUG)
+			printf("RELEASE[%d]:attDBdelta:%d egRate:%d attenuationDB:%d\n", slotPtr->id, egAttenuationDelta, egRate, attenuationDB);
+#endif /* #if defined(ADSR_DEBUG) */
 		}
 	}
 
@@ -2160,7 +2192,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				{
 					/* Key ON via CSM */
 					LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
-					printf("%d CSM KeyON\n", ym2612Ptr->sampleCount);
+					if (debugFlags & LJ_YM2612_DEBUG)
+					{
+						printf("%d CSM KeyON\n", ym2612Ptr->sampleCount);
+					}
 					for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 					{
 						LJ_YM2612_SLOT* const slotPtr = &(ch2Ptr->slot[slot]);
@@ -2177,7 +2212,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 		{
 			/* Key OFF via CSM */
 			LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
-			printf("%d CSM KeyOFF\n", ym2612Ptr->sampleCount);
+			if (debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf("%d CSM KeyOFF\n", ym2612Ptr->sampleCount);
+			}
 			for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 			{
 				LJ_YM2612_SLOT* const slotPtr = &(ch2Ptr->slot[slot]);
