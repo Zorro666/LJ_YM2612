@@ -317,13 +317,16 @@ struct LJ_YM2612
 	LJ_YM_UINT8 timerMode;
 
 	int timerAddPerOutputSample;
+
+	int timerAcounter;
+	int timerAstart;
 	LJ_YM_UINT16 timerAvalue;
 	LJ_YM_UINT8 statusA;
-	int timerAcounter;
 
+	int timerBcounter;
+	int timerBstart;
 	LJ_YM_UINT8 timerBvalue;
 	LJ_YM_UINT8 statusB;
-	int timerBcounter;
 };
 
 /* The rate = ADSRrate * 2 + keyRateScale but rate = 0 if ADSRrate = 0 and clamped between 0->63 */
@@ -1307,8 +1310,8 @@ static void ym2612_timerModeChanged(LJ_YM2612* const ym2612Ptr)
 		/* See forum posts by Nemesis - only load register if it is stopped */
 		if (ym2612Ptr->timerAcounter == 0)
 		{
-			ym2612Ptr->timerAcounter = ((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
-			/*printf("Start Timer A:%d Counter:%d\n", ym2612Ptr->timerAvalue, ym2612Ptr->timerAcounter);*/
+			ym2612Ptr->timerAcounter = ym2612Ptr->timerAstart;
+			/*printf("Start Timer A:%d Counter:%d Start:%d\n", ym2612Ptr->timerAvalue, ym2612Ptr->timerAcounter, ym2612Ptr->timerstart);*/
 		}
 	}
 	else
@@ -1320,8 +1323,8 @@ static void ym2612_timerModeChanged(LJ_YM2612* const ym2612Ptr)
 		/* See forum posts by Nemesis - only load register if it is stopped */
 		if (ym2612Ptr->timerBcounter == 0)
 		{
-			ym2612Ptr->timerBcounter = (((256 - ym2612Ptr->timerBvalue) << 4) << LJ_YM2612_TIMER_NUM_BITS);
-			/*printf("Start Timer B:%d Counter:%d\n", ym2612Ptr->timerBvalue, ym2612Ptr->timerBcounter);*/
+			ym2612Ptr->timerBcounter = ym2612Ptr->timerBstart;
+			/*printf("Start Timer B:%d Counter:%d Start:%d\n", ym2612Ptr->timerBvalue, ym2612Ptr->timerBcounter, ym2612Ptr->timerBstart);*/
 		}
 	}
 	else
@@ -1507,12 +1510,16 @@ static void ym2612_clear(LJ_YM2612* const ym2612Ptr)
 	ym2612Ptr->lfoFreq = 0;
 	ym2612Ptr->timerMode = 0;
 	ym2612Ptr->timerAddPerOutputSample = 0;
+
 	ym2612Ptr->timerAvalue = 0;
 	ym2612Ptr->statusA = 0;
 	ym2612Ptr->timerAcounter = 0;
+	ym2612Ptr->timerAstart = ((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
+
 	ym2612Ptr->timerBvalue = 0;
 	ym2612Ptr->statusB = 0;
 	ym2612Ptr->timerBcounter = 0;
+	ym2612Ptr->timerBstart = (((256 - ym2612Ptr->timerBvalue) << 4) << LJ_YM2612_TIMER_NUM_BITS);
 
 	ym2612_egClear(&ym2612Ptr->eg);
 
@@ -1709,16 +1716,19 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 	{
 		/* 0x24 TIMER A MSB : Bits 0-7 = top 8-bits of timer A value */
 		ym2612Ptr->timerAvalue = (LJ_YM_UINT16)(((LJ_YM_UINT16)data << 2) | (ym2612Ptr->timerAvalue & 0x3));
+		ym2612Ptr->timerAstart = ((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
 	}
 	else if (reg == LJ_TIMER_A_LSB)
 	{
 		/* 0x25 TIMER A LSB : Bits 0-1 = bottom 2-bits of timer A value */
 		ym2612Ptr->timerAvalue = (LJ_YM_UINT16)((ym2612Ptr->timerAvalue & ~0x3) | (data & 0x3));
+		ym2612Ptr->timerAstart = ((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
 	}
 	else if (reg == LJ_TIMER_B)
 	{
 		/* 0x26 TIMER B : Bits 0-7 = timer B value */
 		ym2612Ptr->timerBvalue  = data;
+		ym2612Ptr->timerBstart = (((256 - ym2612Ptr->timerBvalue) << 4) << LJ_YM2612_TIMER_NUM_BITS);
 	}
 	else if (reg == LJ_CH2_MODE_TIMER_CONTROL)
 	{
@@ -2298,7 +2308,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					ym2612Ptr->statusA = 0x1;
 				}
 				/* See forum posts by Nemesis - timer A is at FM sample output (144 clock cycles) - docs are wrong */
-				ym2612Ptr->timerAcounter += ((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
+				ym2612Ptr->timerAcounter += ym2612Ptr->timerAstart;
 
 				/* CSM mode */
       	if ((ym2612Ptr->ch2Mode & 0x2) == 0x2)
@@ -2349,7 +2359,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					ym2612Ptr->statusB = 0x1;
 				}
 				/* timer B is *16 compared to timer A which at FM sample output (144 clock cycles) */
-				ym2612Ptr->timerBcounter += (((256 - ym2612Ptr->timerBvalue) << 4) << LJ_YM2612_TIMER_NUM_BITS);
+				ym2612Ptr->timerBcounter += ym2612Ptr->timerBstart;
 			}
 		}
 
