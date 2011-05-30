@@ -1,9 +1,7 @@
 High Priority:
-TEST_APP: VGM debug on/off
-VGM:expose header info
+VGM:read all of data into memory and read from memory instead of a few bytes at a time (like when use zlib)
 
 Medium Priority:
-VGM:read all of data into memory and read from memory instead of a few bytes at a time (like when use zlib)
 VGM:zlib support for compressed files
 
 Low Priority:
