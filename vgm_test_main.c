@@ -384,6 +384,17 @@ int main(int argc, char* argv[])
 	printf("sampleMax:%d\n", sampleMax);
 	printf("\n");
 
+	if (test == 0)
+	{
+		LJ_VGM_HEADER header;
+		if (LJ_VGM_getHeader(vgmFile, &header) == LJ_VGM_OK)
+		{
+			printf("VGM:numSamples:%d\n", header.numSamples);
+			printf("VGM:loopOffset:%d\n", header.loopOffset);
+			printf("VGM:numLoops:%d\n", header.numLoops);
+		}
+	}
+
 	LJ_WAV_close(wavFile);
 	LJ_VGM_destroy(vgmFile);
 	device_ym2612_destroy(ym2612);
