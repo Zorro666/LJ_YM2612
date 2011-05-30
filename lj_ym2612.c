@@ -112,7 +112,7 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 /* FNUM = 11-bit table */
 #define LJ_YM2612_FNUM_TABLE_BITS (11)
 #define LJ_YM2612_FNUM_TABLE_NUM_ENTRIES (1 << LJ_YM2612_FNUM_TABLE_BITS)
-static int LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES];
+static int LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES+1];
 
 /* SIN table = 10-bit table but stored in LJ_YM2612_SIN_SCALE_BITS format */
 #define LJ_YM2612_SIN_TABLE_BITS (10)
@@ -469,8 +469,7 @@ static int ym2612_computeOmegaDelta(const int fnum, const int block, const int m
 	if (omegaDelta < 0)
 	{
 		/* Wrap around */
-		/* omegaDelta += FNUM_MAX; */
-		omegaDelta += 1024;
+		omegaDelta += LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES];
 	}
 
 	/* /2 because multiple is stored as x2 of its value */
@@ -1389,6 +1388,8 @@ static void ym2612_makeData(LJ_YM2612* const ym2612Ptr)
 	const LJ_YM_UINT32 rate = ym2612Ptr->outputSampleRate;
 	int i;
 	float omegaScale;
+	float freq;
+	int intFreq;
 
 	/* Fvalue = (144 * freq * 2^20 / masterClock) / 2^(B-1) */
 	/* e.g. D = 293.7Hz F = 692.8 B=4 */
@@ -1398,14 +1399,18 @@ static void ym2612_makeData(LJ_YM2612* const ym2612Ptr)
 
 	for (i = 0; i < LJ_YM2612_FNUM_TABLE_NUM_ENTRIES; i++)
 	{
-		float freq = ym2612Ptr->baseFreqScale * (float)i;
-		int intFreq;
+		freq = ym2612Ptr->baseFreqScale * (float)i;
 		/* Include the sin table size in the (1/2^20) */
 		freq = freq * (float)(1 << (LJ_YM2612_FREQ_BITS - (20 - LJ_YM2612_SIN_TABLE_BITS)));
 
 		intFreq = (int)(freq);
 		LJ_YM2612_fnumTable[i] = intFreq;
 	}
+	/* From forums the internal register is 17-bits big so this is its overflow value */
+	freq = ym2612Ptr->baseFreqScale * (float)(1<<17);
+	freq = freq * (float)(1 << (LJ_YM2612_FREQ_BITS - (20 - LJ_YM2612_SIN_TABLE_BITS)));
+	intFreq = (int)(freq);
+	LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES] = intFreq;
 
 	omegaScale = (2.0f * M_PI / LJ_YM2612_SIN_TABLE_NUM_ENTRIES);
 	for (i = 0; i < LJ_YM2612_SIN_TABLE_NUM_ENTRIES; i++)
