@@ -1,7 +1,14 @@
+ZLIB_GZ_SRC:=zlib/gzclose.c zlib/gzlib.c zlib/gzread.c zlib/gzwrite.c
+ZLIB_INFLATE_SRC:=zlib/infback.c zlib/inffast.c zlib/inflate.c zlib/inftrees.c 
+ZLIB_DEFLATE_SRC:=zlib/deflate.c zlib/trees.c
+ZLIB_UTIL_SRC:=zlib/adler32.c zlib/crc32.c zlib/zutil.c
+ZLIB_SRC:=$(ZLIB_GZ_SRC) $(ZLIB_INFLATE_SRC) $(ZLIB_DEFLATE_SRC) $(ZLIB_UTIL_SRC)
+
 GYM_TEST_DEPENDS:=lj_gym.c lj_ym2612.c
 GYM_TEST2_DEPENDS:=lj_gym.c fm2612.c
-VGM_TEST_DEPENDS:=lj_vgm.c lj_ym2612.c lj_wav_file.c vgm_test_main.c
-VGM_TEST2_DEPENDS:=lj_vgm.c fm2612.c lj_wav_file.c vgm_test_main.c
+VGM_DEPENDS:=lj_vgm.c lj_wav_file.c vgm_test_main.c
+VGM_TEST_DEPENDS:=lj_ym2612.c $(VGM_DEPENDS) $(ZLIB_SRC)
+VGM_TEST2_DEPENDS:=fm2612.c $(VGM_DEPENDS) $(ZLIB_SRC)
 
 PROJECTS:=\
 		  gym_test\
@@ -69,7 +76,7 @@ test:
 
 %.o: %.c
 	@echo Compiling $<
-	@$(C_COMPILE) -MMD $(C_COMPILE_FLAGS) $<
+	@$(C_COMPILE) -MMD $(C_COMPILE_FLAGS) -o $*.o $<
 
 %: %.o 
 	@echo Linking $@
