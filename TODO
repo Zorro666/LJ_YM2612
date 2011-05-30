@@ -1,12 +1,15 @@
 High Priority:
-YM2612:rename internal _channel functions which work on slots to _slot functions and pass in debug flags
+YM2612:keyratescale compute once and store with slot - update when keycode changes (or key scale)
+YM2612:ADSR update numbers can be computed once per output (ADSR rates+key scale rate)- not inside updateEG
 
 Medium Priority:
-YM2612:ADSR update numbers can be computed once per output (ADSR rates+key scale rate)- not inside updateEG
-YM2612:keyratescale compute once and store with slot - update when keycode changes (or key scale)
+TEST_APP: VGM debug on/off
+VGM:expose header info
 
 Low Priority:
-TEST_APP: VGM debug on/off
+VGM:read all of data into memory and read from memory instead of a few bytes at a time (like when use zlib)
+VGM:zlib support for compressed files
+YM2612:implement SSG
 
 Future Stuff:
 
@@ -14,16 +17,12 @@ High Priority:
 YM2612:implement LFO
 YM2612:implement LJ_LR_AMS_PMS = 0xB4 (AMS, PMS)
 YM2612:implement LJ_AM_DR = 0x60 (AM part)
-YM2612:implement SSG
 
 Medium Priority:
-VGM:zlib support for compressed files
 VGM:handle the other commands (skip correct amount of data basically)
-VGM:read all of data into memory and read from memory instead of a few bytes at a time (like when use zlib)
-VGM:expose header info
+YM2612:implement MEM output from OP1 & OP2 for slots - read Steve Strange reply on forums
 
 Low Priority:
-YM2612:implement MEM output from OP1 & OP2 for slots - read Steve Strange reply on forums
 TEST_APP:test all block & fnum values then put output into FFT to output the frequency
 TEST_APP:have real time graph plotting thingy
 YM2612:ADSR delta calculation work out the equation that makes it
