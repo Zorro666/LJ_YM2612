@@ -9,6 +9,7 @@ typedef struct LJ_VGM_HEADER LJ_VGM_HEADER;
 typedef struct LJ_VGM_INSTRUCTION LJ_VGM_INSTRUCTION;
 
 typedef unsigned char LJ_VGM_UINT8;
+typedef unsigned short LJ_VGM_UINT16;
 typedef unsigned int LJ_VGM_UINT32;
 
 typedef int LJ_VGM_INT32;
@@ -51,13 +52,35 @@ struct LJ_VGM_INSTRUCTION
 	LJ_VGM_INT32 waitSamplesData;
 };
 
+struct LJ_VGM_HEADER
+{
+	LJ_VGM_UINT32 ident;
+	LJ_VGM_UINT32 EOFoffset;
+	LJ_VGM_UINT32 version;
+	LJ_VGM_UINT32 sn76489Clock;
+	LJ_VGM_UINT32 ym2413Clock;
+	LJ_VGM_UINT32 GD3offset;
+	LJ_VGM_UINT32 numSamples;
+	LJ_VGM_UINT32 loopOffset;
+	LJ_VGM_UINT32 numLoops;
+	LJ_VGM_UINT32 rate;
+	LJ_VGM_UINT16 sn76489Feedback;
+	LJ_VGM_UINT8 sn76489ShiftWidth;
+	LJ_VGM_UINT8 padding8_1;
+	LJ_VGM_UINT32 ym2612Clock;
+	LJ_VGM_UINT32 ym2151Clock;
+	LJ_VGM_UINT32 vgmOffset;
+	LJ_VGM_UINT32 padding32_1;
+	LJ_VGM_UINT32 padding32_2;
+};
+
 LJ_VGM_FILE* LJ_VGM_create(const char* const fname);
 LJ_VGM_RESULT LJ_VGM_destroy(LJ_VGM_FILE* const vgmFile);
 
 LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const vgmInstr);
-/* TODO: test reset */
-LJ_VGM_RESULT LJ_VGM_reset(LJ_VGM_FILE* const vgmFile);
 		
+LJ_VGM_RESULT LJ_VGM_getHeader(LJ_VGM_FILE* const vgmFile, LJ_VGM_HEADER* const vgmHeader);
+
 void LJ_VGM_debugPrint( const LJ_VGM_INSTRUCTION* const vgmInstr);
 
 #endif /* #ifndef LJ_VGM_HH */

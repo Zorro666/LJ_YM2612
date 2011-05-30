@@ -141,8 +141,6 @@ All unknown types must be skipped by the player.
 * ////////////////////////////////////////////////////////////////////
 */
 
-typedef unsigned short LJ_VGM_UINT16;
-
 #define LJ_VGM_NUM_INSTRUCTIONS (0xFF)
 
 #define LJ_VGM_DATA_YM2612 (0)
@@ -155,28 +153,6 @@ The format starts with a 64 byte header:
 0x20 [Loop # samples ][Rate           ][SN FB ][SNW]*** [YM2612 clock    ]
 0x30 [YM2151 clock   ][VGM data offset] *** *** *** ***  *** *** *** ***
 */
-
-struct LJ_VGM_HEADER
-{
-	LJ_VGM_UINT32 ident;
-	LJ_VGM_UINT32 EOFoffset;
-	LJ_VGM_UINT32 version;
-	LJ_VGM_UINT32 sn76489Clock;
-	LJ_VGM_UINT32 ym2413Clock;
-	LJ_VGM_UINT32 GD3offset;
-	LJ_VGM_UINT32 numSamples;
-	LJ_VGM_UINT32 loopOffset;
-	LJ_VGM_UINT32 numLoops;
-	LJ_VGM_UINT32 rate;
-	LJ_VGM_UINT16 sn76489Feedback;
-	LJ_VGM_UINT8 sn76489ShiftWidth;
-	LJ_VGM_UINT8 padding8_1;
-	LJ_VGM_UINT32 ym2612Clock;
-	LJ_VGM_UINT32 ym2151Clock;
-	LJ_VGM_UINT32 vgmOffset;
-	LJ_VGM_UINT32 padding32_1;
-	LJ_VGM_UINT32 padding32_2;
-};
 
 struct LJ_VGM_FILE
 {
@@ -422,9 +398,11 @@ LJ_VGM_RESULT LJ_VGM_destroy(LJ_VGM_FILE* const vgmFile)
 		fclose(vgmFile->fh);
 	}
 
+/*
 	printf("VGM:numSamples:%d\n", vgmFile->header.numSamples);
 	printf("VGM:loopOffset:%d\n", vgmFile->header.loopOffset);
 	printf("VGM:numLoops:%d\n", vgmFile->header.numLoops);
+*/
 
 	free(vgmFile->data);
 
@@ -744,24 +722,15 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	return LJ_VGM_ERROR;
 }
 
-LJ_VGM_RESULT LJ_VGM_reset(LJ_VGM_FILE* const vgmFile)
+LJ_VGM_RESULT LJ_VGM_getHeader(LJ_VGM_FILE* const vgmFile, LJ_VGM_HEADER* const vgmHeader)
 {
-	int result = LJ_VGM_ERROR;
-
 	if (vgmFile == NULL)
 	{
-		fprintf(stderr, "LJ_VGM_reset:vgmFile is NULL\n" );
+		fprintf(stderr, "LJ_VGM_getHeader:vgmFile is NULL\n" );
 		return LJ_VGM_ERROR;
 	}
 
-	vgmFile->pos = 0;
-
-	result = fseek(vgmFile->fh, 0, SEEK_SET);
-	if (result != 0)
-	{
-		fprintf(stderr, "LJ_VGM_reset: failed to seek to start:%d", result);
-		return LJ_VGM_ERROR;
-	}
+	*vgmHeader = vgmFile->header;
 	return LJ_VGM_OK;
 }
 
