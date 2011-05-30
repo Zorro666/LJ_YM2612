@@ -6,6 +6,7 @@ VGM/
 *.d
 *.gym
 *.vgm
+*.vgz
 *.raw
 *.pcm
 *.wav
