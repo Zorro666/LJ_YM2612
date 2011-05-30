@@ -228,6 +228,21 @@ struct LJ_YM2612_SLOT
 	LJ_YM_UINT8 sustainRate;
 	LJ_YM_UINT8 releaseRate;
 
+	LJ_YM_UINT8 egAttackRate;
+	LJ_YM_UINT8 egDecayRate;
+	LJ_YM_UINT8 egSustainRate;
+	LJ_YM_UINT8 egReleaseRate;
+
+	LJ_YM_UINT8 egAttackRateUpdateShift;
+	LJ_YM_UINT8 egDecayRateUpdateShift;
+	LJ_YM_UINT8 egSustainRateUpdateShift;
+	LJ_YM_UINT8 egReleaseRateUpdateShift;
+
+	LJ_YM_UINT32 egAttackRateUpdateMask;
+	LJ_YM_UINT32 egDecayRateUpdateMask;
+	LJ_YM_UINT32 egSustainRateUpdateMask;
+	LJ_YM_UINT32 egReleaseRateUpdateMask;
+
 	/* LFO settings */
 	LJ_YM_UINT8 am;
 
@@ -336,7 +351,7 @@ struct LJ_YM2612
 };
 
 /* The rate = ADSRrate * 2 + keyRateScale but rate = 0 if ADSRrate = 0 and clamped between 0->63 */
-static LJ_YM_UINT32 ym2612_computeEGRate(const int adsrRate, const int keyRateScale)
+static LJ_YM_UINT8 ym2612_computeEGRate(const int adsrRate, const int keyRateScale)
 {
 	int egRate;
 	egRate = adsrRate * 2 + keyRateScale;
@@ -349,11 +364,11 @@ static LJ_YM_UINT32 ym2612_computeEGRate(const int adsrRate, const int keyRateSc
 		egRate = 63;
 	}
 
-	return (LJ_YM_UINT32)egRate;
+	return (LJ_YM_UINT8)egRate;
 }
 
 /* From the current rate you get a shift width (1,2,4,8,...) and you only update the envelop every N times of the global counter */
-static LJ_YM_UINT32 ym2612_computeEGUpdateShift(LJ_YM_UINT32 egRate)
+static LJ_YM_UINT8 ym2612_computeEGUpdateShift(LJ_YM_UINT8 egRate)
 {
 	int egRateShift;
 
@@ -364,7 +379,7 @@ static LJ_YM_UINT32 ym2612_computeEGUpdateShift(LJ_YM_UINT32 egRate)
 	{
 		egRateShift = 0;
 	}
-	return (LJ_YM_UINT32)egRateShift;
+	return (LJ_YM_UINT8)egRateShift;
 }
 
 static LJ_YM_UINT32 ym2612_computeEGUpdateMask(LJ_YM_UINT32 egRateShift)
@@ -489,8 +504,7 @@ static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 cs
 	/* Only key on if keyed off normally and CSM mode key off */
 	if ((slotPtr->normalKeyOn == 0) && (csmKeyOn == 0))
 	{
-		const int keyRateScale = slotPtr->keyRateScale;
-		const int egRate = 2 * slotPtr->attackRate + keyRateScale;
+		const LJ_YM_UINT8 egRate = slotPtr->egAttackRate;
 
 		if (debugFlags & LJ_YM2612_DEBUG)
 		{
@@ -554,11 +568,11 @@ static void ym2612_slotCSMKeyOFF(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT
 	}
 }
 
+#define ADSR_DEBUG (0)
+
 static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT32 egCounter)
 {
-#define ADSR_DEBUG (0)
 	const LJ_YM2612_ADSR adsrState = slotPtr->adsrState;
-	const int keyRateScale = slotPtr->keyRateScale;
 
 	LJ_YM_UINT32 attenuationDB = slotPtr->attenuationDB;
 
@@ -580,9 +594,9 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 
 	if (adsrState == LJ_YM2612_ADSR_ATTACK)
 	{
-		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->attackRate, keyRateScale);
-		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
-		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRateUpdateShift);
+		const LJ_YM_UINT8 egRate = slotPtr->egAttackRate;
+		const LJ_YM_UINT8 egRateUpdateShift = slotPtr->egAttackRateUpdateShift;
+		const LJ_YM_UINT32 egRateUpdateMask = slotPtr->egAttackRateUpdateMask;
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			const LJ_YM_UINT32 oldDB = attenuationDB;
@@ -613,9 +627,9 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	}
 	else if (adsrState == LJ_YM2612_ADSR_DECAY)
 	{
-		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->decayRate, keyRateScale);
-		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
-		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRateUpdateShift);
+		const LJ_YM_UINT8 egRate = slotPtr->egDecayRate;
+		const LJ_YM_UINT8 egRateUpdateShift = slotPtr->egDecayRateUpdateShift;
+		const LJ_YM_UINT32 egRateUpdateMask = slotPtr->egDecayRateUpdateMask;
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
@@ -633,9 +647,9 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	}
 	else if (adsrState == LJ_YM2612_ADSR_SUSTAIN)
 	{
-		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->sustainRate, keyRateScale);
-		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
-		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRateUpdateShift);
+		const LJ_YM_UINT8 egRate = slotPtr->egSustainRate;
+		const LJ_YM_UINT8 egRateUpdateShift = slotPtr->egSustainRateUpdateShift;
+		const LJ_YM_UINT32 egRateUpdateMask = slotPtr->egSustainRateUpdateMask;
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
@@ -648,9 +662,9 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	}
 	else if (adsrState == LJ_YM2612_ADSR_RELEASE)
 	{
-		const LJ_YM_UINT32 egRate = ym2612_computeEGRate(slotPtr->releaseRate, keyRateScale);
-		const LJ_YM_UINT32 egRateUpdateShift = ym2612_computeEGUpdateShift(egRate);
-		const LJ_YM_UINT32 egRateUpdateMask = ym2612_computeEGUpdateMask(egRateUpdateShift);
+		const LJ_YM_UINT8 egRate = slotPtr->egReleaseRate;
+		const LJ_YM_UINT8 egRateUpdateShift = slotPtr->egReleaseRateUpdateShift;
+		const LJ_YM_UINT32 egRateUpdateMask = slotPtr->egReleaseRateUpdateMask;
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
@@ -986,6 +1000,7 @@ static void ym2612_slotSetAMDecayRate(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 
 	slotPtr->decayRate = DR;
 	slotPtr->am = AM;
+	slotPtr->omegaDirty = 1;
 
 	if (debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -999,6 +1014,7 @@ static void ym2612_slotSetSustainRate(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 	const LJ_YM_UINT8 SR = ((AM_DR >> 0) & 0x1F);
 
 	slotPtr->sustainRate = SR;
+	slotPtr->omegaDirty = 1;
 
 	if (debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -1016,6 +1032,8 @@ static void ym2612_slotSetSustainLevelReleaseRate(LJ_YM2612_SLOT* const slotPtr,
 
 	/* Convert from 4-bits to usual 5-bits for rates */
 	slotPtr->releaseRate = (LJ_YM_UINT8)((RR << 1) + 1);
+	slotPtr->omegaDirty = 1;
+
 	/* Convert from 5-bits to 10-bits used in EG attenuation */
 	slotPtr->sustainLevelDB = (SL << (LJ_YM2612_EG_ATTENUATION_DB_NUM_BITS - 5U));
 
@@ -2103,6 +2121,23 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					ym2612_slotComputeOmegaDelta(slotPtr, slotFnum, slotBlock, slotKeycode, debugFlags);
 					slotPtr->keycode = slotKeycode;
 					slotPtr->keyRateScale = (LJ_YM_UINT8)(slotKeycode >> slotPtr->keyScale);
+
+					slotPtr->egAttackRate = ym2612_computeEGRate(slotPtr->attackRate, slotPtr->keyRateScale);
+					slotPtr->egAttackRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egAttackRate);
+					slotPtr->egAttackRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egAttackRateUpdateShift);
+
+					slotPtr->egDecayRate = ym2612_computeEGRate(slotPtr->decayRate, slotPtr->keyRateScale);
+					slotPtr->egDecayRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egDecayRate);
+					slotPtr->egDecayRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egDecayRateUpdateShift);
+
+					slotPtr->egSustainRate = ym2612_computeEGRate(slotPtr->sustainRate, slotPtr->keyRateScale);
+					slotPtr->egSustainRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egSustainRate);
+					slotPtr->egSustainRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egSustainRateUpdateShift);
+
+					slotPtr->egReleaseRate = ym2612_computeEGRate(slotPtr->releaseRate, slotPtr->keyRateScale);
+					slotPtr->egReleaseRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egReleaseRate);
+					slotPtr->egReleaseRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egReleaseRateUpdateShift);
+
 					slotPtr->omegaDirty = 0;
 				}
 	
