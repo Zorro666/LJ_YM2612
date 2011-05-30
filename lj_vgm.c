@@ -129,6 +129,12 @@ All unknown types must be skipped by the player.
 
 #include "lj_vgm.h"
 
+#define LJ_USE_ZLIB
+
+#if defined(LJ_USE_ZLIB)
+#include "zlib/zlib.h"
+#endif /*#if defined(LJ_USE_ZLIB)*/
+
 #include <malloc.h>
 #include <string.h>
 
@@ -153,10 +159,13 @@ The format starts with a 64 byte header:
 0x20 [Loop # samples ][Rate           ][SN FB ][SNW]*** [YM2612 clock    ]
 0x30 [YM2151 clock   ][VGM data offset] *** *** *** ***  *** *** *** ***
 */
-
 struct LJ_VGM_FILE
 {
+#if defined(LJ_USE_ZLIB)
+	gzFile gzh;
+#else /*#if defined(LJ_USE_ZLIB)*/
 	FILE* fh;
+#endif /*#if defined(LJ_USE_ZLIB)*/
 	int pos;
 	int cmdCount;
 	int dataStart;
@@ -285,7 +294,11 @@ static void vgm_init(LJ_VGM_FILE* const vgmFile)
 
 static LJ_VGM_RESULT vgm_open(LJ_VGM_FILE* const vgmFile, const char* const fname)
 {
+#if defined(LJ_USE_ZLIB)
+	gzFile gzh;
+#else /*#if defined(LJ_USE_ZLIB)*/
 	FILE* fh = NULL;
+#endif /*#if defined(LJ_USE_ZLIB)*/
 	int result = 0;
 	int dataStart = 0;
 
@@ -295,15 +308,24 @@ static LJ_VGM_RESULT vgm_open(LJ_VGM_FILE* const vgmFile, const char* const fnam
 		return LJ_VGM_ERROR;
 	}
 
+#if defined(LJ_USE_ZLIB)
+	gzh = gzopen(fname, "rb");
+	if (gzh == NULL)
+#else /*#if defined(LJ_USE_ZLIB)*/
 	fh = fopen(fname, "rb");
 	if (fh == NULL)
+#endif /*#if defined(LJ_USE_ZLIB)*/
 	{
 		fprintf(stderr, "vgm_open:Failed to open file '%s'\n", fname);
 		return LJ_VGM_ERROR;
 	}
 
-	result = (int)fread(&vgmFile->header, sizeof(vgmFile->header), 1, fh);
-	if (result != 1)
+#if defined(LJ_USE_ZLIB)
+	result = gzread(gzh, &vgmFile->header, sizeof(vgmFile->header));
+#else /*#if defined(LJ_USE_ZLIB)*/
+	result = (int)fread(&vgmFile->header, 1, sizeof(vgmFile->header), fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+	if (result != sizeof(vgmFile->header))
 	{
 		fprintf(stderr, "vgm_open: failed to read header result:%d\n", result);
 		return LJ_VGM_ERROR;
@@ -329,7 +351,11 @@ static LJ_VGM_RESULT vgm_open(LJ_VGM_FILE* const vgmFile, const char* const fnam
 	printf("padding32_1:%d\n", vgmFile->header.padding32_1);
 	printf("padding32_2:%d\n", vgmFile->header.padding32_2);
 
+#if defined(LJ_USE_ZLIB)
+	vgmFile->gzh = gzh;
+#else /*#if defined(LJ_USE_ZLIB)*/
 	vgmFile->fh = fh;
+#endif /*#if defined(LJ_USE_ZLIB)*/
 	vgmFile->pos = 0;
 	vgmFile->cmdCount = 0;
 	vgmFile->dataStart = 0;
@@ -343,10 +369,22 @@ static LJ_VGM_RESULT vgm_open(LJ_VGM_FILE* const vgmFile, const char* const fnam
 	vgmFile->dataStart = dataStart;
 	vgmFile->pos = dataStart;
 
+#if defined(LJ_USE_ZLIB)
+	result = gzseek(vgmFile->gzh, dataStart, SEEK_SET);
+	if (result == dataStart)
+	{
+		result = 0;
+	}
+	else
+	{
+		result = -1;
+	}
+#else /*#if defined(LJ_USE_ZLIB)*/
 	result = fseek(vgmFile->fh, dataStart, SEEK_SET);
+#endif /*#if defined(LJ_USE_ZLIB)*/
 	if (result != 0)
 	{
-		fprintf(stderr, "vgm_open: failed to seek to start of data:%d result:%d", dataStart, result);
+		fprintf(stderr, "vgm_open: failed to seek to start of data:%d result:%d\n", dataStart, result);
 		return LJ_VGM_ERROR;
 	}
 	printf("dataStart = 0x%X\n",dataStart);
@@ -393,10 +431,17 @@ LJ_VGM_RESULT LJ_VGM_destroy(LJ_VGM_FILE* const vgmFile)
 	{
 		return LJ_VGM_OK;
 	}
+#if defined(LJ_USE_ZLIB)
+	if (vgmFile->gzh != NULL)
+	{
+		gzclose(vgmFile->gzh);
+	}
+#else /*#if defined(LJ_USE_ZLIB)*/
 	if (vgmFile->fh != NULL)
 	{
 		fclose(vgmFile->fh);
 	}
+#endif /*#if defined(LJ_USE_ZLIB)*/
 
 /*
 	printf("VGM:numSamples:%d\n", vgmFile->header.numSamples);
@@ -428,8 +473,12 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 
 	pos = vgmFile->pos;
 	cmdCount = vgmFile->cmdCount;
-	numRead = fread(&cmd, sizeof(cmd), 1, vgmFile->fh);
-	if (numRead != 1)
+#if defined(LJ_USE_ZLIB)
+	numRead = (size_t)gzread(vgmFile->gzh, &cmd, sizeof(cmd));
+#else /*#if defined(LJ_USE_ZLIB)*/
+	numRead = fread(&cmd, 1, sizeof(cmd), vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+	if (numRead != sizeof(cmd))
 	{
 		fprintf(stderr, "LJ_VGM_read: failed to read cmd byte pos:%d\n", pos);
 		return LJ_VGM_ERROR;
@@ -447,8 +496,12 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	{
 		LJ_VGM_UINT8 endSoundData = 0;
 		/*The data block format is: 0x67 0x66 tt ss ss ss ss (data)*/
-		numRead = fread(&endSoundData, sizeof(endSoundData), 1, vgmFile->fh);
-		if (numRead != 1)
+#if defined(LJ_USE_ZLIB)
+		numRead = (size_t)gzread(vgmFile->gzh, &endSoundData, sizeof(endSoundData));
+#else /*#if defined(LJ_USE_ZLIB)*/
+		numRead = fread(&endSoundData, 1, sizeof(endSoundData), vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+		if (numRead != sizeof(endSoundData))
 		{
 			fprintf(stderr, "LJ_VGM_read: failed to read END_SOUND_DATA cmd byte pos:%d\n", pos);
 			return LJ_VGM_ERROR;
@@ -458,8 +511,12 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 			fprintf(stderr, "LJ_VGM_read: invalid cmd byte expecting END_SOUND_DATA got:0x%X pos:%d\n", endSoundData, pos);
 			return LJ_VGM_ERROR;
 		}
-		numRead = fread(&vgmFile->dataType, sizeof(vgmFile->dataType), 1, vgmFile->fh);
-		if (numRead != 1)
+#if defined(LJ_USE_ZLIB)
+		numRead = (size_t)gzread(vgmFile->gzh, &vgmFile->dataType, sizeof(vgmFile->dataType));
+#else /*#if defined(LJ_USE_ZLIB)*/
+		numRead = fread(&vgmFile->dataType, 1, sizeof(vgmFile->dataType), vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+		if (numRead != sizeof(vgmFile->dataType))
 		{
 			fprintf(stderr, "LJ_VGM_read: failed to read dataType byte pos:%d\n", pos);
 			return LJ_VGM_ERROR;
@@ -469,8 +526,12 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 			fprintf(stderr, "LJ_VGM_read: invalid dataType expecting 0x00 got:0x%X pos:%d\n", vgmFile->dataType, pos);
 			return LJ_VGM_ERROR;
 		}
-		numRead = fread(&vgmFile->dataNum, sizeof(vgmFile->dataNum), 1, vgmFile->fh);
-		if (numRead != 1)
+#if defined(LJ_USE_ZLIB)
+		numRead = (size_t)gzread(vgmFile->gzh, &vgmFile->dataNum, sizeof(vgmFile->dataNum));
+#else /*#if defined(LJ_USE_ZLIB)*/
+		numRead = fread(&vgmFile->dataNum, 1, sizeof(vgmFile->dataNum), vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+		if (numRead != sizeof(vgmFile->dataNum))
 		{
 			fprintf(stderr, "LJ_VGM_read: failed to read dataNum bytes pos:%d\n", pos);
 			return LJ_VGM_ERROR;
@@ -481,7 +542,11 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 			fprintf(stderr, "LJ_VGM_read: failed to allocate data array size:%d pos:%d\n", vgmFile->dataNum, pos);
 			return LJ_VGM_ERROR;
 		}
+#if defined(LJ_USE_ZLIB)
+		numRead = (size_t)gzread(vgmFile->gzh, vgmFile->data, vgmFile->dataNum);
+#else /*#if defined(LJ_USE_ZLIB)*/
 		numRead = fread(vgmFile->data, 1, vgmFile->dataNum, vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
 		if (numRead != vgmFile->dataNum)
 		{
 			fprintf(stderr, "LJ_VGM_read: failed to read dataNum:%d bytes numRead:%d pos:%d\n", vgmFile->dataNum, numRead, pos);
@@ -509,15 +574,23 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 		LJ_VGM_UINT8 R = 0;
 		LJ_VGM_UINT8 D = 0;
 
-		numRead = fread(&R, sizeof(R), 1, vgmFile->fh);
-		if (numRead != 1)
+#if defined(LJ_USE_ZLIB)
+		numRead = (size_t)gzread(vgmFile->gzh, &R, sizeof(R));
+#else /*#if defined(LJ_USE_ZLIB)*/
+		numRead = fread(&R, 1, sizeof(R), vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+		if (numRead != sizeof(R))
 		{
 			fprintf(stderr, "LJ_VGM_read: failed to read R byte cmd:%d pos:%d\n", cmd, pos);
 			return LJ_VGM_ERROR;
 		}
 
-		numRead = fread(&D, sizeof(D), 1, vgmFile->fh);
-		if (numRead != 1)
+#if defined(LJ_USE_ZLIB)
+		numRead = (size_t)gzread(vgmFile->gzh, &D, sizeof(D));
+#else /*#if defined(LJ_USE_ZLIB)*/
+		numRead = fread(&D, 1, sizeof(D), vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+		if (numRead != sizeof(D))
 		{
 			fprintf(stderr, "LJ_VGM_read: failed to read D byte cmd:%d pos:%d\n", cmd, pos);
 			return LJ_VGM_ERROR;
@@ -538,8 +611,12 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	else if (cmd == LJ_VGM_DATA_SEEK_OFFSET)
 	{
 		/*0xe0 dddddddd 	: seek to offset dddddddd (Intel byte order) in PCM data bank*/
-		numRead = fread(&vgmFile->dataSeekOffset, sizeof(vgmFile->dataSeekOffset), 1, vgmFile->fh);
-		if (numRead != 1)
+#if defined(LJ_USE_ZLIB)
+		numRead = (size_t)gzread(vgmFile->gzh, &vgmFile->dataSeekOffset, sizeof(vgmFile->dataSeekOffset));
+#else /*#if defined(LJ_USE_ZLIB)*/
+		numRead = fread(&vgmFile->dataSeekOffset, 1, sizeof(vgmFile->dataSeekOffset), vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+		if (numRead != sizeof(vgmFile->dataSeekOffset))
 		{
 			fprintf(stderr, "LJ_VGM_read: failed to read data seek offset pos:%d\n", pos);
 			return LJ_VGM_ERROR;
@@ -606,8 +683,12 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	{
 		/* 0x4f dd : Game Gear PSG stereo, write dd to port 0x06*/
 		LJ_VGM_UINT8 D = 0;
-		numRead = fread(&D, sizeof(D), 1, vgmFile->fh);
-		if (numRead != 1)
+#if defined(LJ_USE_ZLIB)
+		numRead = (size_t)gzread(vgmFile->gzh, &D, sizeof(D));
+#else /*#if defined(LJ_USE_ZLIB)*/
+		numRead = fread(&D, 1, sizeof(D), vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+		if (numRead != sizeof(D))
 		{
 			fprintf(stderr, "LJ_VGM_read: failed to read D byte pos:%d\n", pos);
 			return LJ_VGM_ERROR;
@@ -628,8 +709,12 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	{
 		/*0x50 dd : PSG (SN76489/SN76496) write value dd*/
 		LJ_VGM_UINT8 D = 0;
-		numRead = fread(&D, sizeof(D), 1, vgmFile->fh);
-		if (numRead != 1)
+#if defined(LJ_USE_ZLIB)
+		numRead = (size_t)gzread(vgmFile->gzh, &D, sizeof(D));
+#else /*#if defined(LJ_USE_ZLIB)*/
+		numRead = fread(&D, 1, sizeof(D), vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+		if (numRead != sizeof(D))
 		{
 			fprintf(stderr, "LJ_VGM_read: failed to read D byte pos:%d\n", pos);
 			return LJ_VGM_ERROR;
@@ -650,8 +735,12 @@ LJ_VGM_RESULT LJ_VGM_read(LJ_VGM_FILE* const vgmFile, LJ_VGM_INSTRUCTION* const 
 	{
 		/*0x61 nn nn 		: Wait n samples, n can range from 0 to 65535 (approx 1.49 seconds). */
 		LJ_VGM_UINT16 waitSamples;
-		numRead = fread(&waitSamples, sizeof(waitSamples), 1, vgmFile->fh);
-		if (numRead != 1)
+#if defined(LJ_USE_ZLIB)
+		numRead = (size_t)gzread(vgmFile->gzh, &waitSamples, sizeof(waitSamples));
+#else /*#if defined(LJ_USE_ZLIB)*/
+		numRead = fread(&waitSamples, 1, sizeof(waitSamples), vgmFile->fh);
+#endif /*#if defined(LJ_USE_ZLIB)*/
+		if (numRead != sizeof(waitSamples))
 		{
 			fprintf(stderr, "LJ_VGM_read: failed to read waitSamples offset pos:%d\n", pos);
 			return LJ_VGM_ERROR;
