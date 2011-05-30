@@ -167,17 +167,20 @@ static const LJ_YM_UINT8 LJ_YM2612_fnumKeycodeTable[16] = {
 #define LJ_YM2612_TL_TABLE_NUM_ENTRIES (128)
 static int LJ_YM2612_tlTable[LJ_YM2612_TL_TABLE_NUM_ENTRIES];
 
-/* SL - table (4-bits): 0->0xF : output = 2^(-SL/2) - could use tlTable[SL*4] */
-/* From the docs Bit 0 = 3dB, Bit 1 = 6dB, Bit 2 = 12dB, Bit 3 = 24dB = x0.707105 = 2^(-1/2) & 0xF = 93dB */
-#define LJ_YM2612_SL_TABLE_NUM_ENTRIES (16)
-static LJ_YM_UINT32 LJ_YM2612_slTable[LJ_YM2612_SL_TABLE_NUM_ENTRIES];
-
 /* The slots referenced in the registers are not 0,1,2,3 *sigh* */
 static LJ_YM_UINT8 LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2, 1, 3 };
 
 #define LJ_YM2612_EG_ATTENUATION_DB_NUM_BITS (10)
+#define LJ_YM2612_EG_ATTENUATION_DB_TABLE_BITS (LJ_YM2612_EG_ATTENUATION_DB_NUM_BITS)
+#define LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTRIES (1 << LJ_YM2612_EG_ATTENUATION_DB_TABLE_BITS)
+#define LJ_YM2612_EG_ATTENUATION_DB_TABLE_MASK (LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTRIES - 1)
+
 #define LJ_YM2612_EG_ATTENUATION_DB_MIN (0)
-#define LJ_YM2612_EG_ATTENUATION_DB_MAX ((1 << LJ_YM2612_EG_ATTENUATION_DB_NUM_BITS) - 1)
+#define LJ_YM2612_EG_ATTENUATION_DB_MAX (LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTRIES - 1)
+
+/* Convert EG attenuation into linear volume */
+/* A logarithmic scale of 10-bits, TL is 7-bits and is 2^(-1/8), move to 10-bits gives 2^(-1/(8*8)) */
+static int LJ_YM2612_EG_attenuationTable[LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTRIES];
 
 /* EG circuit timer units fixed point */
 #define LJ_YM2612_EG_TIMER_NUM_BITS (16)
@@ -558,11 +561,7 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 	const int keyScale = slotPtr->keyScale;
 	const int keyRateScale = keycode >> (3-keyScale);
 
-	LJ_YM_UINT32 slotVolumeDB = LJ_YM2612_EG_ATTENUATION_DB_MAX;
 	LJ_YM_UINT32 attenuationDB = slotPtr->attenuationDB;
-	int scaledVolume = 0;
-
-	int invertOutput = 0;
 
 	if (attenuationDB > LJ_YM2612_EG_ATTENUATION_DB_MAX)
 	{
@@ -668,33 +667,14 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 		}
 	}
 
-	if (invertOutput == 1)
-	{
-		/* Attack is inverse of DB */
-		/*slotVolumeDB = LJ_YM2612_EG_ATTENUATION_DB_MAX - attenuationDB;*/
-		slotVolumeDB = ~attenuationDB;
-		slotVolumeDB &= LJ_YM2612_EG_ATTENUATION_DB_MAX;
-	}
-	else
-	{
-		slotVolumeDB = attenuationDB;
-	}
 	if (attenuationDB > LJ_YM2612_EG_ATTENUATION_DB_MAX)
 	{
 		attenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MAX;
 	}
 	slotPtr->attenuationDB = attenuationDB;
 
-	/* Convert slotVolumeDB into volume */
-	/* TODO: make this a table */
-	{
-		/* slotVolumeDB is a logarithmic scale of 10-bits, TL is 7-bits and is 2^(-1/8), move to 10-bits gives 2^(-1/(8*8)) */
-		const float dbScale = -(float)slotVolumeDB * (1.0f / 64.0f);
-		const float value = (float)pow(2.0f, dbScale);
-		scaledVolume = (int)(value * (float)(1 << LJ_YM2612_VOLUME_SCALE_BITS));
-	}
-
-	slotPtr->volume = scaledVolume;
+	/* Convert attenuation DB into volume scale */
+	slotPtr->volume = LJ_YM2612_EG_attenuationTable[attenuationDB & LJ_YM2612_EG_ATTENUATION_DB_TABLE_MASK];
 }
 
 static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const int fnum, const int block, const int keycode, 
@@ -1041,12 +1021,12 @@ static void ym2612_channelSetSustainLevelReleaseRate(LJ_YM2612_CHANNEL* const ch
 
 	/* Sustain Level = Bits 4-7 */
 	const LJ_YM_UINT32 SL = ((SL_RR >> 4) & 0xF);
-	const LJ_YM_UINT32 SLscale = LJ_YM2612_slTable[SL];
 
 	/* Convert from 4-bits to usual 5-bits for rates */
 	slotPtr->releaseRate = (LJ_YM_UINT8)((RR << 1) + 1);
-	slotPtr->sustainLevelDB = SLscale;
-	slotPtr->sustainLevelDB = (SL << 5U);
+	/* Convert from 5-bits to 10-bits used in EG attenuation */
+	slotPtr->sustainLevelDB = (SL << (LJ_YM2612_EG_ATTENUATION_DB_NUM_BITS - 5U));
+
 	if ((slotPtr->adsrState == LJ_YM2612_ADSR_DECAY) && (slotPtr->attenuationDB >= slotPtr->sustainLevelDB))
 	{
 		slotPtr->adsrState = LJ_YM2612_ADSR_SUSTAIN;
@@ -1054,8 +1034,7 @@ static void ym2612_channelSetSustainLevelReleaseRate(LJ_YM2612_CHANNEL* const ch
 
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
-		printf("SetSustainLevelReleaseRate channel:%d slot:%d SL:%d scale:%f SLscale:%d RR:%d\n", channelPtr->id, 
-					slot, SL, ((float)(SLscale)/(float)(1<<LJ_YM2612_SL_SCALE_BITS)), SLscale, RR);
+		printf("SetSustainLevelReleaseRate channel:%d slot:%d SL:%d RR:%d\n", channelPtr->id, slot, SL, RR);
 	}
 }
 
@@ -1270,6 +1249,8 @@ static void ym2612_egDebugOutputDeltas(void)
 
 static void ym2612_egMakeData(LJ_YM2612_EG* const egPtr, LJ_YM2612* ym2612Ptr)
 {
+	int i;
+
 	egPtr->timer = 0;
 
 	/* FM output timer is (clockRate/144) but update code is every sampleRate times of that in the use of this code */
@@ -1278,6 +1259,14 @@ static void ym2612_egMakeData(LJ_YM2612_EG* const egPtr, LJ_YM2612* ym2612Ptr)
 
 	/* Some argument on this value from looking at the forums: MAME = 3, Nemesis (on PAL MD) adamant it is 2.4375 */
 	egPtr->timerPerUpdate = (LJ_YM_UINT32)((float)LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
+
+	for (i = 0; i < LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTRIES; i++)
+	{
+		const float dbScale = -(float)i * (1.0f / 64.0f);
+		const float scale = (float)pow(2.0f, dbScale);
+		const int intScale = (int)(scale * (float)(1 << LJ_YM2612_VOLUME_SCALE_BITS));
+		LJ_YM2612_EG_attenuationTable[i] = intScale;
+	}
 
 	egPtr->counter = 0;
 
@@ -1429,17 +1418,6 @@ static void ym2612_makeData(LJ_YM2612* const ym2612Ptr)
 		const int scaledTL = (int)(tlValue * (float)(1 << LJ_YM2612_TL_SCALE_BITS));
 		LJ_YM2612_tlTable[i] = scaledTL;
 	}
-
-	for (i = 0; i < LJ_YM2612_SL_TABLE_NUM_ENTRIES; i++)
-	{
-		/* From the docs Bit 0 = 3dB, Bit 1 = 6dB, Bit 2 = 12dB, Bit 3 = 24dB, each step = x0.707105 = 2^(-1/2) & 0xF = 93dB */
-		const float value = -(float)i * (1.0f / 2.0f);
-		const float slValue = (float)pow(2.0f, value);
-		const LJ_YM_UINT32 scaledSL = (LJ_YM_UINT32)(slValue * (float)(1 << LJ_YM2612_SL_SCALE_BITS));
-		LJ_YM2612_slTable[i] = scaledSL;
-	}
-	/* 0xF = 93dB */
-	LJ_YM2612_slTable[15] = 0;
 
 #if 0 
 	/* DT1 = -3 -> 3 */
