@@ -1,7 +1,7 @@
 High Priority:
+YM2612:rename internal _channel functions which work on slots to _slot functions and pass in debug flags
 
 Medium Priority:
-YM2612:rename internal _channel functions which work on slots to _slot functions and pass in debug flags
 YM2612:ADSR update numbers can be computed once per output (ADSR rates+key scale rate)- not inside updateEG
 YM2612:keyratescale compute once and store with slot - update when keycode changes (or key scale)
 
