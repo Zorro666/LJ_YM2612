@@ -1,5 +1,4 @@
 High Priority:
-YM2612:ADSR update numbers can be computed once per output (ADSR rates+key scale rate)- not inside updateEG
 
 Medium Priority:
 TEST_APP: VGM debug on/off
