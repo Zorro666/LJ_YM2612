@@ -38,6 +38,7 @@ int main(int argc, char* argv[])
 	const char* wavOutputName = NULL;
 
 	int debug = 0;
+	int vgmDebug = 0;
 	int nodac = 0;
 	int nofm = 0;
 	int mono = 1;
@@ -55,44 +56,63 @@ int main(int argc, char* argv[])
 		const char* option = argv[i];
 		if (option[0] == '-')
 		{
-			if (strcmp(option+1, "debug") == 0)
+			/* Make option lower-case */
+			const char* const optionStart = option+1;
+			char* szPtr = (char*)optionStart;
+			while (szPtr[0] != '\0')
+			{
+				char val = szPtr[0];
+				char newVal = val;
+				if ((val >= 'A') && (val <= 'Z'))
+				{
+					newVal = (char)(val + 'a' - 'A');
+				}
+
+				szPtr[0] = newVal;
+				szPtr++;
+			}
+			if (strcmp(optionStart, "debug") == 0)
 			{
 				debug = 1;
 			}
-			else if (strcmp(option+1, "mono") == 0)
+			else if (strcmp(optionStart, "vgmdebug") == 0)
+			{
+				vgmDebug = 1;
+			}
+			else if (strcmp(optionStart, "mono") == 0)
 			{
 				mono = 1;
 				stereo = 0;
 			}
-			else if (strcmp(option+1, "stereo") == 0)
+			else if (strcmp(optionStart, "stereo") == 0)
 			{
 				mono = 0;
 				stereo = 1;
 			}
-			else if (strcmp(option+1, "nodac") == 0)
+			else if (strcmp(optionStart, "nodac") == 0)
 			{
 				nodac = 1;
 			}
-			else if (strcmp(option+1, "nofm") == 0)
+			else if (strcmp(optionStart, "nofm") == 0)
 			{
 				nofm = 1;
 			}
-			else if (strcmp(option+1, "noerror") == 0)
+			else if (strcmp(optionStart, "noerror") == 0)
 			{
 				noerror = 1;
 			}
-			else if (strcmp(option+1, "statusRead") == 0)
+			else if (strcmp(optionStart, "statusread") == 0)
 			{
 				statusRead = 1;
 			}
-			else if (strncmp(option+1, "channel=", strlen("channel=")) == 0)
+			else if (strncmp(optionStart, "channel=", strlen("channel=")) == 0)
 			{
-				channel=atoi(option+1+strlen("channel="));
+				channel=atoi(optionStart+strlen("channel="));
 			}
-			else if (strncmp(option+1, "test=", strlen("test=")) == 0)
+			else if (strncmp(optionStart, "test=", strlen("test=")) == 0)
 			{
 				test = 1;
-				testName = option+1+strlen("test=");
+				testName = optionStart+strlen("test=");
 				inputFileName = "";
 			}
 		}
@@ -169,7 +189,7 @@ int main(int argc, char* argv[])
 	}
 	else
 	{
-		vgmFile = LJ_VGM_create( NULL );
+		vgmFile = LJ_VGM_create(NULL);
 		if (startTestProgram(testName) == LJ_VGM_ERROR)
 		{
 			fprintf(stderr,"ERROR: startTestProgram '%s' program not found\n", testName);
@@ -200,7 +220,7 @@ int main(int argc, char* argv[])
 		outputNumChannels = 2;
 	}
 
-	wavFile = LJ_WAV_create( wavOutputName, LJ_WAV_FORMAT_PCM, outputNumChannels, OUTPUT_SAMPLE_RATE, OUTPUT_NUM_BYTES_PER_CHANNEL );
+	wavFile = LJ_WAV_create(wavOutputName, LJ_WAV_FORMAT_PCM, outputNumChannels, OUTPUT_SAMPLE_RATE, OUTPUT_NUM_BYTES_PER_CHANNEL);
 	if (wavFile == NULL)
 	{
 		fprintf(stderr,"ERROR: LJ_WAV_create() failed '%s'\n", wavOutputName);
@@ -281,9 +301,9 @@ int main(int argc, char* argv[])
 		}
 		if (result == LJ_VGM_OK)
 		{
-			if (debug == 1)
+			if (vgmDebug == 1)
 			{
-				LJ_VGM_debugPrint( &vgmInstruction);
+				LJ_VGM_debugPrint(&vgmInstruction);
 			}
 		}
 		if (vgmInstruction.cmd == LJ_VGM_END_SOUND_DATA)
