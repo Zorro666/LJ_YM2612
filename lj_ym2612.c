@@ -162,11 +162,6 @@ static const LJ_YM_UINT8 LJ_YM2612_fnumKeycodeTable[16] = {
 2, 3, 3, 3, 3, 3, 3, 3,
 };
 
-/* TL - table (7-bits): 0->0x7F : output = 2^(-TL/8) */
-/* From the docs each step is -0.75dB = x0.9172759 = 2^(-1/8) */
-#define LJ_YM2612_TL_TABLE_NUM_ENTRIES (128)
-static int LJ_YM2612_tlTable[LJ_YM2612_TL_TABLE_NUM_ENTRIES];
-
 /* The slots referenced in the registers are not 0,1,2,3 *sigh* */
 static LJ_YM_UINT8 LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2, 1, 3 };
 
@@ -179,8 +174,14 @@ static LJ_YM_UINT8 LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2
 #define LJ_YM2612_EG_ATTENUATION_DB_MAX (LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTRIES - 1)
 
 /* Convert EG attenuation into linear volume */
-/* A logarithmic scale of 10-bits, TL is 7-bits and is 2^(-1/8), move to 10-bits gives 2^(-1/(8*8)) */
+/* EG attenuation log scale of 10-bits, TL is 7-bits and is 2^(-1/8), move to 10-bits gives 2^(-1/(8*8)) */
+/* Each step is x0.989228013 */
 static int LJ_YM2612_EG_attenuationTable[LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTRIES];
+
+/* TL - table (7-bits): 0->0x7F : output = 2^(-TL/8) */
+/* From the docs each step is -0.75dB = x0.9172759 = 2^(-1/8) */
+/* Use the EG attenuation table but shift up */
+#define LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT (3)
 
 /* EG circuit timer units fixed point */
 #define LJ_YM2612_EG_TIMER_NUM_BITS (16)
@@ -1044,7 +1045,9 @@ static void ym2612_channelSetTotalLevel(LJ_YM2612_CHANNEL* const channelPtr, con
 
 	/* Total Level = Bits 0-6 */
 	const int TL = (totalLevel >> 0) & 0x7F;
-	const int TLscale = LJ_YM2612_tlTable[TL];
+	const int TL_EG_Shifted = (TL << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT);
+	const int TLscale = LJ_YM2612_EG_attenuationTable[TL_EG_Shifted & LJ_YM2612_EG_ATTENUATION_DB_TABLE_MASK];
+
 	slotPtr->totalLevel = TLscale;
 
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
@@ -1408,15 +1411,6 @@ static void ym2612_makeData(LJ_YM2612* const ym2612Ptr)
 		const float sinValue = (float)sin(omega);
 		const int scaledSin = (int)(sinValue * (float)(1 << LJ_YM2612_SIN_SCALE_BITS));
 		LJ_YM2612_sinTable[i] = scaledSin;
-	}
-
-	for (i = 0; i < LJ_YM2612_TL_TABLE_NUM_ENTRIES; i++)
-	{
-		/* From the docs each step is -0.75dB = x0.9172759 = 2^(-1/8) */
-		const float value = -(float)i * (1.0f / 8.0f);
-		const float tlValue = (float)pow(2.0f, value);
-		const int scaledTL = (int)(tlValue * (float)(1 << LJ_YM2612_TL_SCALE_BITS));
-		LJ_YM2612_tlTable[i] = scaledTL;
 	}
 
 #if 0 
