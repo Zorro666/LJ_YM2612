@@ -202,6 +202,7 @@ typedef enum LJ_YM2612_ADSR {
 
 struct LJ_YM2612_SLOT
 {
+	int chanId;
 	int id;
 
 	int omega;
@@ -960,10 +961,8 @@ static void ym2612_channelSetFeedbackAlgorithm(LJ_YM2612_CHANNEL* const channelP
 	ym2612_channelSetConnections(channelPtr);
 }
 
-static void ym2612_channelSetKeyScaleAttackRate(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 RS_AR)
+static void ym2612_slotSetKeyScaleAttackRate(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 RS_AR, const LJ_YM_UINT32 debugFlags)
 {
-	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
-
 	/* Attack Rate = Bits 0-4 */
 	const LJ_YM_UINT8 AR = ((RS_AR >> 0) & 0x1F);
 
@@ -973,16 +972,14 @@ static void ym2612_channelSetKeyScaleAttackRate(LJ_YM2612_CHANNEL* const channel
 	slotPtr->attackRate = AR;
 	slotPtr->keyScale = RS;
 
-	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	if (debugFlags & LJ_YM2612_DEBUG)
 	{
-		printf("SetKeyScaleAttackRate channel:%d slot:%d AR:%d RS:%d\n", channelPtr->id, slot, AR, RS);
+		printf("SetKeyScaleAttackRate channel:%d slot:%d AR:%d RS:%d\n", slotPtr->chanId, slotPtr->id, AR, RS);
 	}
 }
 
-static void ym2612_channelSetAMDecayRate(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 AM_DR)
+static void ym2612_slotSetAMDecayRate(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 AM_DR, const LJ_YM_UINT32 debugFlags)
 {
-	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
-
 	/* Decay Rate = Bits 0-4 */
 	const LJ_YM_UINT8 DR = ((AM_DR >> 0) & 0x1F);
 
@@ -992,31 +989,27 @@ static void ym2612_channelSetAMDecayRate(LJ_YM2612_CHANNEL* const channelPtr, co
 	slotPtr->decayRate = DR;
 	slotPtr->am = AM;
 
-	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	if (debugFlags & LJ_YM2612_DEBUG)
 	{
-		printf("SetAMDecayRate channel:%d slot:%d DR:%d AM:%d\n", channelPtr->id, slot, DR, AM);
+		printf("SetAMDecayRate channel:%d slot:%d DR:%d AM:%d\n", slotPtr->chanId, slotPtr->id, DR, AM);
 	}
 }
 
-static void ym2612_channelSetSustainRate(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 AM_DR)
+static void ym2612_slotSetSustainRate(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 AM_DR, const LJ_YM_UINT32 debugFlags)
 {
-	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
-
 	/* Sustain Rate = Bits 0-4 */
 	const LJ_YM_UINT8 SR = ((AM_DR >> 0) & 0x1F);
 
 	slotPtr->sustainRate = SR;
 
-	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	if (debugFlags & LJ_YM2612_DEBUG)
 	{
-		printf("SetSustainRate channel:%d slot:%d SR:%d\n", channelPtr->id, slot, SR);
+		printf("SetSustainRate channel:%d slot:%d SR:%d\n", slotPtr->chanId, slotPtr->id, SR);
 	}
 }
 
-static void ym2612_channelSetSustainLevelReleaseRate(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 SL_RR)
+static void ym2612_slotSetSustainLevelReleaseRate(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 SL_RR, const LJ_YM_UINT32 debugFlags)
 {
-	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
-
 	/* Release rate = Bits 0-3 */
 	const LJ_YM_UINT8 RR = ((SL_RR >> 0) & 0xF);
 
@@ -1033,16 +1026,14 @@ static void ym2612_channelSetSustainLevelReleaseRate(LJ_YM2612_CHANNEL* const ch
 		slotPtr->adsrState = LJ_YM2612_ADSR_SUSTAIN;
 	}
 
-	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	if (debugFlags & LJ_YM2612_DEBUG)
 	{
-		printf("SetSustainLevelReleaseRate channel:%d slot:%d SL:%d RR:%d\n", channelPtr->id, slot, SL, RR);
+		printf("SetSustainLevelReleaseRate channel:%d slot:%d SL:%d RR:%d\n", slotPtr->chanId, slotPtr->id, SL, RR);
 	}
 }
 
-static void ym2612_channelSetTotalLevel(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 totalLevel)
+static void ym2612_slotSetTotalLevel(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 totalLevel, const LJ_YM_UINT32 debugFlags)
 {
-	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
-
 	/* Total Level = Bits 0-6 */
 	const int TL = (totalLevel >> 0) & 0x7F;
 	const int TL_EG_Shifted = (TL << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT);
@@ -1050,17 +1041,15 @@ static void ym2612_channelSetTotalLevel(LJ_YM2612_CHANNEL* const channelPtr, con
 
 	slotPtr->totalLevel = TLscale;
 
-	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	if (debugFlags & LJ_YM2612_DEBUG)
 	{
-		printf("SetTotalLevel channel:%d slot:%d TL:%d scale:%f TLscale:%d\n", channelPtr->id, 
-					slot, TL, ((float)(TLscale)/(float)(1<<LJ_YM2612_TL_SCALE_BITS)), TLscale);
+		printf("SetTotalLevel channel:%d slot:%d TL:%d scale:%f TLscale:%d\n", slotPtr->chanId, 
+					slotPtr->id, TL, ((float)(TLscale)/(float)(1<<LJ_YM2612_TL_SCALE_BITS)), TLscale);
 	}
 }
 
-static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, const int slot, const LJ_YM_UINT8 detuneMult)
+static void ym2612_slotSetDetuneMult(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 detuneMult, const LJ_YM_UINT32 debugFlags)
 {
-	LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
-
 	/* Detune = Bits 4-6, Multiple = Bits 0-3 */
 	const LJ_YM_UINT8 detune = (detuneMult >> 4) & 0x7;
 	const LJ_YM_UINT8 multiple = (detuneMult >> 0) & 0xF;
@@ -1069,9 +1058,9 @@ static void ym2612_channelSetDetuneMult(LJ_YM2612_CHANNEL* const channelPtr, con
 	/* multiple = xN except N=0 then it is x1/2 store it as x2 */
 	slotPtr->multiple = (LJ_YM_UINT8)(multiple ? (multiple << 1) : 1);
 
-	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
+	if (debugFlags & LJ_YM2612_DEBUG)
 	{
-		printf("SetDetuneMult channel:%d slot:%d detune:%d mult:%d\n", channelPtr->id, slot, detune, multiple);
+		printf("SetDetuneMult channel:%d slot:%d detune:%d mult:%d\n", slotPtr->chanId, slotPtr->id, detune, multiple);
 	}
 }
 
@@ -1182,6 +1171,7 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 
 	slotPtr->omegaDirty = 1;
 
+	slotPtr->chanId = 0;
 	slotPtr->id = 0;
 }
 
@@ -1193,6 +1183,7 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
 		LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[i]);
 		ym2612_slotClear(slotPtr);
 		slotPtr->id = i;
+		slotPtr->chanId = channelPtr->id;
 	}
 	channelPtr->debugFlags = 0;
 	channelPtr->feedback = 0;
@@ -1210,8 +1201,6 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
 	channelPtr->right = 0;
 	channelPtr->ams = 0;
 	channelPtr->pms = 0;
-
-	channelPtr->id = 0;
 }
 
 static void ym2612_partClear(LJ_YM2612_PART* const partPtr)
@@ -1224,8 +1213,8 @@ static void ym2612_partClear(LJ_YM2612_PART* const partPtr)
 	for (i = 0; i < LJ_YM2612_NUM_CHANNELS_PER_PART; i++)
 	{
 		LJ_YM2612_CHANNEL* const channelPtr = &(partPtr->channel[i]);
-		ym2612_channelClear(channelPtr);
 		channelPtr->id = partPtr->id*LJ_YM2612_NUM_CHANNELS_PER_PART+i;
+		ym2612_channelClear(channelPtr);
 	}
 }
 
@@ -1645,6 +1634,7 @@ static void ym2612_clear(LJ_YM2612* const ym2612Ptr)
 
 LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part, LJ_YM_UINT8 reg, LJ_YM_UINT8 data)
 {
+	LJ_YM_UINT32 debugFlags = 0;
 	if (ym2612Ptr == NULL)
 	{
 		fprintf(stderr, "ym2612_setRegister:ym2612 is NULL\n");
@@ -1673,8 +1663,10 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		fprintf(stderr, "ym2612_setRegister:unknown register:0x%X part:%d data:0x%X\n", reg, part, data);
 		return LJ_YM2612_ERROR;
 	}
+	debugFlags = ym2612Ptr->debugFlags;
+
 	ym2612Ptr->part[part].reg[reg] = data;
-	if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+	if (debugFlags & LJ_YM2612_DEBUG)
 	{
 		printf("ym2612:setRegister %s 0x%X\n", LJ_YM2612_REGISTER_NAMES[reg],data);
 	}
@@ -1745,7 +1737,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 			LJ_YM2612_CHANNEL* const channelPtr = &ym2612Ptr->part[partParam].channel[channel];
 
 			ym2612_channelKeyOnOff(channelPtr, ym2612Ptr->csmKeyOn, slotOnOff);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_KEY_ONFF part:%d channel:%d slotOnOff:0x%X data:0x%X\n", partParam, channel, slotOnOff, data);
 			}
@@ -1762,6 +1754,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		const int regParameter = reg & 0xF0;
 
 		LJ_YM2612_CHANNEL* const channelPtr = &ym2612Ptr->part[part].channel[channel];
+		LJ_YM2612_SLOT* const slotPtr = &channelPtr->slot[slot];
 
 		if (channel == 0x3)
 		{
@@ -1771,8 +1764,8 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 
 		if (regParameter == LJ_DETUNE_MULT)
 		{
-			ym2612_channelSetDetuneMult(channelPtr, slot, data);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			ym2612_slotSetDetuneMult(slotPtr, data, debugFlags);
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_DETUNE_MULT part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
@@ -1780,8 +1773,8 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		}
 		else if (regParameter == LJ_TOTAL_LEVEL)
 		{
-			ym2612_channelSetTotalLevel(channelPtr, slot, data);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			ym2612_slotSetTotalLevel(slotPtr, data, debugFlags);
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_TOTAL_LEVEL part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
@@ -1789,8 +1782,8 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		}
 		else if (regParameter == LJ_RATE_SCALE_ATTACK_RATE)
 		{
-			ym2612_channelSetKeyScaleAttackRate(channelPtr, slot, data);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			ym2612_slotSetKeyScaleAttackRate(slotPtr, data, debugFlags);
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_RATE_SCALE_ATTACK_RATE part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
@@ -1798,8 +1791,8 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		}
 		else if (regParameter == LJ_AM_DECAY_RATE)
 		{
-			ym2612_channelSetAMDecayRate(channelPtr, slot, data);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			ym2612_slotSetAMDecayRate(slotPtr, data, debugFlags);
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_AM_DECAY_RATE part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
@@ -1807,8 +1800,8 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		}
 		else if (regParameter == LJ_SUSTAIN_RATE)
 		{
-			ym2612_channelSetSustainRate(channelPtr, slot, data);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			ym2612_slotSetSustainRate(slotPtr, data, debugFlags);
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_SUSTAIN_RATE part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
@@ -1816,8 +1809,8 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		}
 		else if (regParameter == LJ_SUSTAIN_LEVEL_RELEASE_RATE)
 		{
-			ym2612_channelSetSustainLevelReleaseRate(channelPtr, slot, data);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			ym2612_slotSetSustainLevelReleaseRate(slotPtr, data, debugFlags);
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_SUSTAIN_LEVEL_RELEASE_RATE part:%d channel:%d slot:%d slotReg:%d data:0x%X\n", part, channel, slot, slotReg, data);
 			}
@@ -1842,7 +1835,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		{
 			/* 0xA0-0xA2 Frequency number LSB = Bits 0-7 (bottom 8 bits of frequency number) */
 			ym2612_channelSetFreqBlock(channelPtr, data);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_FREQLSB part:%d channel:%d data:0x%X\n", part, channel, data);
 			}
@@ -1852,7 +1845,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		{
 			/* 0xA4-0xA6 Block = Bits 5-3, Frequency Number MSB = Bits 0-2 (top 3-bits of frequency number) */
 			ym2612_channelSetBlockFnumMSB(channelPtr, data);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_BLOCK_FREQMSB part:%d channel:%d data:0x%X\n", part, channel, data);
 			}
@@ -1873,7 +1866,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 				const LJ_YM_UINT8 slot = (LJ_YM_UINT8)(LJ_YM2612_slotTable[slotParameter+1] - 1U);
 
 				ym2612_SetChannel2FreqBlock(ym2612Ptr, slot, data);
-				if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+				if (debugFlags & LJ_YM2612_DEBUG)
 				{
 					printf("LJ_CH2_FREQLSB slot:%d slotParameter:%d data:0x%X\n", slot, slotParameter, data);
 				}
@@ -1895,7 +1888,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 				const LJ_YM_UINT8 slot = (LJ_YM_UINT8)(LJ_YM2612_slotTable[slotParameter+1] - 1U);
 
 				ym2612_SetChannel2BlockFnumMSB(ym2612Ptr, slot, data);
-				if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+				if (debugFlags & LJ_YM2612_DEBUG)
 				{
 					printf("LJ_CH2_BLOCK_FREQMSB slot:%d slotParameter:%d data:0x%X\n", slot, slotParameter, data);
 				}
@@ -1906,7 +1899,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		{
 			/* 0xB0-0xB2 Feedback = Bits 5-3, Algorithm = Bits 0-2 */
 			ym2612_channelSetFeedbackAlgorithm(channelPtr, data);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_FEEDBACK_ALGO part:%d channel:%d data:0x%X\n", part, channel, data);
 			}
@@ -1916,7 +1909,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		{
 			/* 0xB4-0xB6 Feedback = Left= Bit 7, Right= Bit 6, AMS = Bits 3-5, PMS = Bits 0-1 */
 			ym2612_channelSetLeftRightAmsPms(channelPtr, data);
-			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_LR_AMS_PMS part:%d channel:%d data:0x%X\n", part, channel, data);
 			}
