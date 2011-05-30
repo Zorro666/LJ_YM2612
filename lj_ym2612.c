@@ -222,6 +222,7 @@ struct LJ_YM2612_SLOT
 	/* ADSR settigns */
 	LJ_YM2612_ADSR adsrState;
 	LJ_YM_UINT8 keyScale;
+	LJ_YM_UINT8 keyRateScale;
 	LJ_YM_UINT8 attackRate;
 	LJ_YM_UINT8 decayRate;
 	LJ_YM_UINT8 sustainRate;
@@ -488,9 +489,7 @@ static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 cs
 	/* Only key on if keyed off normally and CSM mode key off */
 	if ((slotPtr->normalKeyOn == 0) && (csmKeyOn == 0))
 	{
-		const int keycode =	slotPtr->keycode;
-		const int keyScale = slotPtr->keyScale;
-		const int keyRateScale = keycode >> (3-keyScale);
+		const int keyRateScale = slotPtr->keyRateScale;
 		const int egRate = 2 * slotPtr->attackRate + keyRateScale;
 
 		if (debugFlags & LJ_YM2612_DEBUG)
@@ -559,9 +558,7 @@ static void ym2612_slotUpdateEG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT3
 {
 #define ADSR_DEBUG (0)
 	const LJ_YM2612_ADSR adsrState = slotPtr->adsrState;
-	const int keycode =	slotPtr->keycode;
-	const int keyScale = slotPtr->keyScale;
-	const int keyRateScale = keycode >> (3-keyScale);
+	const int keyRateScale = slotPtr->keyRateScale;
 
 	LJ_YM_UINT32 attenuationDB = slotPtr->attenuationDB;
 
@@ -970,7 +967,8 @@ static void ym2612_slotSetKeyScaleAttackRate(LJ_YM2612_SLOT* const slotPtr, cons
 	const LJ_YM_UINT8 RS = ((RS_AR >> 6) & 0x3);
 
 	slotPtr->attackRate = AR;
-	slotPtr->keyScale = RS;
+	slotPtr->keyScale = (LJ_YM_UINT8)(3U - RS);
+	slotPtr->omegaDirty = 1;
 
 	if (debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -2104,6 +2102,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				{
 					ym2612_slotComputeOmegaDelta(slotPtr, slotFnum, slotBlock, slotKeycode, debugFlags);
 					slotPtr->keycode = slotKeycode;
+					slotPtr->keyRateScale = (LJ_YM_UINT8)(slotKeycode >> slotPtr->keyScale);
 					slotPtr->omegaDirty = 0;
 				}
 	
