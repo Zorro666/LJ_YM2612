@@ -1,5 +1,8 @@
 High Priority:
-YM2612:implement SSG
+YM2612:implement SSG enabled no bits set : restart ADSR when attenuation->0 in sustain phase (another key on)
+YM2612:implement SSG bit 0: hold
+YM2612:implement SSG bit 1: invert
+YM2612:implement SSG bit 2: attack
 
 Medium Priority:
 YM2612:implement LFO
