@@ -1248,7 +1248,7 @@ INLINE void advance_lfo(FM_OPN *OPN)
 /* changed from INLINE to static here to work around gcc 4.2.1 codegen bug */
 static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 {
-#define JAKE_TEST
+#define JAKE_TEST 0
 	unsigned int out;
 	unsigned int i = 4; /* four operators per channel */
 
@@ -1263,7 +1263,7 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 				UINT8 EG_inc = eg_inc[SLOT->eg_sel_ar + ((OPN->eg_cnt>>SLOT->eg_sh_ar)&7)];
         /* update attenuation level */
         SLOT->volume = prevVolume + ((~prevVolume * EG_inc)>>4);
-#if defined(JAKE_TEST)
+#if JAKE_TEST
 				printf("Attack[%d]: EG_inc:%d rate:%d ksr:%d AR:%d KSR:%d eg_sel_ar:%d eg_sh_ar:%d\n", 
 						4-i, EG_inc, SLOT->ar-32,SLOT->ksr, SLOT->ar+SLOT->ksr-32, SLOT->KSR, SLOT->eg_sel_ar, SLOT->eg_sh_ar);
 				printf("Attack[%d]: new-volume:%d pre-volume:%d delta:%d inc:%d mask:%d\n", 4-i, 
@@ -1307,7 +1307,7 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
         else
         {
 					const UINT8 EG_inc = eg_inc[SLOT->eg_sel_d1r + ((OPN->eg_cnt>>SLOT->eg_sh_d1r)&7)];
-#if defined(JAKE_TEST)
+#if JAKE_TEST
 					printf("Decay[%d]: EG_inc:%d rate:%d ksr:%d KSR:%d eg_sel_d1r:%d eg_sh_d1r:%d\n", 
 									4-i, EG_inc, SLOT->d1r-32,SLOT->ksr, SLOT->KSR, SLOT->eg_sel_d1r, SLOT->eg_sh_d1r);
 #endif
