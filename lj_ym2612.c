@@ -250,6 +250,7 @@ struct LJ_YM2612_SLOT
 	LJ_YM_UINT8 egSSGAttack;
 	LJ_YM_UINT8 egSSGInvert;
 	LJ_YM_UINT8 egSSGHold;
+	LJ_YM_UINT8 egAttenuationDBShift;
 
 	/* LFO settings */
 	LJ_YM_UINT8 am;
@@ -580,6 +581,37 @@ static void ym2612_slotCSMKeyOFF(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT
 
 static LJ_YM_UINT32 ym2612_slotUpdateSSG(LJ_YM2612_SLOT* slotPtr, const LJ_YM_UINT32 inputAttenuationDB)
 {
+/* SSG-EG envelopes :
+		Enabled Attack Invert Hold
+			 D3		 D2			 D1		 D0
+     		1 		0 			0 		0  \|\|\|\
+
+				1 		0 			0 		1  \___
+
+ 				1 		0 			1 		0  \/\/
+																___
+				1 		0 			1 		1  \|
+
+ 				1 		1 			0 		0  /|/|/|/
+																___
+				1 		1 			0 		1  /
+
+ 				1 		1 			1 		0  /\/\
+
+				1 		1 			1 		1  /|___
+
+		The SSG EG waveforms in the manual and above refer to the decay & sustain phase of the ADSR 
+			e.g. the SSG EG cycle ends when the ADSR volume reaches 0x0 and starts on ATTACK
+
+		Enabled = has to be on to do anything
+		Attack = inverts the volume during decay & sustain phase at start of SSG EG cycle i.e.key on or repeat
+		Invert = inverts the volume during decay & sustain phase at end of SSG EG cycle e.g. when ADSR volume reaches 0x0
+		Hold = holds the volume at end of SSG EG cycle e.g. when ADSR volume reaches 0x0, note with invert or attack 
+						the output volume could be MAX not 0x0 - look at envelopes above
+
+		Lastly when SSG EG is enabled the attenuation deltas are multiplied by 4 for ALL but attack ADSR phases (which is very odd)
+		TODO: a test on real genesis to see if attack attenuation delta affected by SSSG
+*/
 	LJ_YM_UINT32 attenuationDB = inputAttenuationDB;
 
 	if (slotPtr->egSSGEnabled)
@@ -638,7 +670,7 @@ static LJ_YM_UINT32 ym2612_slotComputeEGADSRAttenuation(LJ_YM2612_SLOT* const sl
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
-			attenuationDB += egAttenuationDelta;
+			attenuationDB += (egAttenuationDelta << slotPtr->egAttenuationDBShift);
 #if (ADSR_DEBUG)
 			printf("DECAY[%d]:attDBdelta:%d attDB:%d DR:%d kcode:%d krs:%d keyscale:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n",
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->decayRate, keycode, keyRateScale, slotPtr->keyScale, 
@@ -658,7 +690,7 @@ static LJ_YM_UINT32 ym2612_slotComputeEGADSRAttenuation(LJ_YM2612_SLOT* const sl
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
-			attenuationDB += egAttenuationDelta;
+			attenuationDB += (egAttenuationDelta << slotPtr->egAttenuationDBShift);
 #if (ADSR_DEBUG)
 			printf("SUSTAIN[%d]:attDBdelta:%d attDB:%d SR:%d kcode:%d krs:%d keyscale:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n",
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->sustainRate, keycode, keyRateScale, slotPtr->keyScale, 
@@ -674,7 +706,7 @@ static LJ_YM_UINT32 ym2612_slotComputeEGADSRAttenuation(LJ_YM2612_SLOT* const sl
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
-			attenuationDB += egAttenuationDelta;
+			attenuationDB += (egAttenuationDelta << slotPtr->egAttenuationDBShift);
 #if (ADSR_DEBUG)
 			printf("RELEASE[%d]:attDBdelta:%d attDB:%d RR:%d kcode:%d krs:%d keyscale:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n",
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->releaseRate, keycode, keyRateScale, slotPtr->keyScale, 
@@ -1085,43 +1117,14 @@ static void ym2612_slotSetAMDecayRate(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 
 static void ym2612_slotSetEGSSG(LJ_YM2612_SLOT* slotPtr, const LJ_YM_UINT8 egSSG, const LJ_YM_UINT32 debugFlags)
 {
-/* SSG-EG envelopes :
-		Enabled Attack Invert Hold
-			 D3		 D2			 D1		 D0
-     		1 		0 			0 		0  \|\|\|\
-
-				1 		0 			0 		1  \___
-
- 				1 		0 			1 		0  \/\/
-																___
-				1 		0 			1 		1  \|
-
- 				1 		1 			0 		0  /|/|/|/
-																___
-				1 		1 			0 		1  /
-
- 				1 		1 			1 		0  /\/\
-
-				1 		1 			1 		1  /|___
-
-		The SSG EG waveforms in the manual and above refer to the decay & sustain phase of the ADSR 
-			e.g. the SSG EG cycle ends when the ADSR volume reaches 0x0 and starts on ATTACK
-
-		Enabled = has to be on to do anything
-		Attack = inverts the volume during decay & sustain phase at start of SSG EG cycle i.e.key on or repeat
-		Invert = inverts the volume during decay & sustain phase at end of SSG EG cycle e.g. when ADSR volume reaches 0x0
-		Hold = holds the volume at end of SSG EG cycle e.g. when ADSR volume reaches 0x0, note with invert or attack 
-						the output volume could be MAX not 0x0 - look at envelopes above
-
-		Lastly when SSG EG is enabled the attenuation deltas are multiplied by 4 (or 6) for ALL ADSR phases (which is very odd)
-*/
-
 	/* SSG-EG: Bit 3 = Enabled, Bit 2 = Attack , Bit 1 = Invert, Bit 0 = hold */
 	slotPtr->egSSG = egSSG;
 	slotPtr->egSSGEnabled = ((egSSG >> 3) & 0x1);
 	slotPtr->egSSGAttack = (LJ_YM_UINT8)((slotPtr->egSSGEnabled) & ((egSSG >> 2) & 0x1));
 	slotPtr->egSSGInvert = (LJ_YM_UINT8)((slotPtr->egSSGEnabled) & ((egSSG >> 1) & 0x2));
 	slotPtr->egSSGHold = (LJ_YM_UINT8)((slotPtr->egSSGEnabled) & ((egSSG >> 0) & 0x1));
+
+	slotPtr->egAttenuationDBShift = (LJ_YM_UINT8)(slotPtr->egSSGEnabled << 2);
 
 	if (debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -1316,6 +1319,7 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 	slotPtr->egSSGAttack = 0;
 	slotPtr->egSSGInvert = 0;
 	slotPtr->egSSGHold = 0;
+	slotPtr->egAttenuationDBShift = 0;
 
 	slotPtr->carrierOutputMask = 0x0;
 
