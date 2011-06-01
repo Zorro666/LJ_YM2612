@@ -173,6 +173,7 @@ static LJ_YM_UINT8 LJ_YM2612_slotTable[LJ_YM2612_NUM_SLOTS_PER_CHANNEL] = { 0, 2
 
 #define LJ_YM2612_EG_ATTENUATION_DB_MIN (0)
 #define LJ_YM2612_EG_ATTENUATION_DB_MAX (LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTRIES - 1)
+#define LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX (0x200)
 
 /* Convert EG attenuation into linear volume */
 /* EG attenuation log scale of 10-bits, TL is 7-bits and is 2^(-1/8), move to 10-bits gives 2^(-1/(8*8)) */
@@ -250,6 +251,8 @@ struct LJ_YM2612_SLOT
 	LJ_YM_UINT8 egSSGAttack;
 	LJ_YM_UINT8 egSSGInvert;
 	LJ_YM_UINT8 egSSGHold;
+	LJ_YM_UINT8 egSSGCycleEnded;
+	LJ_YM_UINT8 egSSGInvertOutput;
 	LJ_YM_UINT8 egAttenuationDBShift;
 
 	/* LFO settings */
@@ -508,42 +511,136 @@ static int ym2612_computeOmegaDelta(const int fnum, const int block, const int m
 	return omegaDelta;
 }
 
-static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 csmKeyOn, const LJ_YM_UINT32 debugFlags)
+static void ym2612_slotComputeEGParams(LJ_YM2612_SLOT* const slotPtr, const int slotKeycode, const LJ_YM_UINT32 debugFlags)
 {
+	slotPtr->keycode = slotKeycode;
+	slotPtr->keyRateScale = (LJ_YM_UINT8)(slotKeycode >> slotPtr->keyScale);
+
+	slotPtr->egAttackRate = ym2612_computeEGRate(slotPtr->attackRate, slotPtr->keyRateScale);
+	slotPtr->egAttackRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egAttackRate);
+	slotPtr->egAttackRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egAttackRateUpdateShift);
+
+	slotPtr->egDecayRate = ym2612_computeEGRate(slotPtr->decayRate, slotPtr->keyRateScale);
+	slotPtr->egDecayRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egDecayRate);
+	slotPtr->egDecayRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egDecayRateUpdateShift);
+
+	slotPtr->egSustainRate = ym2612_computeEGRate(slotPtr->sustainRate, slotPtr->keyRateScale);
+	slotPtr->egSustainRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egSustainRate);
+	slotPtr->egSustainRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egSustainRateUpdateShift);
+
+	slotPtr->egReleaseRate = ym2612_computeEGRate(slotPtr->releaseRate, slotPtr->keyRateScale);
+	slotPtr->egReleaseRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egReleaseRate);
+	slotPtr->egReleaseRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egReleaseRateUpdateShift);
+
+	if (debugFlags & LJ_YM2612_DEBUG)
+	{
+	}
+}
+
+static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const int fnum, const int block, const int keycode, 
+																				 const LJ_YM_UINT32 debugFlags)
+{
+	const int multiple = slotPtr->multiple;
+	const int detune = slotPtr->detune;
+
+	const int omegaDelta = ym2612_computeOmegaDelta(fnum, block, multiple, detune, keycode, debugFlags);
+
+	slotPtr->omegaDelta = omegaDelta;
+
+	if (debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("Slot:%d omegaDelta %d fnum:%d block:%d multiple:%3.1f detune:%d keycode:%d\n", 
+					 slotPtr->id, omegaDelta, fnum, block, (float)multiple/2.0f, detune, keycode);
+	}
+}
+
+static void ym2612_slotComputeWaveParams(LJ_YM2612_SLOT* const slotPtr, LJ_YM2612_CHANNEL* const channelPtr, LJ_YM2612* const ym2612Ptr,
+																				const LJ_YM_UINT32 debugFlags)
+{
+	int slotFnum;
+	int slotBlock;
+	int slotKeycode;
+
+	const int slot = slotPtr->id;
+
+	/* For normal mode or channels that aren't channel 2 or for slot 3 */
+	if ((ym2612Ptr->ch2Mode == 0) || (channelPtr->id != 2) || (slot == 3))
+	{
+		const int channelFnum = channelPtr->fnum;
+		const int channelBlock = channelPtr->block;
+		const int channelKeycode = channelPtr->keycode;
+
+		/* Take the slot frequency from the channel frequency */
+		slotFnum = channelFnum;
+		slotBlock = channelBlock;
+		slotKeycode = channelKeycode;
+	}
+	else
+	{
+		/* Channel 2 and it is in special mode with fnum, block (keycode) per slot for slots 0, 1, 2 */
+		slotFnum = ym2612Ptr->channel2slotData[slot].fnum;
+		slotBlock = ym2612Ptr->channel2slotData[slot].block;
+		slotKeycode = ym2612Ptr->channel2slotData[slot].keycode;
+	}
+
+	ym2612_slotComputeOmegaDelta(slotPtr, slotFnum, slotBlock, slotKeycode, debugFlags);
+	ym2612_slotComputeEGParams(slotPtr, slotKeycode, debugFlags);
+	slotPtr->omegaDirty = 0;
+}
+
+static void ym2612_slotStartPlaying(LJ_YM2612_SLOT* const slotPtr, LJ_YM2612_CHANNEL* const channelPtr, LJ_YM2612* const ym2612Ptr,
+																		const LJ_YM_UINT32 debugFlags)
+{
+	LJ_YM_UINT8 egRate;
+
+	if (debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("Slot[%d] Start\n",slotPtr->id);
+	}
+	/* Handle start playing but haven't computed the parameters yet */
+	if ((slotPtr->omegaDirty == 1) || (channelPtr->omegaDirty == 1))
+	{
+		ym2612_slotComputeWaveParams(slotPtr, channelPtr, ym2612Ptr, debugFlags);
+	}
+	egRate = slotPtr->egAttackRate;
+
+	slotPtr->omega = 0;
+	slotPtr->fmInputDelta = 0;
+	slotPtr->egSSGCycleEnded = 0;
+	slotPtr->adsrState = LJ_YM2612_ADSR_ATTACK;
+	/* Test for the infinite attack rates (30,31)- e.g. for CSM mode to make noise */
+	if (egRate > 59)
+	{
+		if (debugFlags & LJ_YM2612_DEBUG)
+		{
+			printf("Slot[%d] Inf attack rate start\n", slotPtr->id);
+		}
+		slotPtr->attenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MIN;
+		slotPtr->volume = LJ_YM2612_VOLUME_MAX;
+	}
+	/* handle special cases of going straight into decay/sustain */
+	if (slotPtr->volume == LJ_YM2612_VOLUME_MAX)
+	{
+		if (slotPtr->sustainLevelDB == LJ_YM2612_EG_ATTENUATION_DB_MIN)
+		{
+			slotPtr->adsrState = LJ_YM2612_ADSR_SUSTAIN;
+		}
+		else
+		{
+			slotPtr->adsrState = LJ_YM2612_ADSR_DECAY;
+		}
+	}
+}
+
+static void ym2612_slotKeyON(LJ_YM2612_SLOT* const slotPtr, LJ_YM2612_CHANNEL* const channelPtr, LJ_YM2612* const ym2612Ptr,
+														 const LJ_YM_UINT32 debugFlags)
+{
+	const LJ_YM_UINT8 csmKeyOn = ym2612Ptr->csmKeyOn;
+
 	/* Only key on if keyed off normally and CSM mode key off */
 	if ((slotPtr->normalKeyOn == 0) && (csmKeyOn == 0))
 	{
-		const LJ_YM_UINT8 egRate = slotPtr->egAttackRate;
-
-		if (debugFlags & LJ_YM2612_DEBUG)
-		{
-			printf("Slot[%d] key on\n",slotPtr->id);
-		}
-		slotPtr->omega = 0;
-		slotPtr->fmInputDelta = 0;
-		slotPtr->adsrState = LJ_YM2612_ADSR_ATTACK;
-		/* Test for the infinite attack rates (30,31)- e.g. for CSM mode to make noise */
-		if (egRate > 59)
-		{
-			if (debugFlags & LJ_YM2612_DEBUG)
-			{
-				printf("Slot[%d] csmKeyOn:%d Inf attack rate key on\n", slotPtr->id, csmKeyOn);
-			}
-			slotPtr->attenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MIN;
-			slotPtr->volume = LJ_YM2612_VOLUME_MAX;
-		}
-		/* handle special cases of going straight into decay/sustain */
-		if (slotPtr->volume == LJ_YM2612_VOLUME_MAX)
-		{
-			if (slotPtr->sustainLevelDB == LJ_YM2612_EG_ATTENUATION_DB_MIN)
-			{
-				slotPtr->adsrState = LJ_YM2612_ADSR_SUSTAIN;
-			}
-			else
-			{
-				slotPtr->adsrState = LJ_YM2612_ADSR_DECAY;
-			}
-		}
+		ym2612_slotStartPlaying(slotPtr, channelPtr, ym2612Ptr, debugFlags);
 	}
 
 	if (debugFlags & LJ_YM2612_DEBUG)
@@ -616,6 +713,10 @@ static LJ_YM_UINT32 ym2612_slotUpdateSSG(LJ_YM2612_SLOT* slotPtr, const LJ_YM_UI
 
 	if (slotPtr->egSSGEnabled)
 	{
+	if (attenuationDB >= LJ_YM2612_EG_ATTENUATION_DB_MAX)
+	{
+		attenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MAX;
+	}
 	}
 	
 	return attenuationDB;
@@ -644,8 +745,11 @@ static LJ_YM_UINT32 ym2612_slotComputeEGADSRAttenuation(LJ_YM2612_SLOT* const sl
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
 			const LJ_YM_UINT32 oldDB = attenuationDB;
-			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
-			const LJ_YM_UINT32 deltaDB = (((oldDB * egAttenuationDelta)+15) >> 4);
+			LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
+			LJ_YM_UINT32 deltaDB;
+
+			/*egAttenuationDelta = (egAttenuationDelta << slotPtr->egAttenuationDBShift);*/
+			deltaDB = (((oldDB * egAttenuationDelta)+15) >> 4);
 			/* inverted exponential curve: attenuation += increment * ((1024-attenuation) / 16 + 1) : NEMESIS */
 			/* inverted exponential curve: attenuation -= (((increment * attenuation)+15) / 16) : JAKE */
 			attenuationDB = oldDB - deltaDB;
@@ -669,8 +773,9 @@ static LJ_YM_UINT32 ym2612_slotComputeEGADSRAttenuation(LJ_YM2612_SLOT* const sl
 		const LJ_YM_UINT32 egRateUpdateMask = slotPtr->egDecayRateUpdateMask;
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
-			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
-			attenuationDB += (egAttenuationDelta << slotPtr->egAttenuationDBShift);
+			LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
+			egAttenuationDelta = (egAttenuationDelta << slotPtr->egAttenuationDBShift);
+			attenuationDB += egAttenuationDelta;
 #if (ADSR_DEBUG)
 			printf("DECAY[%d]:attDBdelta:%d attDB:%d DR:%d kcode:%d krs:%d keyscale:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n",
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->decayRate, keycode, keyRateScale, slotPtr->keyScale, 
@@ -689,8 +794,9 @@ static LJ_YM_UINT32 ym2612_slotComputeEGADSRAttenuation(LJ_YM2612_SLOT* const sl
 		const LJ_YM_UINT32 egRateUpdateMask = slotPtr->egSustainRateUpdateMask;
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
-			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
-			attenuationDB += (egAttenuationDelta << slotPtr->egAttenuationDBShift);
+			LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
+			egAttenuationDelta = (egAttenuationDelta << slotPtr->egAttenuationDBShift);
+			attenuationDB += egAttenuationDelta;
 #if (ADSR_DEBUG)
 			printf("SUSTAIN[%d]:attDBdelta:%d attDB:%d SR:%d kcode:%d krs:%d keyscale:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n",
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->sustainRate, keycode, keyRateScale, slotPtr->keyScale, 
@@ -705,8 +811,9 @@ static LJ_YM_UINT32 ym2612_slotComputeEGADSRAttenuation(LJ_YM2612_SLOT* const sl
 		const LJ_YM_UINT32 egRateUpdateMask = slotPtr->egReleaseRateUpdateMask;
 		if ((egCounter & egRateUpdateMask) == 0)
 		{
-			const LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
-			attenuationDB += (egAttenuationDelta << slotPtr->egAttenuationDBShift);
+			LJ_YM_UINT32 egAttenuationDelta = ym2612_computeEGAttenuationDelta(egRate, egCounter, egRateUpdateShift);
+			egAttenuationDelta = (egAttenuationDelta << slotPtr->egAttenuationDBShift);
+			attenuationDB += egAttenuationDelta;
 #if (ADSR_DEBUG)
 			printf("RELEASE[%d]:attDBdelta:%d attDB:%d RR:%d kcode:%d krs:%d keyscale:%d egRate:%d egCounter:%d egRateUpdateShift:%d\n",
 					slotPtr->id, egAttenuationDelta, attenuationDB, slotPtr->releaseRate, keycode, keyRateScale, slotPtr->keyScale, 
@@ -714,10 +821,11 @@ static LJ_YM_UINT32 ym2612_slotComputeEGADSRAttenuation(LJ_YM2612_SLOT* const sl
 #endif
 		}
 	}
-	if (attenuationDB > LJ_YM2612_EG_ATTENUATION_DB_MAX)
+	if (attenuationDB >= LJ_YM2612_EG_ATTENUATION_DB_MAX)
 	{
 		attenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MAX;
 	}
+
 	return attenuationDB;
 }
 
@@ -779,6 +887,7 @@ static void ym2612_slotUpdateEGandSSG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 	LJ_YM_UINT32 EGADSRAttenuationDB;
 	LJ_YM_UINT32 SSGAttenuationDB;
 	LJ_YM_UINT32 attenuationDB;
+	LJ_YM_UINT32 slotAttenuationDB;
 	
 	EGADSRAttenuationDB = ym2612_slotComputeEGADSRAttenuation(slotPtr, egCounter);
 
@@ -792,26 +901,45 @@ static void ym2612_slotUpdateEGandSSG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 
 	ym2612_slotUpdateEGADSRState(slotPtr, attenuationDB, egCounter);
 
+	slotAttenuationDB = attenuationDB;
+	/* See if the EG-SSG cycle has ended -> when attenuation > SSG_MAX_ATTENUATION (could be < VOLUME_MAX_ATTENUATION) */
+	if (slotPtr->egSSGEnabled)
+	{
+		if ((slotPtr->adsrState == LJ_YM2612_ADSR_DECAY) || (slotPtr->adsrState == LJ_YM2612_ADSR_SUSTAIN))
+		{
+			if (attenuationDB > LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX)
+			{
+				slotPtr->egSSGCycleEnded = 1;
+			}
+		}
+		if (slotPtr->egSSGCycleEnded == 1)
+		{
+			if (slotPtr->egSSGHold == 1)
+			{
+				attenuationDB = LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX;
+				slotAttenuationDB = attenuationDB;
+			}
+			if (slotPtr->egSSGInvert == 1)
+			{
+				/* Toggle invert output when the cycle ends */
+				slotPtr->egSSGInvertOutput ^= 1;
+			}
+		}
+		if (slotPtr->egSSGInvertOutput == 1)
+		{
+			LJ_YM_UINT32 invertAttenuationDB = LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX - attenuationDB;
+			if (invertAttenuationDB > LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX)
+			{
+				invertAttenuationDB = attenuationDB - LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX;
+			}
+			printf("State:%d Invert:%d -> %d %d\n", slotPtr->adsrState, attenuationDB, invertAttenuationDB, slotAttenuationDB);
+			/*attenuationDB = invertAttenuationDB;*/
+		}
+	}
+
 	/* Convert attenuation DB into volume scale */
 	slotPtr->volume = LJ_YM2612_EG_attenuationTable[attenuationDB & LJ_YM2612_EG_ATTENUATION_DB_TABLE_MASK];
-	slotPtr->attenuationDB = attenuationDB;
-}
-
-static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const int fnum, const int block, const int keycode, 
-																				 const LJ_YM_UINT32 debugFlags)
-{
-	const int multiple = slotPtr->multiple;
-	const int detune = slotPtr->detune;
-
-	const int omegaDelta = ym2612_computeOmegaDelta(fnum, block, multiple, detune, keycode, debugFlags);
-
-	slotPtr->omegaDelta = omegaDelta;
-
-	if (debugFlags & LJ_YM2612_DEBUG)
-	{
-		printf("Slot:%d omegaDelta %d fnum:%d block:%d multiple:%3.1f detune:%d keycode:%d\n", 
-					 slotPtr->id, omegaDelta, fnum, block, (float)multiple/2.0f, detune, keycode);
-	}
+	slotPtr->attenuationDB = slotAttenuationDB;
 }
 
 static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
@@ -1121,16 +1249,19 @@ static void ym2612_slotSetEGSSG(LJ_YM2612_SLOT* slotPtr, const LJ_YM_UINT8 egSSG
 	slotPtr->egSSG = egSSG;
 	slotPtr->egSSGEnabled = ((egSSG >> 3) & 0x1);
 	slotPtr->egSSGAttack = (LJ_YM_UINT8)((slotPtr->egSSGEnabled) & ((egSSG >> 2) & 0x1));
-	slotPtr->egSSGInvert = (LJ_YM_UINT8)((slotPtr->egSSGEnabled) & ((egSSG >> 1) & 0x2));
+	slotPtr->egSSGInvert = (LJ_YM_UINT8)((slotPtr->egSSGEnabled) & ((egSSG >> 1) & 0x1));
 	slotPtr->egSSGHold = (LJ_YM_UINT8)((slotPtr->egSSGEnabled) & ((egSSG >> 0) & 0x1));
 
-	slotPtr->egAttenuationDBShift = (LJ_YM_UINT8)(slotPtr->egSSGEnabled << 2);
+	/* *4 when SSG mode active = shift of 2 */
+	slotPtr->egAttenuationDBShift = (LJ_YM_UINT8)(slotPtr->egSSGEnabled << 1);
 
 	if (debugFlags & LJ_YM2612_DEBUG)
 	{
 		printf("SetEGSSGBits channel:%d slot:%d egSSG:0x%X enabled:%d attack:%d invert:%d hold:%d\n", slotPtr->chanId, slotPtr->id, 
 					slotPtr->egSSG, slotPtr->egSSGEnabled, slotPtr->egSSGAttack, slotPtr->egSSGInvert, slotPtr->egSSGHold );
 	}
+	printf("SetEGSSGBits channel:%d slot:%d egSSG:0x%X enabled:%d attack:%d invert:%d hold:%d\n", slotPtr->chanId, slotPtr->id, 
+				slotPtr->egSSG, slotPtr->egSSGEnabled, slotPtr->egSSGAttack, slotPtr->egSSGInvert, slotPtr->egSSGHold );
 }
 
 static void ym2612_slotSetSustainRate(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 AM_DR, const LJ_YM_UINT32 debugFlags)
@@ -1247,11 +1378,13 @@ static void ym2612_channelSetBlockFnumMSB(LJ_YM2612_CHANNEL* const channelPtr, c
 	channelPtr->block_fnumMSB = data;
 }
 
-static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 csmKeyOn, const LJ_YM_UINT8 slotOnOff)
+static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, LJ_YM2612* const ym2612Ptr, const LJ_YM_UINT8 slotOnOff)
 {
 	int i;
 	int slotMask = 0x1;
 	LJ_YM_UINT32 debugFlags = channelPtr->debugFlags;
+	const LJ_YM_UINT8 csmKeyOn = ym2612Ptr->csmKeyOn;
+
 	/* Set the start of wave */
 	for (i = 0; i < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; i++)
 	{
@@ -1260,7 +1393,7 @@ static void ym2612_channelKeyOnOff(LJ_YM2612_CHANNEL* const channelPtr, const LJ
 
 		if (slotOnOff & slotMask)
 		{
-			ym2612_slotKeyON(slotPtr, csmKeyOn, debugFlags);
+			ym2612_slotKeyON(slotPtr, channelPtr, ym2612Ptr, debugFlags);
 			slotPtr->normalKeyOn = 1;
 		}
 		else
@@ -1319,6 +1452,8 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 	slotPtr->egSSGAttack = 0;
 	slotPtr->egSSGInvert = 0;
 	slotPtr->egSSGHold = 0;
+	slotPtr->egSSGCycleEnded = 0;
+	slotPtr->egSSGInvertOutput = 0;
 	slotPtr->egAttenuationDBShift = 0;
 
 	slotPtr->carrierOutputMask = 0x0;
@@ -1507,6 +1642,7 @@ static void ym2612_SetChannel2FreqBlock(LJ_YM2612* const ym2612Ptr, const LJ_YM_
 	ym2612Ptr->channel2slotData[slot].fnum = fnum;
 	ym2612Ptr->channel2slotData[slot].keycode = (LJ_YM_UINT8)(keycode);
 	channel2Ptr->slot[slot].omegaDirty = 1;
+	channel2Ptr->omegaDirty = 1;
 
 	if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -1896,7 +2032,7 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 			
 			LJ_YM2612_CHANNEL* const channelPtr = &ym2612Ptr->part[partParam].channel[channel];
 
-			ym2612_channelKeyOnOff(channelPtr, ym2612Ptr->csmKeyOn, slotOnOff);
+			ym2612_channelKeyOnOff(channelPtr, ym2612Ptr, slotOnOff);
 			if (debugFlags & LJ_YM2612_DEBUG)
 			{
 				printf("LJ_KEY_ONFF part:%d channel:%d slotOnOff:0x%X data:0x%X\n", partParam, channel, slotOnOff, data);
@@ -2212,7 +2348,6 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 		short outL = 0;
 		short outR = 0;
 
-		const LJ_YM_UINT8 csmKeyOn = ym2612Ptr->csmKeyOn;
 		LJ_YM_UINT8 csmKeyOff = ym2612Ptr->csmKeyOn;
 	
 		/* DAC enable blocks channel 5 */
@@ -2223,9 +2358,6 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 			LJ_YM2612_CHANNEL* const channelPtr = ym2612Ptr->channels[channel];
 			int channelOutput = 0;
 
-			const int channelFnum = channelPtr->fnum;
-			const int channelBlock = channelPtr->block;
-			const int channelKeycode = channelPtr->keycode;
 			int channelOmegaDirty = channelPtr->omegaDirty;
 
 			if ((channelMask & outputChannelMask) == 0)
@@ -2239,9 +2371,6 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 
 				int carrierOutput = 0;
 
-				int slotFnum;
-				int slotBlock;
-				int slotKeycode;
 				int omegaDirty = 0;
 				int deltaPhi;
 				int phi;
@@ -2254,44 +2383,13 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				/* For normal mode or channels that aren't channel 2 or for slot 3 */
 				if ((ym2612Ptr->ch2Mode == 0) || (channel != 2) || (slot == 3))
 				{
-					/* Take the slot frequency from the channel frequency */
-					slotFnum = channelFnum;
-					slotBlock = channelBlock;
-					slotKeycode = channelKeycode;
 					omegaDirty = channelOmegaDirty;
-				}
-				else
-				{
-					/* Channel 2 and it is in special mode with fnum, block (keycode) per slot for slots 0, 1, 2 */
-					slotFnum = ym2612Ptr->channel2slotData[slot].fnum;
-					slotBlock = ym2612Ptr->channel2slotData[slot].block;
-					slotKeycode = ym2612Ptr->channel2slotData[slot].keycode;
 				}
 
 				/* Compute the omega delta value */
 				if ((slotPtr->omegaDirty == 1) || (omegaDirty == 1))
 				{
-					ym2612_slotComputeOmegaDelta(slotPtr, slotFnum, slotBlock, slotKeycode, debugFlags);
-					slotPtr->keycode = slotKeycode;
-					slotPtr->keyRateScale = (LJ_YM_UINT8)(slotKeycode >> slotPtr->keyScale);
-
-					slotPtr->egAttackRate = ym2612_computeEGRate(slotPtr->attackRate, slotPtr->keyRateScale);
-					slotPtr->egAttackRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egAttackRate);
-					slotPtr->egAttackRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egAttackRateUpdateShift);
-
-					slotPtr->egDecayRate = ym2612_computeEGRate(slotPtr->decayRate, slotPtr->keyRateScale);
-					slotPtr->egDecayRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egDecayRate);
-					slotPtr->egDecayRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egDecayRateUpdateShift);
-
-					slotPtr->egSustainRate = ym2612_computeEGRate(slotPtr->sustainRate, slotPtr->keyRateScale);
-					slotPtr->egSustainRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egSustainRate);
-					slotPtr->egSustainRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egSustainRateUpdateShift);
-
-					slotPtr->egReleaseRate = ym2612_computeEGRate(slotPtr->releaseRate, slotPtr->keyRateScale);
-					slotPtr->egReleaseRateUpdateShift = ym2612_computeEGUpdateShift(slotPtr->egReleaseRate);
-					slotPtr->egReleaseRateUpdateMask = ym2612_computeEGUpdateMask(slotPtr->egReleaseRateUpdateShift);
-
-					slotPtr->omegaDirty = 0;
+					ym2612_slotComputeWaveParams(slotPtr, channelPtr, ym2612Ptr, debugFlags);
 				}
 	
 				/* Slot 0 feedback */
@@ -2444,6 +2542,19 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 
 					ym2612_slotUpdateEGandSSG(slotPtr, ym2612Ptr->eg.counter);
 
+					/* Restart SSG cycle now this one has ended */
+					if (slotPtr->egSSGEnabled)
+					{
+						if (slotPtr->egSSGHold == 0)
+						{
+							/* The slot needs to be restarted if not in hold mode */
+							if (slotPtr->egSSGCycleEnded == 1)
+							{
+								ym2612_slotStartPlaying(slotPtr, channelPtr, ym2612Ptr, debugFlags);
+							}
+						}
+					}
+
 					slotPtr->volume = LJ_YM2612_CLAMP_VOLUME(slotPtr->volume);
 					if (slotPtr->volume < 0)
 					{
@@ -2479,7 +2590,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 					{
 						LJ_YM2612_SLOT* const slotPtr = &(ch2Ptr->slot[slot]);
-						ym2612_slotKeyON(slotPtr, csmKeyOn, debugFlags);
+						ym2612_slotKeyON(slotPtr, ch2Ptr, ym2612Ptr, debugFlags);
 					}
 					ym2612Ptr->csmKeyOn = 1;
 					csmKeyOff = 0;
