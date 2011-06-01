@@ -929,6 +929,11 @@ static void ym2612_slotUpdateEGandSSG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 			{
 				attenuationDB = LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX;
 				slotAttenuationDB = attenuationDB;
+				slotPtr->egSSGCycleEnded = 0;
+				if (slotPtr->egSSGInvert == 1)
+				{
+					slotPtr->egSSGInvertOutput = 1;
+				}
 			}
 		}
 		if (slotPtr->egSSGInvertOutput == 1)
