@@ -744,7 +744,7 @@ INLINE void FM_KEYON(FM_OPN *OPN, FM_CH *CH , int s )
 		}
 
 		/* recalculate EG output */
-		if ((SLOT->ssg&0x08) && (SLOT->ssgn ^ (SLOT->ssg&0x04)))
+		if ((SLOT->ssg & 0x08) && (SLOT->ssgn ^ (SLOT->ssg & 0x04)))
 			SLOT->vol_out = ((UINT32)(0x200 - SLOT->volume) & MAX_ATT_INDEX) + SLOT->tl;
 		else
 			SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
@@ -764,10 +764,10 @@ INLINE void FM_KEYOFF(FM_OPN *OPN, FM_CH *CH , int s )
 			SLOT->state = EG_REL; /* phase -> Release */
 
 			/* SSG-EG specific update */
-			if (SLOT->ssg&0x08)
+			if (SLOT->ssg & 0x08)
 			{
 				/* convert EG attenuation level */
-				if (SLOT->ssgn ^ (SLOT->ssg&0x04))
+				if (SLOT->ssgn ^ (SLOT->ssg & 0x04))
 			        	SLOT->volume = (0x200 - SLOT->volume);
 
 				/* force EG attenuation level */
@@ -812,7 +812,7 @@ INLINE void FM_KEYON_CSM(FM_OPN *OPN, FM_CH *CH , int s )
 		}
 
 		/* recalculate EG output */
-		if ((SLOT->ssg&0x08) && (SLOT->ssgn ^ (SLOT->ssg&0x04)))
+		if ((SLOT->ssg & 0x08) && (SLOT->ssgn ^ (SLOT->ssg & 0x04)))
 			SLOT->vol_out = ((UINT32)(0x200 - SLOT->volume) & MAX_ATT_INDEX) + SLOT->tl;
 		else
 			SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
@@ -829,10 +829,10 @@ INLINE void FM_KEYOFF_CSM(FM_CH *CH , int s )
 			SLOT->state = EG_REL; /* phase -> Release */
 
 			/* SSG-EG specific update */
-			if (SLOT->ssg&0x08)
+			if (SLOT->ssg & 0x08)
 			{
 				/* convert EG attenuation level */
-				if (SLOT->ssgn ^ (SLOT->ssg&0x04))
+				if (SLOT->ssgn ^ (SLOT->ssg & 0x04))
 					SLOT->volume = (0x200 - SLOT->volume);
 
 				/* force EG attenuation level */
@@ -1128,7 +1128,7 @@ INLINE void set_tl(FM_CH *CH,FM_SLOT *SLOT , int v)
 	SLOT->tl = (UINT32)((v&0x7f)<<(ENV_BITS-7)); /* 7bit TL */
 
 	/* recalculate EG output */
-	if ((SLOT->ssg&0x08) && (SLOT->ssgn ^ (SLOT->ssg&0x04)) && (SLOT->state > EG_REL))
+	if ((SLOT->ssg & 0x08) && (SLOT->ssgn ^ (SLOT->ssg & 0x04)) && (SLOT->state > EG_REL))
 		SLOT->vol_out = ((UINT32)(0x200 - SLOT->volume) & MAX_ATT_INDEX) + SLOT->tl;
 	else
 		SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
@@ -1278,7 +1278,7 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
         }
 
         /* recalculate EG output */
-        if ((SLOT->ssg&0x08) && (SLOT->ssgn ^ (SLOT->ssg&0x04)))  /* SSG-EG Output Inversion */
+        if ((SLOT->ssg & 0x08) && (SLOT->ssgn ^ (SLOT->ssg & 0x04)))  /* SSG-EG Output Inversion */
 					SLOT->vol_out = ((UINT32)(0x200 - SLOT->volume) & MAX_ATT_INDEX) + SLOT->tl;
         else
 	        SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
@@ -1289,7 +1289,7 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 			if (!(OPN->eg_cnt & (UINT32)((1<<SLOT->eg_sh_d1r)-1)))
 			{
         /* SSG EG type */
-        if (SLOT->ssg&0x08)
+        if (SLOT->ssg & 0x08)
         {
 	        /* update attenuation level */
 	        if (SLOT->volume < 0x200)
@@ -1297,7 +1297,7 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 						SLOT->volume += 4 * eg_inc[SLOT->eg_sel_d1r + ((OPN->eg_cnt>>SLOT->eg_sh_d1r)&7)];
 
 						/* recalculate EG output */
-						if (SLOT->ssgn ^ (SLOT->ssg&0x04))   /* SSG-EG Output Inversion */
+						if (SLOT->ssgn ^ (SLOT->ssg & 0x04))   /* SSG-EG Output Inversion */
 							SLOT->vol_out = ((UINT32)(0x200 - SLOT->volume) & MAX_ATT_INDEX) + SLOT->tl;
 						else
 							SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
@@ -1328,7 +1328,7 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 			if (!(OPN->eg_cnt & (UINT32)((1<<SLOT->eg_sh_d2r)-1)))
 			{
         /* SSG EG type */
-        if (SLOT->ssg&0x08)
+        if (SLOT->ssg & 0x08)
         {
 					/* update attenuation level */
 					if (SLOT->volume < 0x200)
@@ -1336,7 +1336,7 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 						SLOT->volume += 4 * eg_inc[SLOT->eg_sel_d2r + ((OPN->eg_cnt>>SLOT->eg_sh_d2r)&7)];
 
 						/* recalculate EG output */
-						if (SLOT->ssgn ^ (SLOT->ssg&0x04))   /* SSG-EG Output Inversion */
+						if (SLOT->ssgn ^ (SLOT->ssg & 0x04))   /* SSG-EG Output Inversion */
 							SLOT->vol_out = ((UINT32)(0x200 - SLOT->volume) & MAX_ATT_INDEX) + SLOT->tl;
 						else
 							SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
@@ -1363,7 +1363,7 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 			if (!(OPN->eg_cnt & (UINT32)((1<<SLOT->eg_sh_rr)-1)))
 			{
         /* SSG EG type */
-        if (SLOT->ssg&0x08)
+        if (SLOT->ssg & 0x08)
         {
 	        /* update attenuation level */
 	        if (SLOT->volume < 0x200)
@@ -1398,13 +1398,19 @@ static void advance_eg_channel(FM_OPN *OPN, FM_SLOT *SLOT)
 		out = ((UINT32)SLOT->volume);
 
     /* negate output (changes come from alternate bit, init comes from attack bit) */
-		if ((SLOT->ssg&0x08) && (SLOT->ssgn&2) && (SLOT->state > EG_REL))
+		if ((SLOT->ssg & 0x08) && (SLOT->ssgn&2) && (SLOT->state > EG_REL))
 			out ^= MAX_ATT_INDEX;
 
 		/* we need to store the result here because we are going to change ssgn
             in next instruction */
 		SLOT->vol_out = out + SLOT->tl;
 
+#if 0
+		if ((i == 4) && (SLOT->ssg & 0x8))
+		{
+			printf("EG Update[%d]: state:%d volume:%d vol_out:%d\n", 4-i, SLOT->state, SLOT->volume, SLOT->vol_out);
+		}
+#endif
 		SLOT++;
 		i--;
 	}while (i);
@@ -1460,7 +1466,7 @@ static void update_ssg_eg_channel(FM_SLOT *SLOT)
 			}
 
 			/* recalculate EG output */
-			if (SLOT->ssgn ^ (SLOT->ssg&0x04))
+			if (SLOT->ssgn ^ (SLOT->ssg & 0x04))
 				SLOT->vol_out = ((UINT32)(0x200 - SLOT->volume) & MAX_ATT_INDEX) + SLOT->tl;
 			else
 				SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
@@ -1863,7 +1869,7 @@ static void OPNWriteReg(FM_OPN *OPN, int r, int v)
 	      /* recalculate EG output */
       if (SLOT->state > EG_REL)
       {
-        if ((SLOT->ssg&0x08) && (SLOT->ssgn ^ (SLOT->ssg&0x04)))
+        if ((SLOT->ssg & 0x08) && (SLOT->ssgn ^ (SLOT->ssg & 0x04)))
 			SLOT->vol_out = ((UINT32)(0x200 - SLOT->volume) & MAX_ATT_INDEX) + SLOT->tl;
 		else
 			SLOT->vol_out = (UINT32)SLOT->volume + SLOT->tl;
