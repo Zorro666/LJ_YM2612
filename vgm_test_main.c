@@ -397,76 +397,61 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
-static LJ_VGM_UINT8 sampleDocProgram[1024];
-static LJ_VGM_UINT8 noteProgram[1024];
-static LJ_VGM_UINT8 noteDTProgram[1024];
-static LJ_VGM_UINT8 noteSLProgram[1024];
-static LJ_VGM_UINT8 algoProgram[1024];
-static LJ_VGM_UINT8 dacTestProgram[1024];
-static LJ_VGM_UINT8 fbProgram[1024];
-static LJ_VGM_UINT8 ch2modeProgram[1024];
-static LJ_VGM_UINT8 badRegProgram[1024];
-static LJ_VGM_UINT8 timerProgram[1024];
-static LJ_VGM_UINT8 ssgOnProgram[1024];
+static LJ_VGM_UINT8 sampleDocProgram[141];
+static LJ_VGM_UINT8 noteProgram[141];
+static LJ_VGM_UINT8 noteDTProgram[141];
+static LJ_VGM_UINT8 noteSLProgram[141];
+static LJ_VGM_UINT8 algoProgram[141];
+static LJ_VGM_UINT8 dacProgram[228];
+static LJ_VGM_UINT8 fbProgram[147];
+static LJ_VGM_UINT8 ch2Program[150];
+static LJ_VGM_UINT8 badRegProgram[141];
+static LJ_VGM_UINT8 timerProgram[147];
+static LJ_VGM_UINT8 ssgOnProgram[141];
+static LJ_VGM_UINT8 ssgHoldProgram[141];
+static LJ_VGM_UINT8 ssgInvertProgram[141];
+
+typedef struct LJ_VGM_TEST_PROGRAM
+{
+	LJ_VGM_UINT8* program;
+	const char* const name;
+} LJ_VGM_TEST_PROGRAM;
+
+static LJ_VGM_TEST_PROGRAM testPrograms[64] = {
+		{sampleDocProgram, "samp"},
+		{noteProgram, "note"},
+		{noteDTProgram, "notedt"},
+		{noteSLProgram, "notesl"},
+		{algoProgram, "algo"},
+		{dacProgram, "dac"},
+		{fbProgram, "fb"},
+		{ch2Program, "ch2"},
+		{badRegProgram, "badreg"},
+		{timerProgram, "timer"},
+		{ssgOnProgram, "ssgon"},
+		{ssgHoldProgram, "ssgh"},
+		{ssgInvertProgram, "ssgi"},
+		{NULL, "END"}
+	};
 
 static LJ_VGM_UINT8* currentTestInstruction = NULL;
 LJ_VGM_RESULT startTestProgram(const char* const testName)
 {
-	if (strcmp(testName,"note") == 0)
+	LJ_VGM_TEST_PROGRAM* testProgram = testPrograms;
+	do
 	{
-		currentTestInstruction = noteProgram;
-		return LJ_VGM_OK;
+		if (testProgram->program == NULL)
+		{
+			return LJ_VGM_ERROR;
+		}
+		if (strcmp(testProgram->name, testName) == 0)
+		{
+			currentTestInstruction = testProgram->program;
+			return LJ_VGM_OK;
+		}
+		testProgram++;
 	}
-	else if (strcmp(testName,"notedt") == 0)
-	{
-		currentTestInstruction = noteDTProgram;
-		return LJ_VGM_OK;
-	}
-	else if (strcmp(testName,"notesl") == 0)
-	{
-		currentTestInstruction = noteSLProgram;
-		return LJ_VGM_OK;
-	}
-	else if (strcmp(testName,"algo") == 0)
-	{
-		currentTestInstruction = algoProgram;
-		return LJ_VGM_OK;
-	}
-	else if (strcmp(testName,"dactest") == 0)
-	{
-		currentTestInstruction = dacTestProgram;
-		return LJ_VGM_OK;
-	}
-	else if (strcmp(testName,"sample") == 0)
-	{
-		currentTestInstruction = sampleDocProgram;
-		return LJ_VGM_OK;
-	}
-	else if (strcmp(testName,"fb") == 0)
-	{
-		currentTestInstruction = fbProgram;
-		return LJ_VGM_OK;
-	}
-	else if (strcmp(testName,"ch2mode") == 0)
-	{
-		currentTestInstruction = ch2modeProgram;
-		return LJ_VGM_OK;
-	}
-	else if (strcmp(testName,"badreg") == 0)
-	{
-		currentTestInstruction = badRegProgram;
-		return LJ_VGM_OK;
-	}
-	else if (strcmp(testName,"timer") == 0)
-	{
-		currentTestInstruction = timerProgram;
-		return LJ_VGM_OK;
-	}
-	else if (strcmp(testName,"ssgon") == 0)
-	{
-		currentTestInstruction = ssgOnProgram;
-		return LJ_VGM_OK;
-	}
+	while (1);
 
 	return LJ_VGM_ERROR;
 }
@@ -768,7 +753,7 @@ static LJ_VGM_UINT8 algoProgram[] = {
 		LJ_TEST_FINISH, 0xFF, 0xFF,	/* END PROGRAM */
 };
 
-static LJ_VGM_UINT8 dacTestProgram[] = {
+static LJ_VGM_UINT8 dacProgram[] = {
 		LJ_TEST_PART_0, 0x22, 0x00,	/* LFO off */
 		LJ_TEST_PART_0, 0x27, 0x00,	/* Channel 3 mode normal */
 		LJ_TEST_PART_0, 0x28, 0x00,	/* All channels off */
@@ -899,7 +884,7 @@ static LJ_VGM_UINT8 fbProgram[] = {
 		LJ_TEST_FINISH, 0xFF, 0xFF,	/* END PROGRAM */
 };
 
-static LJ_VGM_UINT8 ch2modeProgram[] = {
+static LJ_VGM_UINT8 ch2Program[] = {
 		LJ_TEST_PART_0, 0x22, 0x00,	/* LFO off */
 		LJ_TEST_PART_0, 0x27, 0x00,	/* Channel 2 mode = 0 -> normal */
 		LJ_TEST_PART_0, 0x27, 0x40,	/* Channel 2 mode = 1 -> special */
@@ -1098,7 +1083,107 @@ static LJ_VGM_UINT8 ssgOnProgram[] = {
 		LJ_TEST_PART_0, 0xA4, 0x34,	/* Set frequency (BLOCK=6) */
 		LJ_TEST_PART_0, 0xA0, 0x69,	/* Set frequency FREQ=???) */
 		LJ_TEST_PART_0, 0x28, 0x10,	/* Key on (slot 0, channel 0) */
-		LJ_TEST_OUTPUT, 0xB0, 0x00,	/* OUTPUT SAMPLES */
+		LJ_TEST_OUTPUT, 0x0F, 0x18,	/* OUTPUT SAMPLES */
+		LJ_TEST_PART_0, 0x28, 0x00,	/* Key off */
+		LJ_TEST_OUTPUT, 0x30, 0x00,	/* OUTPUT SAMPLES */
+		LJ_TEST_FINISH, 0xFF, 0xFF,	/* END PROGRAM */
+};
+
+static LJ_VGM_UINT8 ssgHoldProgram[] = {
+		LJ_TEST_PART_0, 0x22, 0x00,	/* LFO off */
+		LJ_TEST_PART_0, 0x27, 0x00,	/* Channel 3 mode normal */
+		LJ_TEST_PART_0, 0x28, 0x00,	/* All channels off */
+		LJ_TEST_PART_0, 0x28, 0x01,	/* All channels off */
+		LJ_TEST_PART_0, 0x28, 0x02,	/* All channels off */
+		LJ_TEST_PART_0, 0x28, 0x04,	/* All channels off */
+		LJ_TEST_PART_0, 0x28, 0x05,	/* All channels off */
+		LJ_TEST_PART_0, 0x28, 0x06,	/* All channels off */
+		LJ_TEST_PART_0, 0x2B, 0x00,	/* DAC off */
+		LJ_TEST_PART_0, 0x30, 0x01,	/* DT1/MUL - channel 0 slot 0 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x34, 0x01,	/* DT1/MUL - channel 0 slot 2 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x38, 0x01,	/* DT1/MUL - channel 0 slot 1 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x3C, 0x01,	/* DT1/MUL - channel 0 slot 3 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x40, 0x02,	/* Total Level - channel 0 slot 0 (*1) */
+		LJ_TEST_PART_0, 0x44, 0x7F,	/* Total Level - channel 0 slot 2 (*0.000001f) */
+		LJ_TEST_PART_0, 0x48, 0x7F,	/* Total Level - channel 0 slot 1 (*0.000001f) */
+		LJ_TEST_PART_0, 0x4C, 0x7F,	/* Total Level - channel 0 slot 3 (*0.000001f) */
+		LJ_TEST_PART_0, 0x50, 0x57,	/* RS/AR - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x54, 0x0F,	/* RS/AR - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x58, 0x0F,	/* RS/AR - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x5C, 0x0F,	/* RS/AR - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x60, 0x15,	/* AM/D1R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x64, 0x1F,	/* AM/D1R - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x68, 0x1F,	/* AM/D1R - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x6C, 0x0F,	/* AM/D1R - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x70, 0x15,	/* D2R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x74, 0x00,	/* D2R - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x78, 0x00,	/* D2R - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x7C, 0x00,	/* D2R - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x80, 0x15,	/* D1L/RR - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x84, 0x0F,	/* D1L/RR - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x88, 0x0F,	/* D1L/RR - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x8C, 0x0F,	/* D1L/RR - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x90, 0x08+0x1,	/* SSG - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x94, 0x00,	/* SSG - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x98, 0x00,	/* SSG - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x9C, 0x00,	/* SSG - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0xB0, 0x07,	/* Feedback/algorithm (FB=0, ALG=7) */
+		LJ_TEST_PART_0, 0xB4, 0xC0,	/* Both speakers on */
+		LJ_TEST_PART_0, 0x28, 0x00,	/* Key off */
+		LJ_TEST_PART_0, 0xA4, 0x34,	/* Set frequency (BLOCK=6) */
+		LJ_TEST_PART_0, 0xA0, 0x69,	/* Set frequency FREQ=???) */
+		LJ_TEST_PART_0, 0x28, 0x10,	/* Key on (slot 0, channel 0) */
+		LJ_TEST_OUTPUT, 0x0F, 0x18,	/* OUTPUT SAMPLES */
+		LJ_TEST_PART_0, 0x28, 0x00,	/* Key off */
+		LJ_TEST_OUTPUT, 0x30, 0x00,	/* OUTPUT SAMPLES */
+		LJ_TEST_FINISH, 0xFF, 0xFF,	/* END PROGRAM */
+};
+
+static LJ_VGM_UINT8 ssgInvertProgram[] = {
+		LJ_TEST_PART_0, 0x22, 0x00,	/* LFO off */
+		LJ_TEST_PART_0, 0x27, 0x00,	/* Channel 3 mode normal */
+		LJ_TEST_PART_0, 0x28, 0x00,	/* All channels off */
+		LJ_TEST_PART_0, 0x28, 0x01,	/* All channels off */
+		LJ_TEST_PART_0, 0x28, 0x02,	/* All channels off */
+		LJ_TEST_PART_0, 0x28, 0x04,	/* All channels off */
+		LJ_TEST_PART_0, 0x28, 0x05,	/* All channels off */
+		LJ_TEST_PART_0, 0x28, 0x06,	/* All channels off */
+		LJ_TEST_PART_0, 0x2B, 0x00,	/* DAC off */
+		LJ_TEST_PART_0, 0x30, 0x01,	/* DT1/MUL - channel 0 slot 0 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x34, 0x01,	/* DT1/MUL - channel 0 slot 2 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x38, 0x01,	/* DT1/MUL - channel 0 slot 1 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x3C, 0x01,	/* DT1/MUL - channel 0 slot 3 : DT=0 MUL=1 */
+		LJ_TEST_PART_0, 0x40, 0x02,	/* Total Level - channel 0 slot 0 (*1) */
+		LJ_TEST_PART_0, 0x44, 0x7F,	/* Total Level - channel 0 slot 2 (*0.000001f) */
+		LJ_TEST_PART_0, 0x48, 0x7F,	/* Total Level - channel 0 slot 1 (*0.000001f) */
+		LJ_TEST_PART_0, 0x4C, 0x7F,	/* Total Level - channel 0 slot 3 (*0.000001f) */
+		LJ_TEST_PART_0, 0x50, 0x1F,	/* RS/AR - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x54, 0x0F,	/* RS/AR - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x58, 0x0F,	/* RS/AR - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x5C, 0x0F,	/* RS/AR - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x60, 0x15,	/* AM/D1R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x64, 0x1F,	/* AM/D1R - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x68, 0x1F,	/* AM/D1R - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x6C, 0x0F,	/* AM/D1R - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x70, 0x15,	/* D2R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x74, 0x00,	/* D2R - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x78, 0x00,	/* D2R - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x7C, 0x00,	/* D2R - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x80, 0x15,	/* D1L/RR - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x84, 0x0F,	/* D1L/RR - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x88, 0x0F,	/* D1L/RR - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x8C, 0x0F,	/* D1L/RR - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0x90, 0x08+0x2,	/* SSG - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x94, 0x00,	/* SSG - channel 0 slot 2 */
+		LJ_TEST_PART_0, 0x98, 0x00,	/* SSG - channel 0 slot 1 */
+		LJ_TEST_PART_0, 0x9C, 0x00,	/* SSG - channel 0 slot 3 */
+		LJ_TEST_PART_0, 0xB0, 0x07,	/* Feedback/algorithm (FB=0, ALG=7) */
+		LJ_TEST_PART_0, 0xB4, 0xC0,	/* Both speakers on */
+		LJ_TEST_PART_0, 0x28, 0x00,	/* Key off */
+		LJ_TEST_PART_0, 0xA4, 0x34,	/* Set frequency (BLOCK=6) */
+		LJ_TEST_PART_0, 0xA0, 0x69,	/* Set frequency FREQ=???) */
+		LJ_TEST_PART_0, 0x28, 0x10,	/* Key on (slot 0, channel 0) */
+		LJ_TEST_OUTPUT, 0x0F, 0x18,	/* OUTPUT SAMPLES */
 		LJ_TEST_PART_0, 0x28, 0x00,	/* Key off */
 		LJ_TEST_OUTPUT, 0x30, 0x00,	/* OUTPUT SAMPLES */
 		LJ_TEST_FINISH, 0xFF, 0xFF,	/* END PROGRAM */
