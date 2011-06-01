@@ -611,12 +611,25 @@ static void ym2612_slotStartPlaying(LJ_YM2612_SLOT* const slotPtr, LJ_YM2612_CHA
 	/* Test for the infinite attack rates (30,31)- e.g. for CSM mode to make noise */
 	if (egRate > 59)
 	{
+		const LJ_YM_UINT32 slotAttenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MIN;
+		LJ_YM_UINT32 attenuationDB = slotAttenuationDB;
 		if (debugFlags & LJ_YM2612_DEBUG)
 		{
 			printf("Slot[%d] Inf attack rate start\n", slotPtr->id);
 		}
-		slotPtr->attenuationDB = LJ_YM2612_EG_ATTENUATION_DB_MIN;
-		slotPtr->volume = LJ_YM2612_VOLUME_MAX;
+		if (slotPtr->egSSGInvertOutput == 1)
+		{
+			LJ_YM_UINT32 invertAttenuationDB = LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX - attenuationDB;
+			if (invertAttenuationDB > LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX)
+			{
+				invertAttenuationDB = attenuationDB - LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX;
+			}
+			printf("StartPlay State:%d Invert:%d -> %d %d %d\n", slotPtr->adsrState, 
+							attenuationDB, invertAttenuationDB, slotAttenuationDB, slotPtr->volume);
+			attenuationDB = invertAttenuationDB;
+		}
+		slotPtr->attenuationDB = slotAttenuationDB;
+		slotPtr->volume = LJ_YM2612_EG_attenuationTable[attenuationDB & LJ_YM2612_EG_ATTENUATION_DB_TABLE_MASK];
 	}
 	/* handle special cases of going straight into decay/sustain */
 	if (slotPtr->volume == LJ_YM2612_VOLUME_MAX)
@@ -919,11 +932,6 @@ static void ym2612_slotUpdateEGandSSG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 				attenuationDB = LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX;
 				slotAttenuationDB = attenuationDB;
 			}
-			if (slotPtr->egSSGInvert == 1)
-			{
-				/* Toggle invert output when the cycle ends */
-				slotPtr->egSSGInvertOutput ^= 1;
-			}
 		}
 		if (slotPtr->egSSGInvertOutput == 1)
 		{
@@ -932,8 +940,9 @@ static void ym2612_slotUpdateEGandSSG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 			{
 				invertAttenuationDB = attenuationDB - LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX;
 			}
-			printf("State:%d Invert:%d -> %d %d\n", slotPtr->adsrState, attenuationDB, invertAttenuationDB, slotAttenuationDB);
-			/*attenuationDB = invertAttenuationDB;*/
+			printf("State:%d Invert:%d -> %d %d %d\n", slotPtr->adsrState, 
+							attenuationDB, invertAttenuationDB, slotAttenuationDB, slotPtr->volume);
+			attenuationDB = invertAttenuationDB;
 		}
 	}
 
@@ -2545,11 +2554,16 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					/* Restart SSG cycle now this one has ended */
 					if (slotPtr->egSSGEnabled)
 					{
-						if (slotPtr->egSSGHold == 0)
+						if (slotPtr->egSSGCycleEnded == 1)
 						{
-							/* The slot needs to be restarted if not in hold mode */
-							if (slotPtr->egSSGCycleEnded == 1)
+							if (slotPtr->egSSGInvert == 1)
 							{
+								/* Toggle invert output when the cycle ends */
+								slotPtr->egSSGInvertOutput ^= 1;
+							}
+							if (slotPtr->egSSGHold == 0)
+							{
+								/* The slot needs to be restarted if not in hold mode */
 								ym2612_slotStartPlaying(slotPtr, channelPtr, ym2612Ptr, debugFlags);
 							}
 						}
