@@ -1,10 +1,17 @@
 High Priority:
-YM2612:implement SSG enabled no bits set : restart ADSR when attenuation->0 in sustain phase (another key on)
-YM2612:implement SSG bit 0: hold
-YM2612:implement SSG bit 1: invert
-YM2612:implement SSG bit 2: attack
+YM2612:implement SSG invert
+YM2612:implement SSG attack
+YM2612:implement SSG hold+invert
+YM2612:implement SSG hold+attack
+YM2612:implement SSG invert+attack
+YM2612:implement SSG invert+attack
+YM2612:implement SSG hold+invert+attack
+YM2612:SSG how does release work with it?
+YM2612:SSG what is its min attentuation to trigger it to next cycle
+YM2612:SSG what it its attenuation factor (x4 or x6)
 
 Medium Priority:
+YM2612:get my own ASM->BIN running in Kega
 YM2612:implement LFO
 YM2612:implement LJ_LR_AMS_PMS = 0xB4 (AMS, PMS)
 YM2612:implement LJ_AM_DR = 0x60 (AM part)
