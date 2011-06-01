@@ -624,8 +624,6 @@ static void ym2612_slotStartPlaying(LJ_YM2612_SLOT* const slotPtr, LJ_YM2612_CHA
 			{
 				invertAttenuationDB = attenuationDB - LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX;
 			}
-			printf("StartPlay State:%d Invert:%d -> %d %d %d\n", slotPtr->adsrState, 
-							attenuationDB, invertAttenuationDB, slotAttenuationDB, slotPtr->volume);
 			attenuationDB = invertAttenuationDB;
 		}
 		slotPtr->attenuationDB = slotAttenuationDB;
@@ -940,8 +938,6 @@ static void ym2612_slotUpdateEGandSSG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 			{
 				invertAttenuationDB = attenuationDB - LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX;
 			}
-			printf("State:%d Invert:%d -> %d %d %d\n", slotPtr->adsrState, 
-							attenuationDB, invertAttenuationDB, slotAttenuationDB, slotPtr->volume);
 			attenuationDB = invertAttenuationDB;
 		}
 	}
@@ -1264,6 +1260,10 @@ static void ym2612_slotSetEGSSG(LJ_YM2612_SLOT* slotPtr, const LJ_YM_UINT8 egSSG
 	/* *4 when SSG mode active = shift of 2 */
 	slotPtr->egAttenuationDBShift = (LJ_YM_UINT8)(slotPtr->egSSGEnabled << 1);
 
+	if (slotPtr->egSSGAttack)
+	{
+		slotPtr->egSSGInvertOutput = 1;
+	}
 	if (debugFlags & LJ_YM2612_DEBUG)
 	{
 		printf("SetEGSSGBits channel:%d slot:%d egSSG:0x%X enabled:%d attack:%d invert:%d hold:%d\n", slotPtr->chanId, slotPtr->id, 
