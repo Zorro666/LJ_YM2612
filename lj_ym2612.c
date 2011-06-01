@@ -932,7 +932,7 @@ static void ym2612_slotUpdateEGandSSG(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 				slotPtr->egSSGCycleEnded = 0;
 				if (slotPtr->egSSGInvert == 1)
 				{
-					slotPtr->egSSGInvertOutput = 1;
+					slotPtr->egSSGInvertOutput = 1 ^ slotPtr->egSSGAttack;
 				}
 			}
 		}
@@ -1274,8 +1274,6 @@ static void ym2612_slotSetEGSSG(LJ_YM2612_SLOT* slotPtr, const LJ_YM_UINT8 egSSG
 		printf("SetEGSSGBits channel:%d slot:%d egSSG:0x%X enabled:%d attack:%d invert:%d hold:%d\n", slotPtr->chanId, slotPtr->id, 
 					slotPtr->egSSG, slotPtr->egSSGEnabled, slotPtr->egSSGAttack, slotPtr->egSSGInvert, slotPtr->egSSGHold );
 	}
-	printf("SetEGSSGBits channel:%d slot:%d egSSG:0x%X enabled:%d attack:%d invert:%d hold:%d\n", slotPtr->chanId, slotPtr->id, 
-				slotPtr->egSSG, slotPtr->egSSGEnabled, slotPtr->egSSGAttack, slotPtr->egSSGInvert, slotPtr->egSSGHold );
 }
 
 static void ym2612_slotSetSustainRate(LJ_YM2612_SLOT* const slotPtr, const LJ_YM_UINT8 AM_DR, const LJ_YM_UINT32 debugFlags)
