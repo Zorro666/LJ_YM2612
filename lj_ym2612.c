@@ -2636,6 +2636,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				}
 				/* See forum posts by Nemesis - timer A is at FM sample output (144 clock cycles) - docs are wrong */
 				ym2612Ptr->timerAcounter += ym2612Ptr->timerAstart;
+				while (ym2612Ptr->timerAcounter < 0)
+				{
+					ym2612Ptr->timerAcounter += ym2612Ptr->timerAstart;
+				}
 
 				/* CSM mode key-on : only active in 10 not in 11 */
       	if ((ym2612Ptr->ch2Mode & 0x3) == 0x2)
@@ -2644,7 +2648,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
 					if (debugFlags & LJ_YM2612_DEBUG)
 					{
-						printf("%d CSM KeyON\n", ym2612Ptr->sampleCount);
+						printf("%d CSM KeyON TimerACnt: %d Timer A:%d\n", ym2612Ptr->sampleCount, ym2612Ptr->timerAcounter, ym2612Ptr->timerAstart);
 					}
 					for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 					{
@@ -2664,7 +2668,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 			LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
 			if (debugFlags & LJ_YM2612_DEBUG)
 			{
-				printf("%d CSM KeyOFF\n", ym2612Ptr->sampleCount);
+				printf("%d CSM KeyOFF Timer A:%d\n", ym2612Ptr->sampleCount,ym2612Ptr->timerAstart);
 			}
 			for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 			{
