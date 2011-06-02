@@ -768,7 +768,7 @@ static void ym2612_slotUpdateSSG(LJ_YM2612_SLOT* slotPtr, LJ_YM2612_CHANNEL* cha
 					/* TODO: don't like but otherwise hold+invert doesn't go to max volume */
 					/* Invert output calculation doesn't work nicely if volume > SSG max attenuation */
 					/* Special case for hold : not looping but got to SSG special place - force to max attenuation */
-					slotPtr->attenuationDB = LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX;
+					/*slotPtr->attenuationDB = LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX;*/
 				}
 			}
 		}
@@ -1597,6 +1597,16 @@ static void ym2612_egMakeData(LJ_YM2612_EG* const egPtr, LJ_YM2612* ym2612Ptr)
 	if (0)
 	{
 		ym2612_egDebugOutputDeltas();
+	}
+	if (0)
+	{
+		LJ_YM_UINT32 att;
+		for (att = 0; att <= LJ_YM2612_EG_ATTENUATION_DB_MAX; att++)
+		{
+			LJ_YM_UINT32 invertAttenuationDB = LJ_YM2612_EG_SSG_ATTENUATION_DB_MAX - att;
+			invertAttenuationDB &= LJ_YM2612_EG_ATTENUATION_DB_MAX;
+			printf("Invert:%d 0x%X -> %d 0x%X\n", att, att, invertAttenuationDB, invertAttenuationDB);
+		}
 	}
 }
 
@@ -2515,7 +2525,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					invertAttenuationDB &= LJ_YM2612_EG_ATTENUATION_DB_MAX;
 					if (debugFlags & LJ_YM2612_DEBUG)
 					{
-						printf("Invert:%d -> %d\n",attenuationDB, invertAttenuationDB);
+						printf("Invert:%d -> %d\n", attenuationDB, invertAttenuationDB);
 					}
 					attenuationDB = invertAttenuationDB;
 				}
