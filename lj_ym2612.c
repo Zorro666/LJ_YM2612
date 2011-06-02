@@ -2637,8 +2637,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				/* See forum posts by Nemesis - timer A is at FM sample output (144 clock cycles) - docs are wrong */
 				ym2612Ptr->timerAcounter += ym2612Ptr->timerAstart;
 
-				/* CSM mode */
-      	if ((ym2612Ptr->ch2Mode & 0x2) == 0x2)
+				/* CSM mode key-on : only active in 10 not in 11 */
+      	if ((ym2612Ptr->ch2Mode & 0x3) == 0x2)
 				{
 					/* Key ON via CSM */
 					LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
