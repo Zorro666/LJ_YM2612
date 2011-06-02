@@ -1,0 +1,5 @@
+#!/bin/bash
+infile=$1
+filename=${infile%.*}
+#~/Apps/Asmx/asmx -b 0x00000-0x20000 -e -w -o $filename.bin -l $filename.lst $filename.asm
+./Asmx/asmx -b 0x00000-0x20000 -e -w -o $filename.bin $filename.asm
