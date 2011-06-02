@@ -2691,6 +2691,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				}
 				/* timer B is *16 compared to timer A which at FM sample output (144 clock cycles) */
 				ym2612Ptr->timerBcounter += ym2612Ptr->timerBstart;
+				while (ym2612Ptr->timerBcounter < 0)
+				{
+					ym2612Ptr->timerBcounter += ym2612Ptr->timerBstart;
+				}
 			}
 		}
 
