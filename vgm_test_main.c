@@ -999,8 +999,8 @@ static LJ_VGM_UINT8 badRegProgram[] = {
 
 static LJ_VGM_UINT8 timerProgram[] = {
 		LJ_TEST_PART_0, 0x22, 0x00,	/* LFO off */
-		LJ_TEST_PART_0, 0x24, 0x00,	/* Timer A MSB */
-		LJ_TEST_PART_0, 0x25, 0x00,	/* Timer A LSB */
+		LJ_TEST_PART_0, 0x24, 0xFF,	/* Timer A MSB */
+		LJ_TEST_PART_0, 0x25, 0x0F,	/* Timer A LSB */
 		LJ_TEST_PART_0, 0x26, 0x00,	/* Timer B */
 		LJ_TEST_PART_0, 0x27, 0x8F,	/* Channel 2 mode CSM : Timer A & B enable : Timer A & B load */
 		LJ_TEST_PART_0, 0x28, 0x00,	/* All channels off */
