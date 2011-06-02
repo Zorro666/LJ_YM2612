@@ -1022,15 +1022,15 @@ static LJ_VGM_UINT8 timerProgram[] = {
 		LJ_TEST_PART_0, 0x56, 0x0F,	/* RS/AR - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x5A, 0x0F,	/* RS/AR - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x5E, 0x0F,	/* RS/AR - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x62, 0x15,	/* AM/D1R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x62, 0x0A,	/* AM/D1R - channel 0 slot 0 */
 		LJ_TEST_PART_0, 0x66, 0x1F,	/* AM/D1R - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x6A, 0x1F,	/* AM/D1R - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x6E, 0x0F,	/* AM/D1R - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x72, 0x15,	/* D2R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x72, 0x10,	/* D2R - channel 0 slot 0 */
 		LJ_TEST_PART_0, 0x76, 0x00,	/* D2R - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x7A, 0x00,	/* D2R - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x7E, 0x00,	/* D2R - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x82, 0x0B,	/* D1L/RR - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x82, 0x12,	/* D1L/RR - channel 0 slot 0 */
 		LJ_TEST_PART_0, 0x86, 0x0F,	/* D1L/RR - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x8A, 0x0F,	/* D1L/RR - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x8E, 0x0F,	/* D1L/RR - channel 0 slot 3 */
