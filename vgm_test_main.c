@@ -1275,7 +1275,7 @@ static LJ_VGM_UINT8 ssgInvertHoldProgram[] = {
 		LJ_TEST_PART_0, 0x64, 0x1F,	/* AM/D1R - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x68, 0x1F,	/* AM/D1R - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x6C, 0x0F,	/* AM/D1R - channel 0 slot 3 */
-		LJ_TEST_PART_0, 0x70, 0x18,	/* D2R - channel 0 slot 0 */
+		LJ_TEST_PART_0, 0x70, 0x10,	/* D2R - channel 0 slot 0 */
 		LJ_TEST_PART_0, 0x74, 0x00,	/* D2R - channel 0 slot 2 */
 		LJ_TEST_PART_0, 0x78, 0x00,	/* D2R - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x7C, 0x00,	/* D2R - channel 0 slot 3 */
