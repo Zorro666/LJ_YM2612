@@ -635,6 +635,7 @@ progListEnd:
 	DC.w			PROGS_END
 
 	MACRO GLOBAL_VARIABLE name, numBytes
+	ALIGN numBytes
 name:	DS numBytes
 	ENDM
 
@@ -642,6 +643,6 @@ name:	DS numBytes
 	ORG 0xFF0000
 	GLOBAL_VARIABLE lastPad, 2
 	GLOBAL_VARIABLE curProg, 2
-crazyCounter=	0xFF0804	;	(.long)
+	GLOBAL_VARIABLE crazyCounter, 4
 
 
