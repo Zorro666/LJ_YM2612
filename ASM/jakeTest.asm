@@ -1,21 +1,21 @@
 CPU=68000
 
-	dc.l $00000000,	EntryPoint,	ErrorTrap,	ErrorTrap	;00
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;10
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;20
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;30
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;40
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;50
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;60
-	dc.l HInt,	ErrorTrap,	VInt,		ErrorTrap	;70
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;80
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;90
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;A0
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;B0
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;C0
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;D0
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;E0
-	dc.l ErrorTrap,	ErrorTrap,	ErrorTrap,	ErrorTrap	;F0
+	dc.l 0x00000000,	EntryPoint,	ErrorTrap,	ErrorTrap	;00
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;10
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;20
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;30
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;40
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;50
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;60
+	dc.l HInt,				ErrorTrap,	VInt,				ErrorTrap	;70
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;80
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;90
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;A0
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;B0
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;C0
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;D0
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;E0
+	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;F0
 
 ; D0 = spare temporary
 ; D1 = spare temporary
@@ -26,7 +26,7 @@ CPU=68000
 ; D6 = used inside UpdateGUI for joy pad reading
 ; D7 = return value from UpdateGUI
 
-check_sum equ	$0000
+check_sum equ	0x0000
 ;------------------------------------------------------------------------
 	dc.b	'SEGA GENESIS    '	;100
 	dc.b	'(C)T-01 2011.06 '	;110 release year.month
@@ -39,7 +39,7 @@ check_sum equ	$0000
 	dc.b	'GM T-123456 42'  	;180 product #, version
 	dc.w	check_sum         	;18E check sum
 	dc.b	'J               '	;190 controller
-	dc.l	$00000000,$0007ffff,$00ff0000,$00ffffff		;1A0
+	dc.l	0x00000000, 0x0007ffff, 0x00ff0000, 0x00ffffff		;1A0
 	dc.b	'                '	;1B0
 	dc.b	'                '	;1C0
 	dc.b	'                '	;1D0
@@ -48,126 +48,131 @@ check_sum equ	$0000
 
 
 ErrorTrap:
-	jmp	ErrorTrap
+	jmp			ErrorTrap
 
 HInt:
 VInt:
 	rte
 
 EntryPoint:
-	move.w #$FFFF,D0
+	move.w	#0xFFFF,	D0
 Loop1:
-	dbf D0,Loop1
+	dbf 		D0,				Loop1
 
 Loop2:
-	move.b #1,$A11100	;BUSREQ
-	move.b #1,$A11200	;RESET
-	btst.b #0,$A11100
-	bne	Loop2
+	move.b	#0x01,		0xA11100	;BUSREQ
+	move.b	#0x01,		0xA11200	;RESET
+	btst.b	#0x00,		0xA11100
+	bne			Loop2
 
-	move.b #$40,$A10009 ; init joypad 1 by writing 0x40 to CTRL port for joypad 1
+	move.b	#0x40, 		0x10009		; init joypad 1 by writing 0x40 to CTRL port for joypad 1
 
-	lea ssgAttackProgram, A1 ; start of the test program to run
-	lea sampleDocProgram, A1 ; start of the test program to run
+	lea 		ssgAttackProgram, A1 ; start of the test program to run
+	lea 		sampleDocProgram, A1 ; start of the test program to run
 StartProgram:
-	move A1, A0
+	move 		A1,				A0
 
 RunProgram:
-	move.b (A0)+, D0	; D0 is the operation to perform
+	move.b	(A0)+,		D0				; D0 is the operation to perform
 
-	cmpi.b #0x00, D0
-	beq WritePort0
+	cmpi.b	#0x00,		D0
+	beq 		WritePort0
 
-	cmpi.b #0x01, D0
-	beq WritePort1
+	cmpi.b	#0x01,		D0
+	beq 		WritePort1
 
-	cmpi.b #0x10, D0
-	beq OutputSamples
+	cmpi.b	#0x10,		D0
+	beq 		OutputSamples
 
-	cmpi.b #0xFF, D0
-	beq EndProgram
+	cmpi.b	#0xFF,		D0
+	beq 		EndProgram
 	
-	jmp	ErrorTrap			; unknown operation to perform
+	jmp			ErrorTrap						; unknown operation to perform
 
 WritePort0:
-	move.b (A0)+, D0	; register
-	move.b (A0)+, D1	; data
-	bsr WriteYm2612
-	jmp RunProgram
+	move.b	(A0)+,		D0				; register
+	move.b	(A0)+,		D1				; data
+	bsr 		WriteYm2612Port0
+	jmp 		RunProgram
 	
-WritePort1:				; NOT IMPLEMENTED PROPERLY
-	move.b (A0)+, D0	; register
-	move.b (A0)+, D1	; data
-	bsr WriteYm2612
-	jmp RunProgram
+WritePort1:										; NOT IMPLEMENTED PROPERLY
+	move.b	(A0)+,		D0				; register
+	move.b	(A0)+,		D1				; data
+	bsr 		WriteYm2612Port1
+	jmp			RunProgram
 
-OutputSamples:			; loop a lot
-	move.b (A0)+, D0	; bottom 8-bits
-	move.b (A0)+, D1	; top 8-bits
+OutputSamples:								; loop a lot
+	move.b	(A0)+,		D0				; bottom 8-bits
+	move.b	(A0)+,		D1				; top 8-bits
 OutputOneSample:
-	move.w #0x4FFF, D3 ; this should be the number of cycles to output a single 44KHz sample
+	move.w	#0x4FFF,	D3				; this should be the number of cycles to output a single 44KHz sample
 OutputSample:
-	bsr UpdateGUI
-	cmpi.b #0x01, D7
-	beq StartProgram
+	bsr 		UpdateGUI
+	cmpi.b	#0x02,		D7	
+	beq 		StartProgram
 
-	subi.w #0x01, D3
-	bne OutputSample
-	subi.w #0x01, D0
-	bne OutputOneSample
-	jmp RunProgram
+	subi.w	#0x01,		D3
+	bne 		OutputSample
+	subi.w	#0x01,		D0
+	bne 		OutputOneSample
+	jmp 		RunProgram
 
 EndProgram:
-	bsr UpdateGUI
-	cmpi.b #0x01, D7
-	beq StartProgram
+	bsr			UpdateGUI
+	cmpi.b	#0x01,		D7
+	beq			StartProgram
 
-	jmp	EndProgram
+	jmp			EndProgram
 
-WriteYM2612:
-	btst #7,$A04000
-	bne WriteYM2612
-	move.b D0,$A04000
-WriteYM2612Data:
-	btst #7,$A04000
-	bne WriteYM2612Data
-	move.b D1,$A04001
+WriteYM2612Port0:
+	btst		#0x07,		0xA04000
+	bne 		WriteYM2612Port0
+	move.b	D0,				0xA04000
+WriteYM2612DataPort0:
+	btst		#0x07,		0xA04000
+	bne			WriteYM2612Data
+	move.b	D1,0xA04001
 	rts
 
-UpdateGUI:				; test for joypad input & draw screen text
-	move.b #$00, D7	; D7 is result of what to do from this function
+UpdateGUI:										; test for joypad input & draw screen text
+	move.b	#0x00, 		D7				; D7 is result of what to do from this function
 
-	move.b #$40, $A10003 ; ask for high-state on joypad 1 by writing 0x40 to DATA port for joypad 1
-	nop							; wait a couple of cycles
-	nop							; wait a couple of cycles
-	move.b $A10003, D5	; read joypad 1 : C-button, B-button + Right/Left/Down/Up
+	move.b	#0x40,		0xA10003	; ask for high-state on joypad 1 by writing 0x40 to DATA port for joypad 1
+	nop													; wait a couple of cycles
+	nop													; wait a couple of cycles
+	move.b 	0xA10003,	D2				; read joypad 1 : C-button, B-button + Right/Left/Down/Up
 
-	move.b #$00, $A10003 ; ask for low-state on joypad 1 by writing 0x00 to DATA port for joypad 1
-	nop							; wait a couple of cycles
-	nop							; wait a couple of cycles
-	move.b $A10003, D6	; read joypad 1 : Start-button + A-Button + Down/Up
+	move.b 	#0x00, 		0xA10003	; ask for low-state on joypad 1 by writing 0x00 to DATA port for joypad 1
+	nop													; wait a couple of cycles
+	nop													; wait a couple of cycles
+	move.b 	0xA10003, D6				; read joypad 1 : Start-button + A-Button + Down/Up
+	lsl.b 	#0x02, 		D6				; D6 = D6 << 2
+	andi.b 	#0xF0, 		D6				; D6 = D6 & 0xF0
+	or.b		D2,				D6				; D6 = joyPadLow | (joyPadHigh << 2 ) & 0xF0)
 
-	; TODO-merge D6 & D5 into a single joypad 1 8-bit value: (D6 & 0x30 << 2) | D5
+	lea 		lastPad, 	A2
+	move.b 	(A2), 		D4				; D4 is lastState, D6 is newState (1 = not pressed, 0 = pressed)
+	eor.b 	D6, 			D4				; D4 = lastState ^ newState
+	and.b 	D6, 			D4				; D4 = (lastState ^ newState) & newState
 
-	; debounce : (lastState ^ newState ) & newState -> true when button has been released
-	lea lastPadHigh, A2
-	move.b (A2), D4		; D4 is lastState, D6 is newState (1 = not pressed, 0 = pressed)
-	eor.b D6, D4		; D4 = lastState ^ newState
-	and.b D6, D4		; D4 = (lastState ^ newState) & newState
+	move.b 	D4, 			D2				; test for Start which is bit-7 -> 0x80
+	andi.b 	#0x80, 		D2
+	beq 		NotStart						; test for start button not-pressed (0) -> pressed (1)
 
-	move.b D4, D2		; test for Start which is bit-5 -> 0x20
-	andi.b #$20, D2
-	beq NotStart		; test for start button not-pressed (0) -> pressed (1)
-
-	move.b #$01, D7	; start was pressed
+	move.b 	#0x01, 		D7				; start was pressed
+	jmp SavePadState
 
 NotStart:
+	move.b 	D4, 			D2				; test for A which is bit-6 -> 0x80
+	andi.b 	#0x40, 		D2
+	beq 		NotA								; test for A button not-pressed (0) -> pressed (1)
+
+	move.b 	#0x02, 		D7				; A button was pressed
+	jmp SavePadState
 
 SavePadState:
-	lea lastPadLow, A2
-	move.b D5, (A2)
-	lea lastPadHigh, A2
-	move.b D6, (A2)
+	lea 		lastPad, 	A2
+	move.b 	D6, 			(A2)
 	rts
 	
 ; Handy macros to make test programs easy to convert from C -> ASM
@@ -244,5 +249,4 @@ ALIGN=2
 		LJ_TEST_FINISH, 0xFF, 0xFF,	/* END PROGRAM */
 
 ; RAM Memory variables
-lastPadLow=0xFF0800
-lastPadHigh=0xFF0802
+lastPad	=	0xFF0802
