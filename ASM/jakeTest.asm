@@ -84,7 +84,16 @@ VInt:
 	rte
 
 EntryPoint:
-	move.w	#0xFFFF,	D0
+
+	jsr	initGFX
+
+	jsr	copyTileData
+
+	jsr	setPalette
+	
+	jsr	ClearDisplay
+
+	move.w	#0xFFFF,D0
 Loop1:
 	dbf 		D0,				Loop1
 
@@ -177,6 +186,34 @@ WriteYM2612DataPort1:
 	rts
 
 UpdateGUI:										; test for joypad input & draw screen text
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	movem.l	d0-d2/A6,-(A7)
+
+	lea	testMessage,A6		; message location
+	move.b	#1,D0			; x co-ord
+	move.b	#10,D1			; y co-ord
+	jsr	printAt	
+	
+	lea	testMessage2,A6		; message location
+	move.b	#1,D0			; x co-ord
+	move.b	#15,D1			; y co-ord
+	jsr	printAt	
+
+	move.l	crazyCounter,D2
+	add.l	#1,D2
+	move.l	D2,crazyCounter
+
+
+	move.b	#22,D0			; x co-ord
+	move.b	#15,D1			; y co-ord
+	jsr	printHex		; hexadecimal number in D2 (always assumes long) always prints as 00000000
+
+	movem.l	(A7)+,d0-d2/A6
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 	move.b	#0x00, 		D7				; D7 is result of what to do from this function
 
 	move.b	#0x40,		0xA10003	; ask for high-state on joypad 1 by writing 0x40 to DATA port for joypad 1
@@ -269,6 +306,218 @@ PREV_SAVE:
 		DB 0xFF, R, D
 	ENDM
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+GFXDATA = 0xC00000			; VDP Data Port
+GFXCNTL	= 0xC00004			; VDP Control Port
+
+	MACRO	VDP_SET_REGISTER	reg,data,dest			; reg is vdp register, data is byte to set, dest is 68000 reg pointing at GFXCNTL
+		move.w #0x8000 + ((reg&0x1F)<<8) + (data&0xFF),(dest)
+	ENDM
+
+	MACRO	VDP_SET_VRAM_DEST	address,dest			; address is address in vram to set vram pointer, dest is 68000 reg pointing at GFXCNTL
+		move.l #0x40000000 + ((address&0x3FFF)<<16) + (address>>14),(dest)
+	ENDM
+
+	MACRO	VDP_SET_CRAM_DEST	address,dest			; address is address in vram to set vram pointer, dest is 68000 reg pointing at GFXCNTL
+		move.l #0xC0000000 + ((address&0x3FFF)<<16) + (address>>14),(dest)
+	ENDM
+
+	ALIGN 2
+initGFX:
+	movem.l D0-D7/A0-A6,-(A7)
+
+	lea	GFXCNTL,A0
+
+	VDP_SET_REGISTER	0,0x04,A0			; Set mode register 1  - full palette - everything else disabled
+	VDP_SET_REGISTER	1,0x74,A0			; Set mode register 2 - Display Enable + Vertical interrupt + dma enable + genesis vdp mode
+	VDP_SET_REGISTER	2,0x38,A0			; Plane A screen at E000
+	VDP_SET_REGISTER	3,0x38,A0			; Pattern Table at E000
+	VDP_SET_REGISTER	4,0x07,A0			; Plane B screen at E000
+	VDP_SET_REGISTER	5,0x7E,A0			; Sprite location at E000
+	VDP_SET_REGISTER	7,0x00,A0			; Use palette entry 0 for backdrop colour
+	VDP_SET_REGISTER	10,0xFF,A0			; Line intterupt counter - not line interrupts are not enabled, so this won't matter
+	VDP_SET_REGISTER	11,0x00,A0			; Set mode register 3 - normal scrolling
+	VDP_SET_REGISTER	12,0x00,A0			; Set mode register 4 - no interlace, shadow highlight etc
+	VDP_SET_REGISTER	13,0x00,A0			; H scroll table address
+	VDP_SET_REGISTER	15,0x02,A0			; Auto increment by 2 on write to vdp memory
+	VDP_SET_REGISTER	16,0x00,A0			; 32x32 for both plane A and B
+	VDP_SET_REGISTER	17,0x00,A0			; Window H
+	VDP_SET_REGISTER	18,0xFF,A0			; Window V
+
+	movem.l	(A7)+,D0-D7/A0-A6
+	rts
+
+copyTileData:
+	
+	movem.l	D0-D7/A0-A6,-(A7)
+
+	lea	GFXCNTL,A0
+	lea	GFXDATA,A1
+
+	VDP_SET_VRAM_DEST	0,A0				; sets the vram pointer (used by GFXDATA port) to VRAM address 0
+
+	lea	tilesStart,A2
+
+	move.w	#tilesEnd - tilesStart - 1,D0
+	lsr.w	#2,D0						; moving long words at a time
+.loop
+	move.l	(A2)+,(A1)
+	dbf	D0,.loop
+
+	movem.l (A7)+,D0-D7/A0-A6
+	rts
+
+setPalette:
+	
+	movem.l	D0-D7/A0-A6,-(A7)
+
+	lea	GFXCNTL,A0
+	lea	GFXDATA,A1
+
+	VDP_SET_CRAM_DEST	0,A0				; sets the vram pointer (used by GFXDATA port) to CRAM address 0
+
+	move.w	#15,D0						; 64 entries in palette table	- 4 * 16
+	move.w	#0x0000,D1
+	move.w	#0x0000,D2
+.loop
+	move.w	D1,(A1)
+	add.w	#0x0111,D2
+	move.w	D2,D1
+	and.w	#0x0EEE,D1					; ---- bbb- ggg- rrr-		for now just grey scale
+	dbf	D0,.loop
+
+	movem.l (A7)+,D0-D7/A0-A6
+	rts
+
+ClearDisplay:							;Writes 0 into 32x32 tilemap
+	
+	movem.l	D0-D7/A0-A6,-(A7)
+
+	lea	GFXCNTL,A0
+	lea	GFXDATA,A1
+
+	VDP_SET_VRAM_DEST	0xE000,A0			; sets the vram pointer (used by GFXDATA port) to CRAM address 0xE000
+
+	move.w	#32*32-1,D0					; 32x32 word entries in screen map
+	move.l	#0x80008000,D1					; pPPv httt tttt tttt	(p)riority 
+								;			(P)alette block num
+								;			(v) flip
+								;			(h) flip
+								;			(t)ile number
+	
+	lsr.w	#1,D0						; write 2 entries at a time
+.loop
+	move.l	D1,(A1)
+	dbf	D0,.loop
+
+	movem.l (A7)+,D0-D7/A0-A6
+	rts
+
+PrintCharAt:
+	movem.l	D0-D7/A0-A6,-(A7)
+
+	lea	asciiOffsetTable,A2
+
+	lsl.l	#1,D2
+	add.l	D2,A2
+	move.w	(A2),D2						; tile number now in D2
+	add.w	#0x8000,D2					; priority bit set - prob doesn't matter
+
+	jsr	PrintTileAt
+
+	movem.l (A7)+,D0-D7/A0-A6
+	rts
+
+PrintTileAt:				; tile in D2
+	
+	movem.l	D0-D7/A0-A6,-(A7)
+
+	lea	GFXCNTL,A0
+	lea	GFXDATA,A1
+
+	and.l	#0x0000001F,D0					; 32 x 32 range
+	and.l	#0x0000001F,D1
+	
+
+	move.l	#0x0000E000,D3					; screen map address
+
+	lsl.l	#1,D0
+	lsl.l	#6,D1
+	add.l	D0,D3
+	add.l	D1,D3
+
+	move.l	#0x40000000,D4					; write to vram code
+	
+	move.l	D3,D5
+	and.w	#0x3FFF,D5
+	swap	D5
+	lsr.l	#8,D3
+	lsr.l	#6,D3
+	add.l	D3,D4
+	add.l	D5,D4
+
+	move.l	D4,(A0)						; sets the vram pointer (used by GFXDATA port) to CRAM address 0xE000 + X,Y position
+
+	move.w	D2,(A1)
+
+	movem.l (A7)+,D0-D7/A0-A6
+	rts
+
+PrintAt:
+	
+	movem.l	D0-D7/A0-A6,-(A7)
+
+.loop	move.b	(A6)+,D2
+	and.b	#0xFF,D2
+	beq	.exit					; check for 0 terminator
+
+	jsr	PrintCharAt
+	add.b	#1,D0
+	and.b	#$1F,D0
+	bne	.loop					; check for x co-ord off edge
+
+	add.b	#1,D1
+
+	bra	.loop
+
+.exit
+	movem.l (A7)+,D0-D7/A0-A6
+	rts
+
+
+PrintHex:
+	
+	movem.l	D0-D7/A0-A6,-(A7)
+
+	move.l	D2,D3
+	move.b	#8,D7
+.loop
+	dbf	D7,.rest
+.exit
+	movem.l (A7)+,D0-D7/A0-A6
+	rts
+.rest
+	rol.l	#4,D3
+	move.b	D3,D2
+	and.w	#0x000F,D2
+	add.w	#1,D2
+
+	jsr	PrintTileAt
+
+	add.b	#1,D0
+	and.b	#0x1F,D0
+	bne	.loop
+
+	add.b	#1,D1
+	bra	.loop
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+
+
 ; Test Programs
 
 	ALIGN 2
@@ -344,6 +593,24 @@ ssgAttackInvertHoldProgram:
 	INCLUDE "../ssgAttackInvertHold.prog"
 
 	ALIGN 2
+tilesStart:
+	INCLUDE "font.asm"
+tilesEnd:
+
+asciiOffsetTable:		; 128 entries - should be plenty I've only filled 0-9,A-Z  and a-z with A-Z
+	DC.W	0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000		;   0-15
+	DC.W	0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000		;  16-31
+	DC.W	0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000		;  32-47
+	DC.W	0x0001,0x0002,0x0003,0x0004,0x0005,0x0006,0x0007,0x0008,0x0009,0x000A,0x0000,0x0000,0x0000,0x0000,0x0000,0x0000		;  48-63
+	DC.W	0x0000,0x000B,0x000C,0x000D,0x000E,0x000F,0x0010,0x0011,0x0012,0x0013,0x0014,0x0015,0x0016,0x0017,0x0018,0x0019		;  64-79
+	DC.W	0x001A,0x001B,0x001C,0x001D,0x001E,0x001F,0x0020,0x0021,0x0022,0x0023,0x0024,0x0000,0x0000,0x0000,0x0000,0x0000		;  80-95
+	DC.W	0x0000,0x000B,0x000C,0x000D,0x000E,0x000F,0x0010,0x0011,0x0012,0x0013,0x0014,0x0015,0x0016,0x0017,0x0018,0x0019		;  96-111
+	DC.W	0x001A,0x001B,0x001C,0x001D,0x001E,0x001F,0x0020,0x0021,0x0022,0x0023,0x0024,0x0000,0x0000,0x0000,0x0000,0x0000		; 111-128
+
+testMessage	DC.B	'this is a test message ok',0
+testMessage2	DC.B	'LOOK A COUNTER',0
+
+	ALIGN 2
 progListStart:
 	DC.w			PROGS_START
 	DC.w			sampleDocProgram
@@ -375,5 +642,6 @@ name:	DS numBytes
 	ORG 0xFF0000
 	GLOBAL_VARIABLE lastPad, 2
 	GLOBAL_VARIABLE curProg, 2
+crazyCounter=	0xFF0804	;	(.long)
 
 
