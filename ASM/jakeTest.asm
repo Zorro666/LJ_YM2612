@@ -109,8 +109,7 @@ ResetPrograms:
 	lea			progListStart,	A0	; A0 = memory location of the start of the prog list
 	addi.w	#0x02,		A0				; +2 to get past the sentinel value
 
-	lea			curProg, 	A1				; curProg is ptr to which prog in the list to run
-	move.w	A0,				(A1)			; *curProg = progList, set curProg to the start of progList
+	move.w	A0,				curProg		; *curProg = progList, set curProg to the start of progList
 
 StartProgram:
 	move.w	curProg,	A1				; A1 = *curProg, curProg contains address of entry in proglist of program to play
@@ -189,28 +188,30 @@ UpdateGUI:										; test for joypad input & draw screen text
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-	movem.l	d0-d2/A6,-(A7)
+	movem.l	d0-d2/A6,	-(A7)
 
-	lea	testMessage,A6		; message location
-	move.b	#1,D0			; x co-ord
-	move.b	#10,D1			; y co-ord
-	jsr	printAt	
+	lea			testMessage,	A6		; message location
+	move.b	#1,				D0				; x co-ord
+	move.b	#10,			D1				; y co-ord
+	jsr			printAt	
 	
-	lea	testMessage2,A6		; message location
-	move.b	#1,D0			; x co-ord
-	move.b	#15,D1			; y co-ord
-	jsr	printAt	
+	lea			testMessage2,	A6		; message location
+	move.b	#1,				D0				; x co-ord
+	move.b	#15,			D1				; y co-ord
+	jsr			printAt	
 
-	move.l	crazyCounter,D2
-	add.l	#1,D2
-	move.l	D2,crazyCounter
+;	Work out the test program index
+	move.w	curProg,	D2				; D2 = *curProg
+	lea			progListStart, A3		; A3 = start of prog list
+	sub.w		A3,				D2				; D2 = *curProg - start of prog list
+	subi.w	#0x02,		D2				; D2 -= 2
+	lsr.w		#0x01,		D2				; D2 /= 2
 
+	move.b	#22,			D0				; x co-ord
+	move.b	#15,			D1				; y co-ord
+	jsr			printHex						; hexadecimal number in D2 (always assumes long) always prints as 00000000
 
-	move.b	#22,D0			; x co-ord
-	move.b	#15,D1			; y co-ord
-	jsr	printHex		; hexadecimal number in D2 (always assumes long) always prints as 00000000
-
-	movem.l	(A7)+,d0-d2/A6
+	movem.l	(A7)+,		d0-d2/A6
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -239,10 +240,10 @@ UpdateGUI:										; test for joypad input & draw screen text
 	MACRO TEST_BUTTON BUTTON, RESULT
 	move.b 	D4, 			D2				; test for BUTTON button
 	andi.b 	#BUTTON,	D2
-	beq 		Not ## BUTTON ## \?			; test for BUTTON button not-pressed (0) -> pressed (1)
+	beq 		Not ## BUTTON ## \?	; test for BUTTON button not-pressed (0) -> pressed (1)
 
 	move.b 	#RESULT,	D7				; BUTTON button was pressed
-	jmp SavePadState
+	jmp 		SavePadState
 
 Not ## BUTTON ## \?:
 	ENDM
@@ -253,8 +254,7 @@ Not ## BUTTON ## \?:
 	TEST_BUTTON P_RIGHT, T_NEXT
 
 SavePadState:
-	lea 		lastPad, 	A2
-	move.b 	D6, 			(A2)
+	move.b 	D6, 			lastPad
 	rts
 	
 RestartProgram:
@@ -262,8 +262,7 @@ RestartProgram:
 
 NextProgram:
 ; TODO - test for end of programs
-	lea 		curProg, 	A1			; curProg is ptr to which prog in the list to run
-	move.w	(A1),			A2			; A2 = *curProg
+	move.w	curProg,	A2			; A2 = *curProg
 	addi.w	#$02,			A2			; go to the next program
 	move.w	(A2),			D0			; test the program
 	cmpi.w	#PROGS_END, D0		; have we reached the end
@@ -271,13 +270,12 @@ NextProgram:
 	lea			progListStart,	A2	; reset to the start of the list
 	addi.w	#0x02,		A2			; +2 to get past the sentinel value
 NEXT_SAVE:
-	move.w	A2,				(A1)		; *curProg++
+	move.w	A2,				curProg	; *curProg+=2
 	jmp			StartProgram
 
 PrevProgram:
 ; TODO - test for start of programs
-	lea 		curProg, 	A1			; curProg is ptr to which prog in the list to run
-	move.w	(A1),			A2			; A2 = *curProg
+	move.w	curProg,	A2			; A2 = *curProg
 	subi.w	#$02,			A2			; go to the next program
 	move.w	(A2),			D0			; test the program
 	cmpi.w	#PROGS_START, D0	; have we reached the start
@@ -285,26 +283,8 @@ PrevProgram:
 	lea			progListEnd,	A2	; reset to the end of the list
 	subi.w	#0x02,		A2			; -2 to get past the sentinel value
 PREV_SAVE:
-	move.w	A2,				(A1)		; *curProg++
+	move.w	A2,				curProg	; *curProg-=2
 	jmp			StartProgram
-
-; Handy macros to make test programs easy to convert from C -> ASM
-
-	MACRO LJ_TEST_PART_0 I, R, D, J
-		DB 0x00, R, D
-	ENDM
-
-	MACRO LJ_TEST_PART_1 I, R, D, J
-		DB 0x01, R, D
-	ENDM
-
-	MACRO LJ_TEST_OUTPUT I, R, D, J
-		DB 0x10, R, D
-	ENDM
-
-	MACRO LJ_TEST_FINISH I, R, D, J
-		DB 0xFF, R, D
-	ENDM
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -515,8 +495,23 @@ PrintHex:
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+; Handy macros to make test programs easy to convert from C -> ASM
 
+	MACRO LJ_TEST_PART_0 I, R, D, J
+		DB 0x00, R, D
+	ENDM
 
+	MACRO LJ_TEST_PART_1 I, R, D, J
+		DB 0x01, R, D
+	ENDM
+
+	MACRO LJ_TEST_OUTPUT I, R, D, J
+		DB 0x10, R, D
+	ENDM
+
+	MACRO LJ_TEST_FINISH I, R, D, J
+		DB 0xFF, R, D
+	ENDM
 
 ; Test Programs
 
@@ -608,7 +603,7 @@ asciiOffsetTable:		; 128 entries - should be plenty I've only filled 0-9,A-Z  an
 	DC.W	0x001A,0x001B,0x001C,0x001D,0x001E,0x001F,0x0020,0x0021,0x0022,0x0023,0x0024,0x0000,0x0000,0x0000,0x0000,0x0000		; 111-128
 
 testMessage	DC.B	'this is a test message ok',0
-testMessage2	DC.B	'LOOK A COUNTER',0
+testMessage2	DC.B	'Test Program Number',0
 
 	ALIGN 2
 progListStart:
