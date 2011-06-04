@@ -61,7 +61,8 @@ T_PLAY	= 0x02
 T_NEXT	= 0x03
 T_PREV	= 0x04
 
-PROGS_END = 0xFFFF
+PROGS_START	= 0xFFFF
+PROGS_END 	= 0xFFFF
 
 	MACRO GUI_UPDATE RETURN_VALUE
 		bsr 		UpdateGUI
@@ -98,7 +99,7 @@ Loop2:
 ResetPrograms:
 	lea			proglist,	A0				; A0 = memory location of the start of the prog list
 
-	lea 		curProg, 	A1				; curProg is ptr to which prog in the list to run
+	lea			curProg, 	A1				; curProg is ptr to which prog in the list to run
 	move.w	A0,				(A1)			; *curProg = progList, set curProg to the start of progList
 
 StartProgram:
@@ -226,6 +227,11 @@ NextProgram:
 	lea 		curProg, 	A1			; curProg is ptr to which prog in the list to run
 	move.w	(A1),			A2			; A2 = *curProg
 	addi.w	#$02,			A2			; go to the next program
+	move.w	(A2),			D0			; test the program
+	cmpi.w	#PROGS_END, D0		; have we reached the end
+	bne			NEXT_SAVE
+	lea			proglist,	A2			; reset to the start of the list
+NEXT_SAVE:
 	move.w	A2,				(A1)		; *curProg++
 	jmp			StartProgram
 
@@ -330,6 +336,7 @@ ssgAttackInvertHoldProgram:
 	INCLUDE "../ssgAttackInvertHold.prog"
 
 	ALIGN 2
+	DC.w			PROGS_START
 progList:
 	DC.w			sampleDocProgram
 	DC.w			noteProgram
