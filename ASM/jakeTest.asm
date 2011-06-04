@@ -1,4 +1,5 @@
 	CPU	68000
+	LIST MACRO
 
 	dc.l 0x00000000,	EntryPoint,	ErrorTrap,	ErrorTrap	;00
 	dc.l ErrorTrap,		ErrorTrap,	ErrorTrap,	ErrorTrap	;10
@@ -55,16 +56,23 @@ P_LEFT	=	0x04
 P_DOWN	=	0x02
 P_UP		=	0x01
 
-T_PLAY	= 0x01
-T_NEXT	= 0x02
+T_RESET	= 0x01
+T_PLAY	= 0x02
+T_NEXT	= 0x03
 T_PREV	= 0x04
 
 PROGS_END = 0xFFFF
 
-	MACRO GUI_UPDATE PAD_VALUE
+	MACRO GUI_UPDATE RETURN_VALUE
 		bsr 		UpdateGUI
-		cmpi.b	#T_PLAY,		PAD_VALUE	
-		beq 		StartProgram
+		cmpi.b	#T_RESET,		RETURN_VALUE	
+		beq 		ResetPrograms
+		cmpi.b	#T_PLAY,		RETURN_VALUE	
+		beq 		RestartProgram
+		cmpi.b	#T_NEXT,		RETURN_VALUE	
+		beq 		NextProgram
+		cmpi.b	#T_PREV,		RETURN_VALUE	
+		beq 		PrevProgram
 	ENDM
 
 ErrorTrap:
@@ -85,9 +93,9 @@ Loop2:
 	btst.b	#0x00,		0xA11100
 	bne			Loop2
 
-	move.b	#0x40, 		0x10009		; init joypad 1 by writing 0x40 to CTRL port for joypad 1 
+	move.b	#0x40, 		0xA10009	; init joypad 1 by writing 0x40 to CTRL port for joypad 1 
 	
-ResetProgs:
+ResetPrograms:
 	lea			proglist,	A0				; A0 = memory location of the start of the prog list
 
 	lea 		curProg, 	A1				; curProg is ptr to which prog in the list to run
@@ -187,28 +195,48 @@ UpdateGUI:										; test for joypad input & draw screen text
 	eor.b 	D6, 			D4				; D4 = lastState ^ newState
 	and.b 	D6, 			D4				; D4 = (lastState ^ newState) & newState
 
-	move.b 	D4, 			D2				; test for Start which is bit-7 -> 0x80
-	andi.b 	#P_START,	D2
-	beq 		NotStart						; test for start button not-pressed (0) -> pressed (1)
 
-	move.b 	#T_PLAY,	D7				; start was pressed
+; Helpful macro for testing button results and setting the result parameter
+	MACRO TEST_BUTTON BUTTON, RESULT
+	move.b 	D4, 			D2				; test for BUTTON button
+	andi.b 	#BUTTON,	D2
+	beq 		Not ## BUTTON ## \?			; test for BUTTON button not-pressed (0) -> pressed (1)
+
+	move.b 	#RESULT,	D7				; BUTTON button was pressed
 	jmp SavePadState
 
-NotStart:
-	move.b 	D4, 			D2				; test for A which is bit-6 -> 0x40
-	andi.b 	#P_A,			D2
-	beq 		NotA								; test for A button not-pressed (0) -> pressed (1)
+Not ## BUTTON ## \?:
+	ENDM
 
-	move.b 	#T_PLAY,	D7				; A button was pressed
-	jmp SavePadState
-
-NotA:
+	TEST_BUTTON P_START, T_RESET
+	TEST_BUTTON P_A, T_PLAY
+	TEST_BUTTON P_LEFT, T_PREV
+	TEST_BUTTON P_RIGHT, T_NEXT
 
 SavePadState:
 	lea 		lastPad, 	A2
 	move.b 	D6, 			(A2)
 	rts
 	
+RestartProgram:
+	jmp			StartProgram
+
+NextProgram:
+; TODO - test for end of programs
+	lea 		curProg, 	A1			; curProg is ptr to which prog in the list to run
+	move.w	(A1),			A2			; A2 = *curProg
+	addi.w	#$02,			A2			; go to the next program
+	move.w	A2,				(A1)		; *curProg++
+	jmp			StartProgram
+
+PrevProgram:
+; TODO - test for start of programs
+	lea 		curProg, 	A1			; curProg is ptr to which prog in the list to run
+	move.w	(A1),			A2			; A2 = *curProg
+	subi.w	#$02,			A2			; go to the next program
+	move.w	A2,				(A1)		; *curProg++
+	jmp			StartProgram
+
 ; Handy macros to make test programs easy to convert from C -> ASM
 
 	MACRO LJ_TEST_PART_0 I, R, D, J
@@ -226,10 +254,6 @@ SavePadState:
 	MACRO LJ_TEST_FINISH I, R, D, J
 		DB 0xFF, R, D
 	ENDM
-
-; RAM Memory variables
-lastPad	=	0xFF0800
-curProg =	0xFF0802
 
 ; Test Programs
 
@@ -326,4 +350,14 @@ progList:
 	DC.w			ssgAttackInvertProgram
 	DC.w			ssgAttackInvertHoldProgram
 	DC.w			PROGS_END
+
+	MACRO GLOBAL_VARIABLE name, numBytes
+name:	DS numBytes
+	ENDM
+
+; RAM Memory variables
+	ORG 0xFF0000
+	GLOBAL_VARIABLE lastPad, 2
+	GLOBAL_VARIABLE curProg, 2
+
 
