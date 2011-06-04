@@ -59,6 +59,8 @@ T_PLAY	= 0x01
 T_NEXT	= 0x02
 T_PREV	= 0x04
 
+PROGS_END = 0xFFFF
+
 	MACRO GUI_UPDATE PAD_VALUE
 		bsr 		UpdateGUI
 		cmpi.b	#T_PLAY,		PAD_VALUE	
@@ -85,30 +87,15 @@ Loop2:
 
 	move.b	#0x40, 		0x10009		; init joypad 1 by writing 0x40 to CTRL port for joypad 1 
 	
-	; A1 is the start of the test program to run 
-	lea			sampleDocProgram,						A1 
-	lea			noteProgram,								A1 
-	lea			noteDTProgram,							A1 
-	lea			noteSLProgram,							A1 
-	lea			algoProgram,								A1 
-	lea			dacProgram,									A1 
-	lea			fbProgram,									A1 
-	lea			ch2Program,									A1 
-	lea			badRegProgram,							A1
-	lea			timerProgram,								A1
-	lea			ssgOnProgram,								A1
-	lea			ssgHoldProgram,							A1
-	lea			ssgInvertProgram,						A1
-	lea			ssgAttackProgram,						A1
-	lea			ssgInvertHoldProgram,				A1
-	lea			ssgAttackHoldProgram,				A1
-	lea			ssgAttackInvertProgram,			A1
-	lea			ssgAttackInvertHoldProgram,	A1
+ResetProgs:
+	lea			proglist,	A0				; A0 = memory location of the start of the prog list
 
-	lea			fbProgram,									A1
+	lea 		curProg, 	A1				; curProg is ptr to which prog in the list to run
+	move.w	A0,				(A1)			; *curProg = progList, set curProg to the start of progList
 
 StartProgram:
-	move 		A1,				A0
+	move.w	curProg,	A1				; A1 = *curProg, curProg contains address of entry in proglist of program to play
+	move.w	(A1),			A0				; A0 = *A1 = **curProg, A0 is address of start of current program
 
 RunProgram:
 	move.b	(A0)+,		D0				; D0 is the operation to perform
@@ -196,8 +183,7 @@ UpdateGUI:										; test for joypad input & draw screen text
 	lsl.b 	#0x02, 		D6				; joyPadHigh = joyPadHigh << 2
 	or.b		D2,				D6				; D6 = (joyPadLow & 0x3F) | ((joyPadHigh & 0x30) << 2 ))
 
-	lea 		lastPad, 	A2
-	move.b 	(A2), 		D4				; D4 is lastState, D6 is newState (1 = not pressed, 0 = pressed)
+	move.b 	lastPad,	D4				; D4 is lastState, D6 is newState (1 = not pressed, 0 = pressed)
 	eor.b 	D6, 			D4				; D4 = lastState ^ newState
 	and.b 	D6, 			D4				; D4 = (lastState ^ newState) & newState
 
@@ -242,77 +228,102 @@ SavePadState:
 	ENDM
 
 ; RAM Memory variables
-lastPad	=	0xFF0802
+lastPad	=	0xFF0800
+curProg =	0xFF0802
 
 ; Test Programs
 
+	ALIGN 2
 sampleDocProgram:
-	ALIGN 2
-noteProgram;
-	ALIGN 2
 	INCLUDE "../sampleDoc.prog"
 
-noteDTProgram;
 	ALIGN 2
+noteProgram;
 	INCLUDE "../note.prog"
 
-noteSLProgram:
 	ALIGN 2
+noteDTProgram;
 	INCLUDE "../noteDT.prog"
 
-algoProgram:
 	ALIGN 2
+noteSLProgram:
+	INCLUDE "../noteSL.prog"
+
+	ALIGN 2
+algoProgram:
 	INCLUDE "../algo.prog"
 
-dacProgram:
 	ALIGN 2
+dacProgram:
 	INCLUDE "../dac.prog"
 
-fbProgram:
 	ALIGN 2
+fbProgram:
 	INCLUDE "../fb.prog"
 
-ch2Program:
 	ALIGN 2
+ch2Program:
 	INCLUDE "../ch2.prog"
 
-badRegProgram:
 	ALIGN 2
+badRegProgram:
 	INCLUDE "../badReg.prog"
 
-timerProgram:
 	ALIGN 2
+timerProgram:
 	INCLUDE "../timer.prog"
 
-ssgOnProgram:
 	ALIGN 2
+ssgOnProgram:
 	INCLUDE "../ssgOn.prog"
 
-ssgHoldProgram:
 	ALIGN 2
+ssgHoldProgram:
 	INCLUDE "../ssgHold.prog"
 
-ssgInvertProgram:
 	ALIGN 2
+ssgInvertProgram:
 	INCLUDE "../ssgInvert.prog"
 
-ssgAttackProgram:
 	ALIGN 2
+ssgAttackProgram:
 	INCLUDE "../ssgAttack.prog"
 
-ssgInvertHoldProgram:
 	ALIGN 2
+ssgInvertHoldProgram:
 	INCLUDE "../ssgInvertHold.prog"
 
-ssgAttackHoldProgram:
 	ALIGN 2
+ssgAttackHoldProgram:
 	INCLUDE "../ssgAttackHold.prog"
 
-ssgAttackInvertProgram:
 	ALIGN 2
+ssgAttackInvertProgram:
 	INCLUDE "../ssgAttackInvert.prog"
 
-ssgAttackInvertHoldProgram:
 	ALIGN 2
+ssgAttackInvertHoldProgram:
 	INCLUDE "../ssgAttackInvertHold.prog"
+
+	ALIGN 2
+progList:
+	DC.w			sampleDocProgram
+	DC.w			noteProgram
+	DC.w			noteDTProgram
+	DC.w			noteSLProgram
+	DC.w			algoProgram
+	DC.w			dacProgram
+	DC.w			fbProgram
+	DC.w			ch2Program
+	DC.w			badRegProgram
+	DC.w			timerProgram
+	DC.w			ssgOnProgram
+	DC.w			ssgHoldProgram
+	DC.w			ssgInvertProgram
+	DC.w			ssgAttackProgram
+	DC.w			ssgInvertHoldProgram
+	DC.w			ssgAttackHoldProgram
+	DC.w			ssgAttackInvertProgram
+	DC.w			ssgAttackInvertHoldProgram
+	DC.w			PROGS_END
 
