@@ -1,5 +1,5 @@
 High Priority:
-YM2612:ASM next/prev prog handle end of list and start of list
+YM2612:ASM get Lees code and get some debug text on screen
 
 Medium Priority:
 TEST_APP:never tested channels on part 1 (3,4,5) 

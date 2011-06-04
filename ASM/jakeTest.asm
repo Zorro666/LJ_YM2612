@@ -61,8 +61,8 @@ T_PLAY	= 0x02
 T_NEXT	= 0x03
 T_PREV	= 0x04
 
-PROGS_START	= 0xFFFF
-PROGS_END 	= 0xFFFF
+PROGS_START	= 0x1FFF
+PROGS_END 	= 0x2FFF
 
 	MACRO GUI_UPDATE RETURN_VALUE
 		bsr 		UpdateGUI
@@ -97,7 +97,8 @@ Loop2:
 	move.b	#0x40, 		0xA10009	; init joypad 1 by writing 0x40 to CTRL port for joypad 1 
 	
 ResetPrograms:
-	lea			proglist,	A0				; A0 = memory location of the start of the prog list
+	lea			progListStart,	A0	; A0 = memory location of the start of the prog list
+	addi.w	#0x02,		A0				; +2 to get past the sentinel value
 
 	lea			curProg, 	A1				; curProg is ptr to which prog in the list to run
 	move.w	A0,				(A1)			; *curProg = progList, set curProg to the start of progList
@@ -230,7 +231,8 @@ NextProgram:
 	move.w	(A2),			D0			; test the program
 	cmpi.w	#PROGS_END, D0		; have we reached the end
 	bne			NEXT_SAVE
-	lea			proglist,	A2			; reset to the start of the list
+	lea			progListStart,	A2	; reset to the start of the list
+	addi.w	#0x02,		A2			; +2 to get past the sentinel value
 NEXT_SAVE:
 	move.w	A2,				(A1)		; *curProg++
 	jmp			StartProgram
@@ -240,6 +242,12 @@ PrevProgram:
 	lea 		curProg, 	A1			; curProg is ptr to which prog in the list to run
 	move.w	(A1),			A2			; A2 = *curProg
 	subi.w	#$02,			A2			; go to the next program
+	move.w	(A2),			D0			; test the program
+	cmpi.w	#PROGS_START, D0	; have we reached the start
+	bne			PREV_SAVE
+	lea			progListEnd,	A2	; reset to the end of the list
+	subi.w	#0x02,		A2			; -2 to get past the sentinel value
+PREV_SAVE:
 	move.w	A2,				(A1)		; *curProg++
 	jmp			StartProgram
 
@@ -336,8 +344,8 @@ ssgAttackInvertHoldProgram:
 	INCLUDE "../ssgAttackInvertHold.prog"
 
 	ALIGN 2
+progListStart:
 	DC.w			PROGS_START
-progList:
 	DC.w			sampleDocProgram
 	DC.w			noteProgram
 	DC.w			noteDTProgram
@@ -356,6 +364,7 @@ progList:
 	DC.w			ssgAttackHoldProgram
 	DC.w			ssgAttackInvertProgram
 	DC.w			ssgAttackInvertHoldProgram
+progListEnd:
 	DC.w			PROGS_END
 
 	MACRO GLOBAL_VARIABLE name, numBytes
