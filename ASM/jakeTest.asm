@@ -190,12 +190,12 @@ UpdateGUI:										; test for joypad input & draw screen text
 
 	movem.l	d0-d2/A6,	-(A7)
 
-	lea			testMessage,	A6		; message location
+	lea			sampleDocProgramString,	A6		; message location
 	move.b	#1,				D0				; x co-ord
 	move.b	#10,			D1				; y co-ord
 	jsr			printAt	
 	
-	lea			testMessage2,	A6		; message location
+	lea			testProgramIndexString,	A6		; message location
 	move.b	#1,				D0				; x co-ord
 	move.b	#15,			D1				; y co-ord
 	jsr			printAt	
@@ -515,74 +515,92 @@ PrintHex:
 
 ; Test Programs
 
+sampleDocProgramString: DC.B	'sampleDoc',0
 	ALIGN 2
 sampleDocProgram:
 	INCLUDE "../sampleDoc.prog"
 
+noteProgramString: DC.B 'note',0
 	ALIGN 2
 noteProgram;
 	INCLUDE "../note.prog"
 
+noteDTProgramString: DC.B 'noteDT',0
 	ALIGN 2
 noteDTProgram;
 	INCLUDE "../noteDT.prog"
 
+noteSLProgramString: DC.B 'noteSL',0
 	ALIGN 2
 noteSLProgram:
 	INCLUDE "../noteSL.prog"
 
+algoProgramString: DC.B 'algo',0
 	ALIGN 2
 algoProgram:
 	INCLUDE "../algo.prog"
 
+dacProgramString: DC.B 'dac',0
 	ALIGN 2
 dacProgram:
 	INCLUDE "../dac.prog"
 
+fbProgramString: DC.B 'fb',0
 	ALIGN 2
 fbProgram:
 	INCLUDE "../fb.prog"
 
+ch2ProgramString: DC.B 'ch2',0
 	ALIGN 2
 ch2Program:
 	INCLUDE "../ch2.prog"
 
+badRegProgramString: DC.B 'badReg',0
 	ALIGN 2
 badRegProgram:
 	INCLUDE "../badReg.prog"
 
+timerProgramString: DC.B 'timer',0
 	ALIGN 2
 timerProgram:
 	INCLUDE "../timer.prog"
 
+ssgOnProgramString: DC.B 'ssgOn',0
 	ALIGN 2
 ssgOnProgram:
 	INCLUDE "../ssgOn.prog"
 
+ssgHoldProgramString: DC.B 'ssgHold',0
 	ALIGN 2
 ssgHoldProgram:
 	INCLUDE "../ssgHold.prog"
 
+ssgInvertProgramString: DC.B 'ssgInvert',0
 	ALIGN 2
 ssgInvertProgram:
 	INCLUDE "../ssgInvert.prog"
 
+ssgAttackProgramString: DC.B 'ssgAttack',0
 	ALIGN 2
 ssgAttackProgram:
 	INCLUDE "../ssgAttack.prog"
 
+ssgInvertHoldProgramString: DC.B 'ssgInvertHold',0
 	ALIGN 2
 ssgInvertHoldProgram:
 	INCLUDE "../ssgInvertHold.prog"
 
+ssgAttackHoldProgramString: DC.B 'ssgAttackHold',0
 	ALIGN 2
 ssgAttackHoldProgram:
 	INCLUDE "../ssgAttackHold.prog"
 
+ssgAttackInvertProgramString: DC.B 'ssgAttackInvert',0
 	ALIGN 2
 ssgAttackInvertProgram:
 	INCLUDE "../ssgAttackInvert.prog"
 
+ssgAttackInvertHoldProgramString: DC.B 'ssgAttackInvertHold',0
 	ALIGN 2
 ssgAttackInvertHoldProgram:
 	INCLUDE "../ssgAttackInvertHold.prog"
@@ -602,8 +620,7 @@ asciiOffsetTable:		; 128 entries - should be plenty I've only filled 0-9,A-Z  an
 	DC.W	0x0000,0x000B,0x000C,0x000D,0x000E,0x000F,0x0010,0x0011,0x0012,0x0013,0x0014,0x0015,0x0016,0x0017,0x0018,0x0019		;  96-111
 	DC.W	0x001A,0x001B,0x001C,0x001D,0x001E,0x001F,0x0020,0x0021,0x0022,0x0023,0x0024,0x0000,0x0000,0x0000,0x0000,0x0000		; 111-128
 
-testMessage	DC.B	'this is a test message ok',0
-testMessage2	DC.B	'Test Program Number',0
+testProgramIndexString	DC.B	'Test Program Index',0
 
 	ALIGN 2
 progListStart:
@@ -629,6 +646,29 @@ progListStart:
 progListEnd:
 	DC.w			PROGS_END
 
+	ALIGN 2
+progListNames:
+	DC.w			PROGS_START
+	DC.w			sampleDocProgramString
+	DC.w			noteProgramString
+	DC.w			noteDTProgramString
+	DC.w			noteSLProgramString
+	DC.w			algoProgramString
+	DC.w			dacProgramString
+	DC.w			fbProgramString
+	DC.w			ch2ProgramString
+	DC.w			badRegProgramString
+	DC.w			timerProgramString
+	DC.w			ssgOnProgramString
+	DC.w			ssgHoldProgramString
+	DC.w			ssgInvertProgramString
+	DC.w			ssgAttackProgramString
+	DC.w			ssgInvertHoldProgramString
+	DC.w			ssgAttackHoldProgramString
+	DC.w			ssgAttackInvertProgramString
+	DC.w			ssgAttackInvertHoldProgramString
+	DC.w			PROGS_END
+
 	MACRO GLOBAL_VARIABLE name, numBytes
 	ALIGN numBytes
 name:	DS numBytes
@@ -638,6 +678,5 @@ name:	DS numBytes
 	ORG 0xFF0000
 	GLOBAL_VARIABLE lastPad, 2
 	GLOBAL_VARIABLE curProg, 2
-	GLOBAL_VARIABLE crazyCounter, 4
 
 

@@ -1,5 +1,5 @@
 High Priority:
-YM2612:ASM get Lees code and get some debug text on screen
+YM2612:ASM display name of test program on screen from data list
 
 Medium Priority:
 TEST_APP:never tested channels on part 1 (3,4,5) 
