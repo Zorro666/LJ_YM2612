@@ -2056,6 +2056,10 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 	{
 		/* 0x2A DAC Bits 0-7 */
 		ym2612Ptr->dacEnable = (int)(~0 * ((data & 0x80) >> 7));
+		if (debugFlags & LJ_YM2612_DEBUG)
+		{
+			printf("dacEnable 0x%X\n", ym2612Ptr->dacEnable);
+		}
 		return LJ_YM2612_OK;
 	}
 	else if (reg == LJ_DAC)
@@ -2066,6 +2070,10 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 #else /* #if LJ_YM2612_DAC_SHIFT >= 0 */
 		ym2612Ptr->dacValue = ((int)(data - 0x80)) >> -LJ_YM2612_DAC_SHIFT;
 #endif /* #if LJ_YM2612_DAC_SHIFT >= 0 */
+		if (debugFlags & LJ_YM2612_DEBUG)
+		{
+			printf("dacValue: 0x%X -> 0x%X\n", data, ym2612Ptr->dacValue);
+		}
 		return LJ_YM2612_OK;
 	}
 	else if (reg == LJ_KEY_ONOFF)
@@ -2378,6 +2386,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 	}
 	dacValueLeft = (dacValue & ym2612Ptr->channels[5]->left);
 	dacValueRight = (dacValue & ym2612Ptr->channels[5]->right);
+	if (debugFlags & LJ_YM2612_DEBUG)
+	{
+		printf("dacValue 0x%X left 0x%X right 0x%X\n", dacValue, dacValueLeft, dacValueRight);
+	}
 
 	if (debugFlags & LJ_YM2612_ONECHANNEL)
 	{
@@ -2601,6 +2613,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 
 		mixedLeft += dacValueLeft;
 		mixedRight += dacValueRight;
+		if (debugFlags & LJ_YM2612_DEBUG)
+		{
+			printf("mixedLeft 0x%X mixedRight 0x%X\n", mixedLeft, mixedRight);
+		}
 
 		/* Keep within +/- 1 */
 		/* mixedLeft = LJ_YM2612_CLAMP_VOLUME(mixedLeft); */
