@@ -197,17 +197,24 @@ UpdateGUI:										; test for joypad input & draw screen text
 	move.w	curProg,	D2				; D2 = *curProg
 	lea			progListStart, A3		; A3 = start of prog list
 	sub.w		A3,				D2				; D2 = *curProg - start of prog list
+
 	lea			progListNames,	A3	; A3 = start of string array
 	add.w		D2,				A3				; A3 += offset of the curProg number in bytes
 	move.w	(A3),			A6				; A6 = *A3 = the address of the current program display string
-
-	move.b	#1,				D0				; x co-ord
-	move.b	#10,			D1				; y co-ord
+	move.b	#0x0A,		D0				; x co-ord
+	move.b	#0x05,		D1				; y co-ord
+	jsr			printAt	
+	
+	lea			progListDescriptions,	A3	; A3 = start of string array
+	add.w		D2,				A3				; A3 += offset of the curProg number in bytes
+	move.w	(A3),			A6				; A6 = *A3 = the address of the current program display string
+	move.b	#0x00,		D0				; x co-ord
+	move.b	#0x07,		D1				; y co-ord
 	jsr			printAt	
 	
 	lea			testProgramIndexString,	A6		; A6 = ptr to the string
-	move.b	#1,				D0				; x co-ord
-	move.b	#15,			D1				; y co-ord
+	move.b	#0x01,		D0				; x co-ord
+	move.b	#0x0A,		D1				; y co-ord
 	jsr			printAt	
 
 ;	Work out the test program index
@@ -217,9 +224,29 @@ UpdateGUI:										; test for joypad input & draw screen text
 	subi.w	#0x02,		D2				; D2 -= 2
 	lsr.w		#0x01,		D2				; D2 /= 2
 
-	move.b	#22,			D0				; x co-ord
-	move.b	#15,			D1				; y co-ord
+	move.b	#0x16,		D0				; x co-ord
+	move.b	#0x0A,		D1				; y co-ord
 	jsr			printHex						; hexadecimal number in D2 (always assumes long) always prints as 00000000
+
+	lea			helpString1,	A6			; A6 = ptr to the string
+	move.b	#0x01,		D0				; x co-ord
+	move.b	#0x0F,		D1				; y co-ord
+	jsr			printAt	
+
+	lea			helpString2,	A6			; A6 = ptr to the string
+	move.b	#0x01,		D0				; x co-ord
+	move.b	#0x10,		D1				; y co-ord
+	jsr			printAt	
+
+	lea			helpString3,	A6			; A6 = ptr to the string
+	move.b	#0x01,		D0				; x co-ord
+	move.b	#0x11,		D1				; y co-ord
+	jsr			printAt	
+
+	lea			helpString4,	A6			; A6 = ptr to the string
+	move.b	#0x01,		D0				; x co-ord
+	move.b	#0x12,		D1				; y co-ord
+	jsr			printAt	
 
 	movem.l	(A7)+,		d0-d2/A6
 
@@ -525,34 +552,38 @@ PrintHex:
 
 ; Test Programs
 
-	MACRO TEST_PROGRAM test
+	MACRO TEST_PROGRAM test, description
 test ## ProgramString: 
 		DC.B 'test'
-		DS 10, ' '
+		DS 10, ' '								; add lots of spaces to clear the display and remove any previous string display
+		DC.B 0
+test ## DescriptionString: 
+		DC.B description
+		DS 20, ' '								; add lots of spaces to clear the display and remove any previous string display
 		DC.B 0
 		ALIGN 2
 test ## Program:
 		INCLUDE "../ ## test ## .prog"
 	ENDM
 
-	TEST_PROGRAM sampleDoc
-	TEST_PROGRAM note
-	TEST_PROGRAM noteDT
-	TEST_PROGRAM noteSL
-	TEST_PROGRAM algo
-	TEST_PROGRAM dac
-	TEST_PROGRAM fb
-	TEST_PROGRAM ch2
-	TEST_PROGRAM badReg
-	TEST_PROGRAM timer
-	TEST_PROGRAM ssgOn
-	TEST_PROGRAM ssgHold
-	TEST_PROGRAM ssgInvert
-	TEST_PROGRAM ssgAttack
-	TEST_PROGRAM ssgInvertHold
-	TEST_PROGRAM ssgAttackHold
-	TEST_PROGRAM ssgAttackInvert
-	TEST_PROGRAM ssgAttackInvertHold
+	TEST_PROGRAM sampleDoc, 					'sample from the Genesis mannual'
+	TEST_PROGRAM note,								'most basic pure tone'
+	TEST_PROGRAM noteDT,							'pure tone with detune'
+	TEST_PROGRAM noteSL,							'pure tone with sustain level'
+	TEST_PROGRAM algo,								'algorithm test'
+	TEST_PROGRAM dac,									'dac output'
+	TEST_PROGRAM fb,									'feedback'
+	TEST_PROGRAM ch2,									'channel 2 special mode'
+	TEST_PROGRAM badReg,							'set lots of invalid registers'
+	TEST_PROGRAM timer,								'timer A and B'
+	TEST_PROGRAM ssgOn,								'SSG enabled'
+	TEST_PROGRAM ssgHold,							'SSG hold bit'
+	TEST_PROGRAM ssgInvert,						'SSG invert bit'
+	TEST_PROGRAM ssgAttack,						'SSG attack bit'
+	TEST_PROGRAM ssgInvertHold,				'SSG invert and hold bits'
+	TEST_PROGRAM ssgAttackHold,				'SSG attack and hold bits'
+	TEST_PROGRAM ssgAttackInvert,			'SSG attack and invert bits'
+	TEST_PROGRAM ssgAttackInvertHold,	'SSG attack invert and hold bits'
 
 	ALIGN 2
 tilesStart:
@@ -568,6 +599,11 @@ asciiOffsetTable:		; 128 entries - should be plenty I've only filled 0-9,A-Z  an
 	DC.W	0x001A,0x001B,0x001C,0x001D,0x001E,0x001F,0x0020,0x0021,0x0022,0x0023,0x0024,0x0000,0x0000,0x0000,0x0000,0x0000		;  80-95
 	DC.W	0x0000,0x000B,0x000C,0x000D,0x000E,0x000F,0x0010,0x0011,0x0012,0x0013,0x0014,0x0015,0x0016,0x0017,0x0018,0x0019		;  96-111
 	DC.W	0x001A,0x001B,0x001C,0x001D,0x001E,0x001F,0x0020,0x0021,0x0022,0x0023,0x0024,0x0000,0x0000,0x0000,0x0000,0x0000		; 111-128
+
+helpString1	DC.B	'A              replay test', 0
+helpString2	DC.B	'START          reset tests', 0
+helpString3	DC.B	'LEFT         previous test',0
+helpString4	DC.B	'RIGHT            next test',0
 
 testProgramIndexString	DC.B	'Test Program Index',0
 
@@ -616,6 +652,29 @@ progListNames:
 	DC.w			ssgAttackHoldProgramString
 	DC.w			ssgAttackInvertProgramString
 	DC.w			ssgAttackInvertHoldProgramString
+	DC.w			PROGS_END
+
+	ALIGN 2
+progListDescriptions:
+	DC.w			PROGS_START
+	DC.w			sampleDocDescriptionString
+	DC.w			noteDescriptionString
+	DC.w			noteDTDescriptionString
+	DC.w			noteSLDescriptionString
+	DC.w			algoDescriptionString
+	DC.w			dacDescriptionString
+	DC.w			fbDescriptionString
+	DC.w			ch2DescriptionString
+	DC.w			badRegDescriptionString
+	DC.w			timerDescriptionString
+	DC.w			ssgOnDescriptionString
+	DC.w			ssgHoldDescriptionString
+	DC.w			ssgInvertDescriptionString
+	DC.w			ssgAttackDescriptionString
+	DC.w			ssgInvertHoldDescriptionString
+	DC.w			ssgAttackHoldDescriptionString
+	DC.w			ssgAttackInvertDescriptionString
+	DC.w			ssgAttackInvertHoldDescriptionString
 	DC.w			PROGS_END
 
 	MACRO GLOBAL_VARIABLE name, numBytes
