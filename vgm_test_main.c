@@ -402,7 +402,7 @@ static LJ_VGM_UINT8 noteProgram[141];
 static LJ_VGM_UINT8 noteDTProgram[141];
 static LJ_VGM_UINT8 noteSLProgram[141];
 static LJ_VGM_UINT8 algoProgram[141];
-static LJ_VGM_UINT8 dacProgram[228];
+static LJ_VGM_UINT8 dacProgram[235];
 static LJ_VGM_UINT8 fbProgram[147];
 static LJ_VGM_UINT8 ch2Program[150];
 static LJ_VGM_UINT8 badRegProgram[141];
