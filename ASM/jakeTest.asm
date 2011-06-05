@@ -190,12 +190,22 @@ UpdateGUI:										; test for joypad input & draw screen text
 
 	movem.l	d0-d2/A6,	-(A7)
 
-	lea			sampleDocProgramString,	A6		; message location
+; Clear screen - not work needs to be on VBLANK
+;	jsr	ClearDisplay
+
+; Get the test program display string
+	move.w	curProg,	D2				; D2 = *curProg
+	lea			progListStart, A3		; A3 = start of prog list
+	sub.w		A3,				D2				; D2 = *curProg - start of prog list
+	lea			progListNames,	A3	; A3 = start of string array
+	add.w		D2,				A3				; A3 += offset of the curProg number in bytes
+	move.w	(A3),			A6				; A6 = *A3 = the address of the current program display string
+
 	move.b	#1,				D0				; x co-ord
 	move.b	#10,			D1				; y co-ord
 	jsr			printAt	
 	
-	lea			testProgramIndexString,	A6		; message location
+	lea			testProgramIndexString,	A6		; A6 = ptr to the string
 	move.b	#1,				D0				; x co-ord
 	move.b	#15,			D1				; y co-ord
 	jsr			printAt	
@@ -515,95 +525,34 @@ PrintHex:
 
 ; Test Programs
 
-sampleDocProgramString: DC.B	'sampleDoc',0
-	ALIGN 2
-sampleDocProgram:
-	INCLUDE "../sampleDoc.prog"
+	MACRO TEST_PROGRAM test
+test ## ProgramString: 
+		DC.B 'test'
+		DS 10, ' '
+		DC.B 0
+		ALIGN 2
+test ## Program:
+		INCLUDE "../ ## test ## .prog"
+	ENDM
 
-noteProgramString: DC.B 'note',0
-	ALIGN 2
-noteProgram;
-	INCLUDE "../note.prog"
-
-noteDTProgramString: DC.B 'noteDT',0
-	ALIGN 2
-noteDTProgram;
-	INCLUDE "../noteDT.prog"
-
-noteSLProgramString: DC.B 'noteSL',0
-	ALIGN 2
-noteSLProgram:
-	INCLUDE "../noteSL.prog"
-
-algoProgramString: DC.B 'algo',0
-	ALIGN 2
-algoProgram:
-	INCLUDE "../algo.prog"
-
-dacProgramString: DC.B 'dac',0
-	ALIGN 2
-dacProgram:
-	INCLUDE "../dac.prog"
-
-fbProgramString: DC.B 'fb',0
-	ALIGN 2
-fbProgram:
-	INCLUDE "../fb.prog"
-
-ch2ProgramString: DC.B 'ch2',0
-	ALIGN 2
-ch2Program:
-	INCLUDE "../ch2.prog"
-
-badRegProgramString: DC.B 'badReg',0
-	ALIGN 2
-badRegProgram:
-	INCLUDE "../badReg.prog"
-
-timerProgramString: DC.B 'timer',0
-	ALIGN 2
-timerProgram:
-	INCLUDE "../timer.prog"
-
-ssgOnProgramString: DC.B 'ssgOn',0
-	ALIGN 2
-ssgOnProgram:
-	INCLUDE "../ssgOn.prog"
-
-ssgHoldProgramString: DC.B 'ssgHold',0
-	ALIGN 2
-ssgHoldProgram:
-	INCLUDE "../ssgHold.prog"
-
-ssgInvertProgramString: DC.B 'ssgInvert',0
-	ALIGN 2
-ssgInvertProgram:
-	INCLUDE "../ssgInvert.prog"
-
-ssgAttackProgramString: DC.B 'ssgAttack',0
-	ALIGN 2
-ssgAttackProgram:
-	INCLUDE "../ssgAttack.prog"
-
-ssgInvertHoldProgramString: DC.B 'ssgInvertHold',0
-	ALIGN 2
-ssgInvertHoldProgram:
-	INCLUDE "../ssgInvertHold.prog"
-
-ssgAttackHoldProgramString: DC.B 'ssgAttackHold',0
-	ALIGN 2
-ssgAttackHoldProgram:
-	INCLUDE "../ssgAttackHold.prog"
-
-ssgAttackInvertProgramString: DC.B 'ssgAttackInvert',0
-	ALIGN 2
-ssgAttackInvertProgram:
-	INCLUDE "../ssgAttackInvert.prog"
-
-ssgAttackInvertHoldProgramString: DC.B 'ssgAttackInvertHold',0
-	ALIGN 2
-ssgAttackInvertHoldProgram:
-	INCLUDE "../ssgAttackInvertHold.prog"
+	TEST_PROGRAM sampleDoc
+	TEST_PROGRAM note
+	TEST_PROGRAM noteDT
+	TEST_PROGRAM noteSL
+	TEST_PROGRAM algo
+	TEST_PROGRAM dac
+	TEST_PROGRAM fb
+	TEST_PROGRAM ch2
+	TEST_PROGRAM badReg
+	TEST_PROGRAM timer
+	TEST_PROGRAM ssgOn
+	TEST_PROGRAM ssgHold
+	TEST_PROGRAM ssgInvert
+	TEST_PROGRAM ssgAttack
+	TEST_PROGRAM ssgInvertHold
+	TEST_PROGRAM ssgAttackHold
+	TEST_PROGRAM ssgAttackInvert
+	TEST_PROGRAM ssgAttackInvertHold
 
 	ALIGN 2
 tilesStart:
