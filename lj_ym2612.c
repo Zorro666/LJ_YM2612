@@ -45,6 +45,7 @@ B4H+	L		R		AMS				###########	FMS
 typedef struct LJ_YM2612_PART LJ_YM2612_PART;
 typedef struct LJ_YM2612_CHANNEL LJ_YM2612_CHANNEL;
 typedef struct LJ_YM2612_SLOT LJ_YM2612_SLOT;
+typedef struct LJ_YM2612_TIMER LJ_YM2612_TIMER;
 typedef struct LJ_YM2612_EG LJ_YM2612_EG;
 typedef struct LJ_YM2612_CHANNEL2_SLOT_DATA LJ_YM2612_CHANNEL2_SLOT_DATA;
 
@@ -194,6 +195,9 @@ static int LJ_YM2612_EG_attenuationTable[LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTR
 /* Timer A & Timer B units fixed point */
 #define LJ_YM2612_TIMER_NUM_BITS (16)
 
+/* LFO timer units fixed point */
+#define LJ_YM2612_LFO_TIMER_NUM_BITS (16)
+
 typedef enum LJ_YM2612_ADSR {
 	LJ_YM2612_ADSR_OFF,
 	LJ_YM2612_ADSR_ATTACK,
@@ -266,13 +270,19 @@ struct LJ_YM2612_SLOT
 	LJ_YM_UINT8 omegaDirty;
 };
 
+struct LJ_YM2612_TIMER 
+{
+	int count;
+	int addPerOutputSample;
+};
+
 struct LJ_YM2612_EG 
 {
-	LJ_YM_UINT32 timer;
-	LJ_YM_UINT32 timerAddPerOutputSample;
-	LJ_YM_UINT32 timerPerUpdate;
+	LJ_YM2612_TIMER timer;
+	int timerCountPerUpdate;
 	LJ_YM_UINT32 counter;
 };
+
 
 struct LJ_YM2612_CHANNEL
 {
@@ -324,6 +334,9 @@ struct LJ_YM2612
 	LJ_YM2612_CHANNEL2_SLOT_DATA channel2slotData[LJ_YM2612_NUM_SLOTS_PER_CHANNEL-1];
 	LJ_YM2612_CHANNEL* channels[LJ_YM2612_NUM_CHANNELS_TOTAL];
 	LJ_YM2612_EG eg;
+	LJ_YM2612_TIMER lfoTimer;
+	LJ_YM2612_TIMER aTimer;
+	LJ_YM2612_TIMER bTimer;
 
 	float baseFreqScale;
 
@@ -335,6 +348,12 @@ struct LJ_YM2612
 
 	int dacValue;
 	int dacEnable;
+
+	int timerAstart;
+	int timerBstart;
+
+	LJ_YM_UINT16 timerAvalue;
+	LJ_YM_UINT16 timerBvalue;
 
 	LJ_YM_UINT8 statusOutput;
 	LJ_YM_UINT8 D07;
@@ -348,16 +367,7 @@ struct LJ_YM2612
 
 	LJ_YM_UINT8 timerMode;
 
-	int timerAddPerOutputSample;
-
-	int timerAcounter;
-	int timerAstart;
-	LJ_YM_UINT16 timerAvalue;
 	LJ_YM_UINT8 statusA;
-
-	int timerBcounter;
-	int timerBstart;
-	LJ_YM_UINT8 timerBvalue;
 	LJ_YM_UINT8 statusB;
 };
 
@@ -1573,13 +1583,13 @@ static void ym2612_egMakeData(LJ_YM2612_EG* const egPtr, LJ_YM2612* ym2612Ptr)
 {
 	int i;
 
-	egPtr->timer = 0;
+	egPtr->timer.count = 0;
 
 	/* FM output timer is (clockRate/144) but update code is every sampleRate times of that in the use of this code */
 	/* This is a counter in the units of FM output samples : which is (clockRate/sampleRate)/144 = ym2612Ptr->baseFreqScale */
-	egPtr->timerAddPerOutputSample = (LJ_YM_UINT32)((float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
+	egPtr->timer.addPerOutputSample = (int)((float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
 
-	egPtr->timerPerUpdate = (LJ_YM_UINT32)((float)LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
+	egPtr->timerCountPerUpdate = (LJ_YM_UINT32)((float)LJ_YM2612_EG_TIMER_OUTPUT_PER_FM_SAMPLE * (float)(1 << LJ_YM2612_EG_TIMER_NUM_BITS));
 
 	for (i = 0; i < LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTRIES; i++)
 	{
@@ -1591,7 +1601,7 @@ static void ym2612_egMakeData(LJ_YM2612_EG* const egPtr, LJ_YM2612* ym2612Ptr)
 
 	egPtr->counter = 0;
 
-	/*printf("EG timerAdd:%d EG timerPerUpdate:%d\n", egPtr->timerAddPerOutputSample, egPtr->timerPerUpdate);*/
+	/*printf("EG timerAdd:%d EG timerCountPerUpdate:%d\n", egPtr->timer.addPerOutputSample, egPtr->timerCountPerUpdate);*/
 
 	/* Debug output of the EG deltas */
 	if (0)
@@ -1610,12 +1620,10 @@ static void ym2612_egMakeData(LJ_YM2612_EG* const egPtr, LJ_YM2612* ym2612Ptr)
 	}
 }
 
-static void ym2612_egClear(LJ_YM2612_EG* const egPtr)
+static void ym2612_timerClear(LJ_YM2612_TIMER* const timerPtr)
 {
-	egPtr->timer = 0;
-	egPtr->timerAddPerOutputSample = 0;
-	egPtr->timerPerUpdate = 0;
-	egPtr->counter = 0;
+	timerPtr->count = 0;
+	timerPtr->addPerOutputSample = 0;
 }
 
 static void ym2612_timerModeChanged(LJ_YM2612* const ym2612Ptr)
@@ -1627,28 +1635,34 @@ static void ym2612_timerModeChanged(LJ_YM2612* const ym2612Ptr)
 	if (timerMode & 0x01)
 	{
 		/* See forum posts by Nemesis - only load register if it is stopped */
-		if (ym2612Ptr->timerAcounter == 0)
+		if (ym2612Ptr->aTimer.count == 0)
 		{
-			ym2612Ptr->timerAcounter = ym2612Ptr->timerAstart;
-			/*printf("Start Timer A:%d Counter:%d Start:%d\n", ym2612Ptr->timerAvalue, ym2612Ptr->timerAcounter, ym2612Ptr->timerstart);*/
+			ym2612Ptr->aTimer.count = ym2612Ptr->timerAstart;
+			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf("Start Timer A:%d Counter:%d Start:%d\n", ym2612Ptr->timerAvalue, ym2612Ptr->aTimer.count, ym2612Ptr->timerAstart);
+			}
 		}
 	}
 	else
 	{
-		ym2612Ptr->timerAcounter = 0;
+		ym2612Ptr->aTimer.count = 0;
 	}
 	if (timerMode & 0x02)
 	{
 		/* See forum posts by Nemesis - only load register if it is stopped */
-		if (ym2612Ptr->timerBcounter == 0)
+		if (ym2612Ptr->bTimer.count == 0)
 		{
-			ym2612Ptr->timerBcounter = ym2612Ptr->timerBstart;
-			/*printf("Start Timer B:%d Counter:%d Start:%d\n", ym2612Ptr->timerBvalue, ym2612Ptr->timerBcounter, ym2612Ptr->timerBstart);*/
+			ym2612Ptr->bTimer.count = ym2612Ptr->timerBstart;
+			if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+			{
+				printf("Start Timer B:%d Counter:%d Start:%d\n", ym2612Ptr->timerBvalue, ym2612Ptr->bTimer.count, ym2612Ptr->timerBstart);
+			}
 		}
 	}
 	else
 	{
-		ym2612Ptr->timerBcounter = 0;
+		ym2612Ptr->bTimer.count = 0;
 	}
 
 	if (timerMode & 0x10)
@@ -1791,8 +1805,9 @@ static void ym2612_makeData(LJ_YM2612* const ym2612Ptr)
 	/* FM output timer is (clockRate/144) but update code is every sampleRate times of that in the use of this code */
 	/* This is a counter in the units of FM output samples : which is (clockRate/sampleRate)/144 = ym2612Ptr->baseFreqScale */
 	/* which is the base units for Timer A and Timer B is 16*base units */
-	ym2612Ptr->timerAddPerOutputSample = (int)((float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_TIMER_NUM_BITS));
-	/*printf("timerAdd:%d\n", ym2612Ptr->timerAddPerOutputSample);*/
+	ym2612Ptr->aTimer.addPerOutputSample = (int)((float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_TIMER_NUM_BITS));
+	ym2612Ptr->bTimer.addPerOutputSample = (int)((float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_TIMER_NUM_BITS));
+	/*printf("timerAdd:%d\n", ym2612Ptr->aTimer.addPerOutputSample);*/
 }
 
 static void ym2612_clear(LJ_YM2612* const ym2612Ptr)
@@ -1815,19 +1830,19 @@ static void ym2612_clear(LJ_YM2612* const ym2612Ptr)
 	ym2612Ptr->lfoEnable = 0;
 	ym2612Ptr->lfoFreq = 0;
 	ym2612Ptr->timerMode = 0;
-	ym2612Ptr->timerAddPerOutputSample = 0;
 
-	ym2612Ptr->timerAvalue = 0;
+	ym2612_timerClear(&ym2612Ptr->eg.timer);
+	ym2612_timerClear(&ym2612Ptr->lfoTimer);
+	ym2612_timerClear(&ym2612Ptr->aTimer);
+	ym2612_timerClear(&ym2612Ptr->bTimer);
+
 	ym2612Ptr->statusA = 0;
-	ym2612Ptr->timerAcounter = 0;
-	ym2612Ptr->timerAstart = ((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
+	ym2612Ptr->timerAvalue = 0;
+	ym2612Ptr->timerAstart = (LJ_YM_INT16)((1024 - ym2612Ptr->timerAvalue) << LJ_YM2612_TIMER_NUM_BITS);
 
-	ym2612Ptr->timerBvalue = 0;
 	ym2612Ptr->statusB = 0;
-	ym2612Ptr->timerBcounter = 0;
-	ym2612Ptr->timerBstart = (((256 - ym2612Ptr->timerBvalue) << 4) << LJ_YM2612_TIMER_NUM_BITS);
-
-	ym2612_egClear(&ym2612Ptr->eg);
+	ym2612Ptr->timerBvalue = 0;
+	ym2612Ptr->timerBstart = (LJ_YM_INT16)(((256 - ym2612Ptr->timerBvalue) << 4) << LJ_YM2612_TIMER_NUM_BITS);
 
 	for (i = 0; i < LJ_YM2612_NUM_PARTS; i++)
 	{
@@ -2414,11 +2429,11 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 		const int numChannelsToProcess = ym2612Ptr->dacEnable ? LJ_YM2612_NUM_CHANNELS_TOTAL-1 : LJ_YM2612_NUM_CHANNELS_TOTAL;
 
 		/* EG update */
-		ym2612Ptr->eg.timer += ym2612Ptr->eg.timerAddPerOutputSample;
-		while (ym2612Ptr->eg.timer >= ym2612Ptr->eg.timerPerUpdate)
+		ym2612Ptr->eg.timer.count += ym2612Ptr->eg.timer.addPerOutputSample;
+		while (ym2612Ptr->eg.timer.count >= ym2612Ptr->eg.timerCountPerUpdate)
 		{
 			/* Update the envelope */
-			ym2612Ptr->eg.timer -= ym2612Ptr->eg.timerPerUpdate;
+			ym2612Ptr->eg.timer.count -= ym2612Ptr->eg.timerCountPerUpdate;
 			ym2612Ptr->eg.counter++;
 
 			for (channel = 0; channel < LJ_YM2612_NUM_CHANNELS_TOTAL; channel++)
@@ -2650,10 +2665,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 		}
 
 		/* Timer A update */
-		if (ym2612Ptr->timerAcounter > 0)
+		if (ym2612Ptr->aTimer.count > 0)
 		{
-			ym2612Ptr->timerAcounter -= ym2612Ptr->timerAddPerOutputSample;
-			if (ym2612Ptr->timerAcounter < 0)
+			ym2612Ptr->aTimer.count -= ym2612Ptr->aTimer.addPerOutputSample;
+			if (ym2612Ptr->aTimer.count < 0)
 			{
 				/* set timer A status flag : if timer A enable bit is set (0x4) */
 				if (ym2612Ptr->timerMode & 0x04)
@@ -2661,10 +2676,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					ym2612Ptr->statusA = 0x1;
 				}
 				/* See forum posts by Nemesis - timer A is at FM sample output (144 clock cycles) - docs are wrong */
-				ym2612Ptr->timerAcounter += ym2612Ptr->timerAstart;
-				while (ym2612Ptr->timerAcounter < 0)
+				ym2612Ptr->aTimer.count += ym2612Ptr->timerAstart;
+				while (ym2612Ptr->aTimer.count < 0)
 				{
-					ym2612Ptr->timerAcounter += ym2612Ptr->timerAstart;
+					ym2612Ptr->aTimer.count += ym2612Ptr->timerAstart;
 				}
 
 				/* CSM mode key-on : only active in 10 not in 11 */
@@ -2674,7 +2689,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					LJ_YM2612_CHANNEL* const ch2Ptr = ym2612Ptr->channels[2];
 					if (debugFlags & LJ_YM2612_DEBUG)
 					{
-						printf("%d CSM KeyON TimerACnt: %d Timer A:%d\n", ym2612Ptr->sampleCount, ym2612Ptr->timerAcounter, ym2612Ptr->timerAstart);
+						printf("%d CSM KeyON TimerACnt: %d Timer A:%d\n", ym2612Ptr->sampleCount, ym2612Ptr->aTimer.count, ym2612Ptr->timerAstart);
 					}
 					for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 					{
@@ -2705,10 +2720,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 		}
 
 		/* Timer B update */
-		if (ym2612Ptr->timerBcounter > 0)
+		if (ym2612Ptr->bTimer.count > 0)
 		{
-			ym2612Ptr->timerBcounter -= ym2612Ptr->timerAddPerOutputSample;
-			if (ym2612Ptr->timerBcounter < 0)
+			ym2612Ptr->bTimer.count -= ym2612Ptr->bTimer.addPerOutputSample;
+			if (ym2612Ptr->bTimer.count < 0)
 			{
 				/* set timer B status flag : if timer B enable bit is set (0x8) */
 				if (ym2612Ptr->timerMode & 0x08)
@@ -2716,10 +2731,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 					ym2612Ptr->statusB = 0x1;
 				}
 				/* timer B is *16 compared to timer A which at FM sample output (144 clock cycles) */
-				ym2612Ptr->timerBcounter += ym2612Ptr->timerBstart;
-				while (ym2612Ptr->timerBcounter < 0)
+				ym2612Ptr->bTimer.count += ym2612Ptr->timerBstart;
+				while (ym2612Ptr->bTimer.count < 0)
 				{
-					ym2612Ptr->timerBcounter += ym2612Ptr->timerBstart;
+					ym2612Ptr->bTimer.count += ym2612Ptr->timerBstart;
 				}
 			}
 		}
