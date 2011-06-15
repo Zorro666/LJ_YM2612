@@ -2508,7 +2508,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 			{
 				/* Using (1<<LJ_YM2612_LFO_PHI_NUM_BITS) steps for a full wave : chosen to be 128 */
 				const LJ_YM_UINT32 lfoCounter = ym2612Ptr->lfo.counter & LJ_YM2612_LFO_PHI_MASK;
-				const LJ_YM_UINT32 phi = lfoCounter << (LJ_YM2612_SIN_TABLE_BITS-LJ_YM2612_LFO_PHI_NUM_BITS);
+				const LJ_YM_UINT32 phi = (lfoCounter << (LJ_YM2612_SIN_TABLE_BITS-LJ_YM2612_LFO_PHI_NUM_BITS));
 
 				const int scaledSin = LJ_YM2612_sinTable[phi & LJ_YM2612_SIN_TABLE_MASK];
 
