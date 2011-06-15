@@ -217,7 +217,7 @@ static int LJ_YM2612_LFO_freqSampleSteps[8] = { 109, 78, 72, 68, 63, 45, 9, 6 };
 #define LJ_YM2612_LFO_AM_SCALE_BITS (LJ_YM2612_VOLUME_SCALE_BITS)
 
 /* channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
-#define LJ_YM2612_LFO_AMS_DB_TABLE_MASK ((1 << 4) - 1)
+#define LJ_YM2612_LFO_AMS_DB_TABLE_MASK (0x3)
 static int LJ_YM2612_LFO_AMStable[4] = { 
 	0 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
 	2 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
@@ -1265,19 +1265,13 @@ static void ym2612_channelSetLeftRightAmsPms(LJ_YM2612_CHANNEL* const channelPtr
 	/* 0xB4-0xB6 Feedback = Left= Bit 7, Right= Bit 6, AMS = Bits 3-5, PMS = Bits 0-1 */
 	const int left = (data >> 7) & 0x1;
 	const int right = (data >> 6) & 0x1;
-	const LJ_YM_UINT8 AMS = (data >> 3) & 0x7;
+	const LJ_YM_UINT8 AMS = (data >> 4) & 0x3;
 	const LJ_YM_UINT8 PMS = (data >> 0) & 0x3;
-
-	/* channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
-	const int AMS_DB = LJ_YM2612_LFO_AMStable[AMS & LJ_YM2612_LFO_AMS_DB_TABLE_MASK];
-	const int AMS_volume = LJ_YM2612_EG_attenuationTable[AMS_DB & LJ_YM2612_EG_ATTENUATION_DB_TABLE_MASK];
 
 	channelPtr->left = left *	~0;
 	channelPtr->right = right * ~0;
 	channelPtr->ams = AMS;
 	channelPtr->pms = PMS;
-
-	channelPtr->amsVolume = AMS_volume;
 
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -2571,9 +2565,11 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 			LJ_YM2612_CHANNEL* const channelPtr = ym2612Ptr->channels[channel];
 			int channelOutput = 0;
 
-			/* channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
 			/* LFO value is in same units as scaledSin i.e. LJ_YM2612_SIN_SCALE_BITS */
-			const int AMS_volume = abs((channelPtr->amsVolume * ym2612Ptr->lfo.value) >> LJ_YM2612_SIN_SCALE_BITS);
+			/* channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
+			const int AMS_MAX_DB = LJ_YM2612_LFO_AMStable[channelPtr->ams & LJ_YM2612_LFO_AMS_DB_TABLE_MASK];
+			const int AMS_DB = abs((AMS_MAX_DB * ym2612Ptr->lfo.value) >> LJ_YM2612_SIN_SCALE_BITS);
+			const int AMS_volume = LJ_YM2612_EG_attenuationTable[AMS_DB & LJ_YM2612_EG_ATTENUATION_DB_TABLE_MASK];
 
 			int channelOmegaDirty = channelPtr->omegaDirty;
 
@@ -2582,6 +2578,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				channelMask = (channelMask << 1);
 				continue;
 			}
+
 			for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
 			{
 				LJ_YM2612_SLOT* const slotPtr = &(channelPtr->slot[slot]);
@@ -2671,6 +2668,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 						/* Scale by LFO AM value */
 						/* AMS_volume is in same units as TL i.e. LJ_YM2612_LFO_AM_SCALE_BITS */
 						slotOutput = (slotOutput * AMS_volume) >> LJ_YM2612_LFO_AM_SCALE_BITS;
+						/*printf("AMS_MAX_DB %d AMS_DB %d AMS_volume %d\n", AMS_MAX_DB, AMS_DB, AMS_volume);*/
 					}
 				}
 
