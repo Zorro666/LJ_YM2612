@@ -555,7 +555,7 @@ PrintHex:
 	MACRO TEST_PROGRAM test, description
 test ## ProgramString: 
 		DC.B 'test'
-		DS 10, ' '								; add lots of spaces to clear the display and remove any previous string display
+		DS 15, ' '								; add lots of spaces to clear the display and remove any previous string display
 		DC.B 0
 test ## DescriptionString: 
 		DC.B description
@@ -566,7 +566,7 @@ test ## Program:
 		INCLUDE "../ ## test ## .prog"
 	ENDM
 
-	TEST_PROGRAM sampleDoc, 					'sample from the Genesis mannual'
+	TEST_PROGRAM sampleDoc, 					'sample from the Genesis manual'
 	TEST_PROGRAM note,								'most basic pure tone'
 	TEST_PROGRAM noteDT,							'pure tone with detune'
 	TEST_PROGRAM noteSL,							'pure tone with sustain level'
@@ -584,6 +584,7 @@ test ## Program:
 	TEST_PROGRAM ssgAttackHold,				'SSG attack and hold bits'
 	TEST_PROGRAM ssgAttackInvert,			'SSG attack and invert bits'
 	TEST_PROGRAM ssgAttackInvertHold,	'SSG attack invert and hold bits'
+	TEST_PROGRAM lfoAMS,							'LFO AMS test 72.2Hz 11.8dB     '
 
 	ALIGN 2
 tilesStart:
@@ -628,6 +629,7 @@ progListStart:
 	DC.w			ssgAttackHoldProgram
 	DC.w			ssgAttackInvertProgram
 	DC.w			ssgAttackInvertHoldProgram
+	DC.w			lfoAMSProgram
 progListEnd:
 	DC.w			PROGS_END
 
@@ -652,6 +654,7 @@ progListNames:
 	DC.w			ssgAttackHoldProgramString
 	DC.w			ssgAttackInvertProgramString
 	DC.w			ssgAttackInvertHoldProgramString
+	DC.w			lfoAMSProgramString
 	DC.w			PROGS_END
 
 	ALIGN 2
@@ -675,6 +678,7 @@ progListDescriptions:
 	DC.w			ssgAttackHoldDescriptionString
 	DC.w			ssgAttackInvertDescriptionString
 	DC.w			ssgAttackInvertHoldDescriptionString
+	DC.w			lfoAMSDescriptionString
 	DC.w			PROGS_END
 
 	MACRO GLOBAL_VARIABLE name, numBytes
