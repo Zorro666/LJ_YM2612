@@ -1,6 +1,7 @@
 #include "lj_ym2612.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <malloc.h>
 #include <math.h>
 
@@ -47,6 +48,7 @@ typedef struct LJ_YM2612_CHANNEL LJ_YM2612_CHANNEL;
 typedef struct LJ_YM2612_SLOT LJ_YM2612_SLOT;
 typedef struct LJ_YM2612_TIMER LJ_YM2612_TIMER;
 typedef struct LJ_YM2612_EG LJ_YM2612_EG;
+typedef struct LJ_YM2612_LFO LJ_YM2612_LFO;
 typedef struct LJ_YM2612_CHANNEL2_SLOT_DATA LJ_YM2612_CHANNEL2_SLOT_DATA;
 
 #define LJ_YM2612_NUM_REGISTERS (0xFF)
@@ -198,6 +200,31 @@ static int LJ_YM2612_EG_attenuationTable[LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTR
 /* LFO timer units fixed point */
 #define LJ_YM2612_LFO_TIMER_NUM_BITS (16)
 
+/* LFO frequencies */
+/*	0				1				2				3				4				5				6				7				*/
+/*	3.98Hz	5.56Hz	6.02Hz	6.37Hz	6.88Hz	9.63Hz	48.1Hz	72.2Hz	*/
+/* With an 8Mhz clock (to match docs which give LFO frequencies) and 144 cycles per FM sample this gives: */
+/* 3.98	5.56	6.02	6.37	6.88	9.63	48.1	72.2	Hz	*/
+/* 109	78		72		68		63		45		9			6			*128 FM samples */
+
+static int LJ_YM2612_LFO_freqSampleSteps[8] = { 109, 78, 72, 68, 63, 45, 9, 6 };
+
+/* Make the LFO work in 128 steps per full wave */
+#define LJ_YM2612_LFO_PHI_NUM_BITS (7)
+#define LJ_YM2612_LFO_PHI_MASK ((1 << LJ_YM2612_LFO_PHI_NUM_BITS) - 1)
+
+/* LFO AM table scale - must match volume scale */
+#define LJ_YM2612_LFO_AM_SCALE_BITS (LJ_YM2612_VOLUME_SCALE_BITS)
+
+/* channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
+#define LJ_YM2612_LFO_AMS_DB_TABLE_MASK ((1 << 4) - 1)
+static int LJ_YM2612_LFO_AMStable[4] = { 
+	0 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
+	2 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
+	8 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
+	16 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT
+};
+
 typedef enum LJ_YM2612_ADSR {
 	LJ_YM2612_ADSR_OFF,
 	LJ_YM2612_ADSR_ATTACK,
@@ -259,7 +286,7 @@ struct LJ_YM2612_SLOT
 	LJ_YM_UINT8 egSSGInvertOutput;
 
 	/* LFO settings */
-	LJ_YM_UINT8 am;
+	LJ_YM_UINT8 amEnable;
 
 	/* frequency settings */
 	LJ_YM_UINT8 detune;
@@ -283,6 +310,19 @@ struct LJ_YM2612_EG
 	LJ_YM_UINT32 counter;
 };
 
+struct LJ_YM2612_LFO 
+{
+	LJ_YM2612_TIMER timer;
+
+	int timerCountPerUpdate;
+	LJ_YM_UINT32 counter;
+
+	int value;
+
+	LJ_YM_UINT8 enable;
+	LJ_YM_UINT8 freq;
+	LJ_YM_UINT8 changed;
+};
 
 struct LJ_YM2612_CHANNEL
 {
@@ -300,6 +340,8 @@ struct LJ_YM2612_CHANNEL
 
 	int fnum;
 	int block;
+
+	int amsVolume;
 
 	LJ_YM_UINT8 omegaDirty;
 	LJ_YM_UINT8 block_fnumMSB;
@@ -334,7 +376,7 @@ struct LJ_YM2612
 	LJ_YM2612_CHANNEL2_SLOT_DATA channel2slotData[LJ_YM2612_NUM_SLOTS_PER_CHANNEL-1];
 	LJ_YM2612_CHANNEL* channels[LJ_YM2612_NUM_CHANNELS_TOTAL];
 	LJ_YM2612_EG eg;
-	LJ_YM2612_TIMER lfoTimer;
+	LJ_YM2612_LFO lfo;
 	LJ_YM2612_TIMER aTimer;
 	LJ_YM2612_TIMER bTimer;
 
@@ -362,8 +404,6 @@ struct LJ_YM2612
 
 	LJ_YM_UINT8 csmKeyOn;
 	LJ_YM_UINT8 ch2Mode;
-	LJ_YM_UINT8 lfoEnable;
-	LJ_YM_UINT8 lfoFreq;
 
 	LJ_YM_UINT8 timerMode;
 
@@ -1228,10 +1268,16 @@ static void ym2612_channelSetLeftRightAmsPms(LJ_YM2612_CHANNEL* const channelPtr
 	const LJ_YM_UINT8 AMS = (data >> 3) & 0x7;
 	const LJ_YM_UINT8 PMS = (data >> 0) & 0x3;
 
+	/* channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
+	const int AMS_DB = LJ_YM2612_LFO_AMStable[AMS & LJ_YM2612_LFO_AMS_DB_TABLE_MASK];
+	const int AMS_volume = LJ_YM2612_EG_attenuationTable[AMS_DB & LJ_YM2612_EG_ATTENUATION_DB_TABLE_MASK];
+
 	channelPtr->left = left *	~0;
 	channelPtr->right = right * ~0;
 	channelPtr->ams = AMS;
 	channelPtr->pms = PMS;
+
+	channelPtr->amsVolume = AMS_volume;
 
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -1287,7 +1333,7 @@ static void ym2612_slotSetAMDecayRate(LJ_YM2612_SLOT* const slotPtr, const LJ_YM
 	const LJ_YM_UINT8 AM = ((AM_DR >> 7) & 0x1);
 
 	slotPtr->decayRate = DR;
-	slotPtr->am = AM;
+	slotPtr->amEnable = AM;
 	slotPtr->omegaDirty = 1;
 
 	if (debugFlags & LJ_YM2612_DEBUG)
@@ -1505,7 +1551,7 @@ static void ym2612_slotClear(LJ_YM2612_SLOT* const slotPtr)
 
 	slotPtr->carrierOutputMask = 0x0;
 
-	slotPtr->am = 0;
+	slotPtr->amEnable = 0;
 
 	slotPtr->normalKeyOn = 0;
 
@@ -1540,6 +1586,7 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
 	channelPtr->left = 0;
 	channelPtr->right = 0;
 	channelPtr->ams = 0;
+	channelPtr->amsVolume = 0;
 	channelPtr->pms = 0;
 }
 
@@ -1688,6 +1735,20 @@ static void ym2612_timerModeChanged(LJ_YM2612* const ym2612Ptr)
 	}
 }
 
+static void ym2612_lfoClear(LJ_YM2612_LFO* const lfoPtr, LJ_YM2612* ym2612Ptr)
+{
+	ym2612_timerClear(&lfoPtr->timer);
+
+	lfoPtr->timerCountPerUpdate = 0;
+	lfoPtr->counter = 0;
+	lfoPtr->value = 0;
+	lfoPtr->changed = 0;
+
+	if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
+	{
+	}
+}
+
 static void ym2612_SetChannel2FreqBlock(LJ_YM2612* const ym2612Ptr, const LJ_YM_UINT8 slot, const LJ_YM_UINT8 fnumLSB)
 {
 	LJ_YM2612_CHANNEL* const channel2Ptr = &(ym2612Ptr->part[0].channel[2]);
@@ -1803,11 +1864,16 @@ static void ym2612_makeData(LJ_YM2612* const ym2612Ptr)
 	ym2612_egMakeData(&ym2612Ptr->eg, ym2612Ptr);
 
 	/* FM output timer is (clockRate/144) but update code is every sampleRate times of that in the use of this code */
+
 	/* This is a counter in the units of FM output samples : which is (clockRate/sampleRate)/144 = ym2612Ptr->baseFreqScale */
-	/* which is the base units for Timer A and Timer B is 16*base units */
+	/* which is the base unit for Timer A and Timer B (but Timer B values get multiplied by 16) */
 	ym2612Ptr->aTimer.addPerOutputSample = (int)((float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_TIMER_NUM_BITS));
 	ym2612Ptr->bTimer.addPerOutputSample = (int)((float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_TIMER_NUM_BITS));
 	/*printf("timerAdd:%d\n", ym2612Ptr->aTimer.addPerOutputSample);*/
+
+	/* This is a counter in the units of FM output samples : which is (clockRate/sampleRate)/144 = ym2612Ptr->baseFreqScale */
+	/* which is the base unit for the lfo timer */
+	ym2612Ptr->lfo.timer.addPerOutputSample = (int)((float)ym2612Ptr->baseFreqScale * (float)(1 << LJ_YM2612_LFO_TIMER_NUM_BITS));
 }
 
 static void ym2612_clear(LJ_YM2612* const ym2612Ptr)
@@ -1827,14 +1893,13 @@ static void ym2612_clear(LJ_YM2612* const ym2612Ptr)
 	ym2612Ptr->sampleCount = 0;
 	ym2612Ptr->csmKeyOn = 0;
 	ym2612Ptr->ch2Mode = 0;
-	ym2612Ptr->lfoEnable = 0;
-	ym2612Ptr->lfoFreq = 0;
 	ym2612Ptr->timerMode = 0;
 
 	ym2612_timerClear(&ym2612Ptr->eg.timer);
-	ym2612_timerClear(&ym2612Ptr->lfoTimer);
 	ym2612_timerClear(&ym2612Ptr->aTimer);
 	ym2612_timerClear(&ym2612Ptr->bTimer);
+
+	ym2612_lfoClear(&ym2612Ptr->lfo, ym2612Ptr);
 
 	ym2612Ptr->statusA = 0;
 	ym2612Ptr->timerAvalue = 0;
@@ -2034,8 +2099,13 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 		/* 0x22 Bit 3 = LFO enable, Bits 0-2 = LFO frequency */
 		const LJ_YM_UINT8 lfoEnable = (data >> 3) & 0x1;
 		const LJ_YM_UINT8 lfoFreq = (data >> 0) & 0x7;
-		ym2612Ptr->lfoEnable = lfoEnable;
-		ym2612Ptr->lfoFreq = lfoFreq;
+
+		const int freqSampleSteps = LJ_YM2612_LFO_freqSampleSteps[lfoFreq];
+		ym2612Ptr->lfo.timerCountPerUpdate = (freqSampleSteps << LJ_YM2612_LFO_TIMER_NUM_BITS);
+		ym2612Ptr->lfo.freq = lfoFreq;
+
+		ym2612Ptr->lfo.enable = lfoEnable;
+		ym2612Ptr->lfo.changed = 1;
 
 		return LJ_YM2612_OK;
 	}
@@ -2428,11 +2498,36 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 		/* DAC enable blocks channel 5 */
 		const int numChannelsToProcess = ym2612Ptr->dacEnable ? LJ_YM2612_NUM_CHANNELS_TOTAL-1 : LJ_YM2612_NUM_CHANNELS_TOTAL;
 
+		/* LFO update */
+		ym2612Ptr->lfo.timer.count += ym2612Ptr->lfo.timer.addPerOutputSample;
+		while (ym2612Ptr->lfo.timer.count >= ym2612Ptr->lfo.timerCountPerUpdate)
+		{
+			/* Update the LFO counter */
+			ym2612Ptr->lfo.timer.count -= ym2612Ptr->lfo.timerCountPerUpdate;
+			ym2612Ptr->lfo.counter++;
+			ym2612Ptr->lfo.changed = 1;
+		}
+
+		if (ym2612Ptr->lfo.enable)
+		{
+			if (ym2612Ptr->lfo.changed == 1)
+			{
+				/* Using (1<<LJ_YM2612_LFO_PHI_NUM_BITS) steps for a full wave : chosen to be 128 */
+				const LJ_YM_UINT32 lfoCounter = ym2612Ptr->lfo.counter & LJ_YM2612_LFO_PHI_MASK;
+				const LJ_YM_UINT32 phi = lfoCounter << (LJ_YM2612_SIN_TABLE_BITS-LJ_YM2612_LFO_PHI_NUM_BITS);
+
+				const int scaledSin = LJ_YM2612_sinTable[phi & LJ_YM2612_SIN_TABLE_MASK];
+
+				ym2612Ptr->lfo.changed = 0;
+				ym2612Ptr->lfo.value = scaledSin;
+			}
+		}
+
 		/* EG update */
 		ym2612Ptr->eg.timer.count += ym2612Ptr->eg.timer.addPerOutputSample;
 		while (ym2612Ptr->eg.timer.count >= ym2612Ptr->eg.timerCountPerUpdate)
 		{
-			/* Update the envelope */
+			/* Update the EG counter */
 			ym2612Ptr->eg.timer.count -= ym2612Ptr->eg.timerCountPerUpdate;
 			ym2612Ptr->eg.counter++;
 
@@ -2475,6 +2570,10 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 		{
 			LJ_YM2612_CHANNEL* const channelPtr = ym2612Ptr->channels[channel];
 			int channelOutput = 0;
+
+			/* channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
+			/* LFO value is in same units as scaledSin i.e. LJ_YM2612_SIN_SCALE_BITS */
+			const int AMS_volume = abs((channelPtr->amsVolume * ym2612Ptr->lfo.value) >> LJ_YM2612_SIN_SCALE_BITS);
 
 			int channelOmegaDirty = channelPtr->omegaDirty;
 
@@ -2564,6 +2663,16 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 
 				/* Scale by TL (total level = 0->1) */
 				slotOutput = (slotOutput * slotPtr->totalLevel) >> LJ_YM2612_TL_SCALE_BITS;
+
+				if (slotPtr->amEnable)
+				{
+					if (ym2612Ptr->lfo.enable)
+					{
+						/* Scale by LFO AM value */
+						/* AMS_volume is in same units as TL i.e. LJ_YM2612_LFO_AM_SCALE_BITS */
+						slotOutput = (slotOutput * AMS_volume) >> LJ_YM2612_LFO_AM_SCALE_BITS;
+					}
+				}
 
 				/* Add this output onto the input of the slot in the algorithm */
 				if (slotPtr->modulationOutput[0] != NULL)
