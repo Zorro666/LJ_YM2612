@@ -584,7 +584,8 @@ test ## Program:
 	TEST_PROGRAM ssgAttackHold,				'SSG attack and hold bits'
 	TEST_PROGRAM ssgAttackInvert,			'SSG attack and invert bits'
 	TEST_PROGRAM ssgAttackInvertHold,	'SSG attack invert and hold bits'
-	TEST_PROGRAM lfoAMS,							'LFO AMS test 72.2Hz 11.8dB     '
+	TEST_PROGRAM lfoAMS,							'LFO AMS test 9.63Hz 5.9dB'
+	TEST_PROGRAM lfoPMS,							'LFO PMS test 9.63Hz'
 
 	ALIGN 2
 tilesStart:
@@ -630,6 +631,7 @@ progListStart:
 	DC.w			ssgAttackInvertProgram
 	DC.w			ssgAttackInvertHoldProgram
 	DC.w			lfoAMSProgram
+	DC.w			lfoPMSProgram
 progListEnd:
 	DC.w			PROGS_END
 
@@ -655,6 +657,7 @@ progListNames:
 	DC.w			ssgAttackInvertProgramString
 	DC.w			ssgAttackInvertHoldProgramString
 	DC.w			lfoAMSProgramString
+	DC.w			lfoPMSProgramString
 	DC.w			PROGS_END
 
 	ALIGN 2
@@ -679,6 +682,7 @@ progListDescriptions:
 	DC.w			ssgAttackInvertDescriptionString
 	DC.w			ssgAttackInvertHoldDescriptionString
 	DC.w			lfoAMSDescriptionString
+	DC.w			lfoPMSDescriptionString
 	DC.w			PROGS_END
 
 	MACRO GLOBAL_VARIABLE name, numBytes

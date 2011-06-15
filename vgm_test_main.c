@@ -416,6 +416,7 @@ static LJ_VGM_UINT8 ssgAttackHoldProgram[141];
 static LJ_VGM_UINT8 ssgAttackInvertProgram[141];
 static LJ_VGM_UINT8 ssgAttackInvertHoldProgram[141];
 static LJ_VGM_UINT8 lfoAMSProgram[141];
+static LJ_VGM_UINT8 lfoPMSProgram[141];
 
 typedef struct LJ_VGM_TEST_PROGRAM
 {
@@ -443,6 +444,7 @@ static LJ_VGM_TEST_PROGRAM testPrograms[64] = {
 		{ssgAttackInvertProgram, "ssgai"},
 		{ssgAttackInvertHoldProgram, "ssgaih"},
 		{lfoAMSProgram, "lfoams"},
+		{lfoPMSProgram, "lfopms"},
 		{NULL, "END"}
 	};
 
@@ -589,5 +591,9 @@ static LJ_VGM_UINT8 ssgAttackInvertHoldProgram[] = {
 
 static LJ_VGM_UINT8 lfoAMSProgram[] = {
 #include "lfoAMS.prog"
+};
+
+static LJ_VGM_UINT8 lfoPMSProgram[] = {
+#include "lfoPMS.prog"
 };
 
