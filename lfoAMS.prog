@@ -1,4 +1,4 @@
-		LJ_TEST_PART_0, 0x22, 0x0F,	/* LFO on : freq = 7 = 72.2Hz */
+		LJ_TEST_PART_0, 0x22, 0x07 + 0x05,	/* LFO on : freq = 5 = 9.63Hz */
 		LJ_TEST_PART_0, 0x27, 0x00,	/* Channel 3 mode normal */
 		LJ_TEST_PART_0, 0x28, 0x00,	/* All channels off */
 		LJ_TEST_PART_0, 0x28, 0x01,	/* All channels off */
@@ -36,7 +36,7 @@
 		LJ_TEST_PART_0, 0x98, 0x00,	/* SSG - channel 0 slot 1 */
 		LJ_TEST_PART_0, 0x9C, 0x00,	/* SSG - channel 0 slot 3 */
 		LJ_TEST_PART_0, 0xB0, 0x07,	/* Feedback/algorithm (FB=0 ALG=7) */
-		LJ_TEST_PART_0, 0xB4, 0xC0 + 0x30,	/* Both speakers on + AMS=3 */
+		LJ_TEST_PART_0, 0xB4, 0xC0 + 0x20,	/* Both speakers on + AMS=2 */
 		LJ_TEST_PART_0, 0x28, 0x00,	/* Key off */
 		LJ_TEST_PART_0, 0xA4, 0x34,	/* Set frequency (BLOCK=6) */
 		LJ_TEST_PART_0, 0xA0, 0x69,	/* Set frequency FREQ=???) */
