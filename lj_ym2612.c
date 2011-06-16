@@ -115,7 +115,10 @@ static LJ_YM_UINT8 LJ_YM2612_validRegisters[LJ_YM2612_NUM_REGISTERS];
 
 /* FNUM = 11-bit table */
 #define LJ_YM2612_FNUM_TABLE_BITS (11)
-#define LJ_YM2612_FNUM_TABLE_NUM_ENTRIES (1 << LJ_YM2612_FNUM_TABLE_BITS)
+#define LJ_YM2612_FNUM_TABLE_NUM_RAW_ENTRIES (1 << LJ_YM2612_FNUM_TABLE_BITS)
+/* Maximum PMS scale is 80 cents = 80/1200 = 1/15 : /10 to be safe */
+#define LJ_YM2612_FNUM_TABLE_PMS_DELTA_ENTRIES (LJ_YM2612_FNUM_TABLE_NUM_RAW_ENTRIES/10)
+#define LJ_YM2612_FNUM_TABLE_NUM_ENTRIES (LJ_YM2612_FNUM_TABLE_NUM_RAW_ENTRIES+LJ_YM2612_FNUM_TABLE_PMS_DELTA_ENTRIES)
 static int LJ_YM2612_fnumTable[LJ_YM2612_FNUM_TABLE_NUM_ENTRIES+1];
 
 /* SIN table = 10-bit table but stored in LJ_YM2612_SIN_SCALE_BITS format */
@@ -201,11 +204,11 @@ static int LJ_YM2612_EG_attenuationTable[LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTR
 #define LJ_YM2612_LFO_TIMER_NUM_BITS (16)
 
 /* LFO frequencies */
-/*	0				1				2				3				4				5				6				7				*/
-/*	3.98Hz	5.56Hz	6.02Hz	6.37Hz	6.88Hz	9.63Hz	48.1Hz	72.2Hz	*/
+/*	LFO freq	0				1				2				3				4				5				6				7				*/
+/*						3.98Hz	5.56Hz	6.02Hz	6.37Hz	6.88Hz	9.63Hz	48.1Hz	72.2Hz	*/
 /* With an 8Mhz clock (to match docs which give LFO frequencies) and 144 cycles per FM sample this gives: */
-/* 3.98	5.56	6.02	6.37	6.88	9.63	48.1	72.2	Hz	*/
-/* 109	78		72		68		63		45		9			6			*128 FM samples */
+/*	LFO freq	3.98	5.56	6.02	6.37	6.88	9.63	48.1	72.2	Hz	*/
+/* 						109		78		72		68		63		45		9			6			*128 FM samples */
 
 static int LJ_YM2612_LFO_freqSampleSteps[8] = { 109, 78, 72, 68, 63, 45, 9, 6 };
 
@@ -216,13 +219,33 @@ static int LJ_YM2612_LFO_freqSampleSteps[8] = { 109, 78, 72, 68, 63, 45, 9, 6 };
 /* LFO AM table scale - must match volume scale */
 #define LJ_YM2612_LFO_AM_SCALE_BITS (LJ_YM2612_VOLUME_SCALE_BITS)
 
-/* channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
-#define LJ_YM2612_LFO_AMS_DB_TABLE_MASK (0x3)
+/* LFO channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
+/* convert to EG attenuation units = 2^(-x/64) so x *= 8 or x <<= 3 */
 static int LJ_YM2612_LFO_AMStable[4] = { 
 	0 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
 	2 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
 	8 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
 	16 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT
+};
+
+/* LFO PM scale - choose 10-bits because going to be multiplied with 11-bit fnum number and only needs to measure 1/360 minimum */
+#define LJ_YM2612_PMS_SCALE_BITS (10)
+
+/* LFO channel pms */
+/*	PMS 0		1			2			3			4			5			6			7					*/
+/*			0		3.4		6.7		10		14		20		40		80	cents	*/
+/* 100 cents per semitone, 12 semi-tones in an octave, octave = x2 in frequency, thus 1200 cents = +1 * freq */
+/*	PMS	0		1			2			3			4			5			6			7							*/
+/*			0		1			2			3			4			6			12		24	*(1/360)	*/
+static int LJ_YM2612_LFO_PMStable[8] = { 
+	0,
+	1,
+	2,
+	3,
+	4,
+	6,
+	12,
+	24
 };
 
 typedef enum LJ_YM2612_ADSR {
@@ -341,7 +364,9 @@ struct LJ_YM2612_CHANNEL
 	int fnum;
 	int block;
 
-	int amsVolume;
+	int amsMaxdB;
+	int pmsMaxFnumScale;
+	int pmsFnumScale;
 
 	LJ_YM_UINT8 omegaDirty;
 	LJ_YM_UINT8 block_fnumMSB;
@@ -539,11 +564,16 @@ static int ym2612_computeDetuneDelta(const int detune, const int keycode, const 
 }
 
 static int ym2612_computeOmegaDelta(const int fnum, const int block, const int multiple, const int detune, const int keycode, 
+																		const int fnumScale,
 																		const LJ_YM_UINT32 debugFlags)
 {
+	/* fnum = fnum * ( 1 + fnumScale ) : fnumScale is in units of LJ_YM2612_PMS_SCALE_BITS */
+	/* TODO: fnumScale could be precompute for all fnum values and just look up the addition from a table */
+	const int fnumDelta = (( fnum * fnumScale ) >> LJ_YM2612_PMS_SCALE_BITS);
+
 	/* F * 2^(B-1) */
 	/* Could multiply the fnumTable up by (1<<6) then change this to fnumTable >> (7-B) */
-	int omegaDelta = (LJ_YM2612_fnumTable[fnum] << block) >> 1;
+	int omegaDelta = (LJ_YM2612_fnumTable[fnum+fnumDelta] << block) >> 1;
 
 	const int detuneDelta = ym2612_computeDetuneDelta(detune, keycode, debugFlags);
 	omegaDelta += detuneDelta;
@@ -586,13 +616,14 @@ static void ym2612_slotComputeEGParams(LJ_YM2612_SLOT* const slotPtr, const int 
 	}
 }
 
-static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, const int fnum, const int block, const int keycode, 
+static void ym2612_slotComputeOmegaDelta(LJ_YM2612_SLOT* const slotPtr, 
+																				 const int fnum, const int block, const int keycode, const int fnumScale,
 																				 const LJ_YM_UINT32 debugFlags)
 {
 	const int multiple = slotPtr->multiple;
 	const int detune = slotPtr->detune;
 
-	const int omegaDelta = ym2612_computeOmegaDelta(fnum, block, multiple, detune, keycode, debugFlags);
+	const int omegaDelta = ym2612_computeOmegaDelta(fnum, block, multiple, detune, keycode, fnumScale, debugFlags);
 
 	slotPtr->omegaDelta = omegaDelta;
 
@@ -611,6 +642,7 @@ static void ym2612_slotComputeWaveParams(LJ_YM2612_SLOT* const slotPtr, LJ_YM261
 	int slotKeycode;
 
 	const int slot = slotPtr->id;
+	const int pmsFnumScale = channelPtr->pmsFnumScale;
 
 	/* For normal mode or channels that aren't channel 2 or for slot 3 */
 	if ((ym2612Ptr->ch2Mode == 0) || (channelPtr->id != 2) || (slot == 3))
@@ -632,7 +664,7 @@ static void ym2612_slotComputeWaveParams(LJ_YM2612_SLOT* const slotPtr, LJ_YM261
 		slotKeycode = ym2612Ptr->channel2slotData[slot].keycode;
 	}
 
-	ym2612_slotComputeOmegaDelta(slotPtr, slotFnum, slotBlock, slotKeycode, debugFlags);
+	ym2612_slotComputeOmegaDelta(slotPtr, slotFnum, slotBlock, slotKeycode, pmsFnumScale, debugFlags);
 	ym2612_slotComputeEGParams(slotPtr, slotKeycode, debugFlags);
 	slotPtr->omegaDirty = 0;
 }
@@ -1262,16 +1294,19 @@ static void ym2612_channelSetConnections(LJ_YM2612_CHANNEL* const channelPtr)
 
 static void ym2612_channelSetLeftRightAmsPms(LJ_YM2612_CHANNEL* const channelPtr, const LJ_YM_UINT8 data)
 {
-	/* 0xB4-0xB6 Feedback = Left= Bit 7, Right= Bit 6, AMS = Bits 3-5, PMS = Bits 0-1 */
+	/* 0xB4-0xB6 Feedback = Left= Bit 7, Right= Bit 6, AMS = Bits 4-5, PMS = Bits 0-2 */
 	const int left = (data >> 7) & 0x1;
 	const int right = (data >> 6) & 0x1;
 	const LJ_YM_UINT8 AMS = (data >> 4) & 0x3;
-	const LJ_YM_UINT8 PMS = (data >> 0) & 0x3;
+	const LJ_YM_UINT8 PMS = (data >> 0) & 0x7;
 
 	channelPtr->left = left *	~0;
 	channelPtr->right = right * ~0;
 	channelPtr->ams = AMS;
+	channelPtr->amsMaxdB = LJ_YM2612_LFO_AMStable[AMS];
 	channelPtr->pms = PMS;
+	channelPtr->pmsMaxFnumScale = LJ_YM2612_LFO_PMStable[PMS];
+	channelPtr->pmsFnumScale = 0;
 
 	if (channelPtr->debugFlags & LJ_YM2612_DEBUG)
 	{
@@ -1579,9 +1614,13 @@ static void ym2612_channelClear(LJ_YM2612_CHANNEL* const channelPtr)
 
 	channelPtr->left = 0;
 	channelPtr->right = 0;
+
 	channelPtr->ams = 0;
-	channelPtr->amsVolume = 0;
+	channelPtr->amsMaxdB = 0;
+
 	channelPtr->pms = 0;
+	channelPtr->pmsMaxFnumScale = 0;
+	channelPtr->pmsFnumScale = 0;
 }
 
 static void ym2612_partClear(LJ_YM2612_PART* const partPtr)
@@ -2370,6 +2409,8 @@ LJ_YM2612_RESULT ym2612_setRegister(LJ_YM2612* const ym2612Ptr, LJ_YM_UINT8 part
 LJ_YM2612* LJ_YM2612_create(const int clockRate, const int outputSampleRate)
 {
 	LJ_YM2612* const ym2612Ptr = malloc(sizeof(LJ_YM2612));
+	const LJ_YM_UINT8 panFull = (1<<7)|(1<<6);
+
 	if (ym2612Ptr == NULL)
 	{
 		fprintf(stderr, "LJ_YM2612_create:malloc failed\n");
@@ -2386,14 +2427,14 @@ LJ_YM2612* LJ_YM2612_create(const int clockRate, const int outputSampleRate)
 	/* Set left, right bits to on by default at startup */
 
 	/* Part 0 channel 0, 1, 2 */
-	ym2612_setRegister(ym2612Ptr, 0, LJ_LR_AMS_PMS+0, (1<<7)|(1<<6));
-	ym2612_setRegister(ym2612Ptr, 0, LJ_LR_AMS_PMS+1, (1<<7)|(1<<6));
-	ym2612_setRegister(ym2612Ptr, 0, LJ_LR_AMS_PMS+2, (1<<7)|(1<<6));
+	ym2612_setRegister(ym2612Ptr, 0, LJ_LR_AMS_PMS+0, panFull);
+	ym2612_setRegister(ym2612Ptr, 0, LJ_LR_AMS_PMS+1, panFull);
+	ym2612_setRegister(ym2612Ptr, 0, LJ_LR_AMS_PMS+2, panFull);
 
 	/* Part 1 channel 0, 1, 2 */
-	ym2612_setRegister(ym2612Ptr, 1, LJ_LR_AMS_PMS+0, (1<<7)|(1<<6));
-	ym2612_setRegister(ym2612Ptr, 1, LJ_LR_AMS_PMS+1, (1<<7)|(1<<6));
-	ym2612_setRegister(ym2612Ptr, 1, LJ_LR_AMS_PMS+2, (1<<7)|(1<<6));
+	ym2612_setRegister(ym2612Ptr, 1, LJ_LR_AMS_PMS+0, panFull);
+	ym2612_setRegister(ym2612Ptr, 1, LJ_LR_AMS_PMS+1, panFull);
+	ym2612_setRegister(ym2612Ptr, 1, LJ_LR_AMS_PMS+2, panFull);
 
 	return ym2612Ptr;
 }
@@ -2502,7 +2543,7 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 			ym2612Ptr->lfo.changed = 1;
 		}
 
-		if (ym2612Ptr->lfo.enable)
+		if (ym2612Ptr->lfo.enable == 1)
 		{
 			if (ym2612Ptr->lfo.changed == 1)
 			{
@@ -2512,8 +2553,8 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 
 				const int scaledSin = LJ_YM2612_sinTable[phi & LJ_YM2612_SIN_TABLE_MASK];
 
-				ym2612Ptr->lfo.changed = 0;
 				ym2612Ptr->lfo.value = scaledSin;
+				ym2612Ptr->lfo.changed = 0;
 			}
 		}
 
@@ -2567,9 +2608,14 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 
 			/* LFO value is in same units as scaledSin i.e. LJ_YM2612_SIN_SCALE_BITS */
 			/* channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
-			const int AMS_MAX_DB = LJ_YM2612_LFO_AMStable[channelPtr->ams & LJ_YM2612_LFO_AMS_DB_TABLE_MASK];
-			const int AMS_DB = abs((AMS_MAX_DB * ym2612Ptr->lfo.value) >> LJ_YM2612_SIN_SCALE_BITS);
-			const int AMS_volume = LJ_YM2612_EG_attenuationTable[AMS_DB & LJ_YM2612_EG_ATTENUATION_DB_TABLE_MASK];
+			const int amsMaxdB = channelPtr->amsMaxdB;
+			/* NOTE: on Kega & Mame output this frequency is twice - they appear to be half the spped of the docs */
+			/* NOTE: to match Kega divide lfo.value by 2 or double lfo freq steps */
+			/* NOTE: to match Kega might also need to adjust the lfo freq steps to get 100% accurate lfo freqeuncy */
+			/* NOTE: on Kega & Mame output the AMS output looks like a triangle wave not a sine wave */
+			/* TODO: measure it on real hardware */
+			const int amsdB = abs((amsMaxdB * ym2612Ptr->lfo.value) >> LJ_YM2612_SIN_SCALE_BITS);
+			const int amsVolumeScale = LJ_YM2612_EG_attenuationTable[amsdB & LJ_YM2612_EG_ATTENUATION_DB_TABLE_MASK];
 
 			int channelOmegaDirty = channelPtr->omegaDirty;
 
@@ -2577,6 +2623,28 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 			{
 				channelMask = (channelMask << 1);
 				continue;
+			}
+
+			/* LFO PMS fnum scale could force a recalc of wave params */
+			if (ym2612Ptr->lfo.enable == 1)
+			{
+				/* LFO PMS settings and how it changes fnum value : a scaling to it e.g fnum * (1+scale) */
+				const int pmsMaxFnumScale = channelPtr->pmsMaxFnumScale;
+				int pmsFnumScale = ((pmsMaxFnumScale * ym2612Ptr->lfo.value) >> LJ_YM2612_SIN_SCALE_BITS);
+				/* pmsFnumScale needs to be scaled by 1/360 to match the documentation and cents units */
+				/* pmsFnumScale is in the units of LJ_YM2612_PMS_SCALE_BITS */
+				/* TODO: this 1/360 stuff should be precomputed into the pms table in some fixed point units e.g. 10 */
+				pmsFnumScale = pmsFnumScale << LJ_YM2612_PMS_SCALE_BITS;
+				pmsFnumScale = pmsFnumScale / 360;
+
+				if (pmsMaxFnumScale != 0)
+				{
+					if (pmsFnumScale != channelPtr->pmsFnumScale)
+					{
+						channelOmegaDirty = 1;
+						channelPtr->pmsFnumScale = pmsFnumScale;
+					}
+				}
 			}
 
 			for (slot = 0; slot < LJ_YM2612_NUM_SLOTS_PER_CHANNEL; slot++)
@@ -2661,14 +2729,14 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				/* Scale by TL (total level = 0->1) */
 				slotOutput = (slotOutput * slotPtr->totalLevel) >> LJ_YM2612_TL_SCALE_BITS;
 
-				if (slotPtr->amEnable)
+				if (slotPtr->amEnable == 1)
 				{
-					if (ym2612Ptr->lfo.enable)
+					if (ym2612Ptr->lfo.enable == 1)
 					{
 						/* Scale by LFO AM value */
-						/* AMS_volume is in same units as TL i.e. LJ_YM2612_LFO_AM_SCALE_BITS */
-						slotOutput = (slotOutput * AMS_volume) >> LJ_YM2612_LFO_AM_SCALE_BITS;
-						/*printf("AMS_MAX_DB %d AMS_DB %d AMS_volume %d\n", AMS_MAX_DB, AMS_DB, AMS_volume);*/
+						/* amsVolumeScale is in same units as TL i.e. LJ_YM2612_LFO_AM_SCALE_BITS */
+						slotOutput = (slotOutput * amsVolumeScale) >> LJ_YM2612_LFO_AM_SCALE_BITS;
+						/*printf("amsMaxdB %d amsdB %d amsVolumeScale %d\n", amsMaxdB, amsdB, amsVolumeScale);*/
 					}
 				}
 
