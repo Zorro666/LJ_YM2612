@@ -220,8 +220,8 @@ static int LJ_YM2612_EG_attenuationTable[LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTR
 #endif
 
 static int LJ_YM2612_LFO_freqSampleSteps[8] = { 
-	109 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT, 
-	78 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT, 
+	109 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT,
+	78 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT,
 	72 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT,
 	68 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT,
 	63 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT,
@@ -240,14 +240,11 @@ static int LJ_YM2612_LFO_freqSampleSteps[8] = {
 /* LFO channel ams (0, 1.4, 5.9, 11.8 dB) -> 0, 2, 8, 16 in TL units = 2^(-x/8) */
 /* convert to EG attenuation units = 2^(-x/64) so x *= 8 or x <<= 3 */
 static int LJ_YM2612_LFO_AMStable[4] = { 
-	0 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
-	2 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
-	8 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT, 
+	0 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT,
+	2 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT,
+	8 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT,
 	16 << LJ_YM2612_TL_EG_ATTENUATION_TABLE_SHIFT
 };
-
-/* LFO PM scale - choose 10-bits because going to be multiplied with 11-bit fnum number and only needs to measure 1/360 minimum */
-#define LJ_YM2612_PMS_SCALE_BITS (10)
 
 /* LFO channel pms */
 /*	PMS 0		1			2			3			4			5			6			7					*/
@@ -255,15 +252,20 @@ static int LJ_YM2612_LFO_AMStable[4] = {
 /* 100 cents per semitone, 12 semi-tones in an octave, octave = x2 in frequency, thus 1200 cents = +1 * freq */
 /*	PMS	0		1			2			3			4			5			6			7							*/
 /*			0		1			2			3			4			6			12		24	*(1/360)	*/
+
+/* LFO PM scale - choose 14-bits because going to be multiplied with 11-bit fnum number and only needs to measure 1/360 minimum */
+#define LJ_YM2612_PMS_SCALE_BITS (14)
+#define LJ_YM2612_PMS_SCALE_FACTOR (360)
+
 static int LJ_YM2612_LFO_PMStable[8] = { 
-	0,
-	1,
-	2,
-	3,
-	4,
-	6,
-	12,
-	24
+	(0 << LJ_YM2612_PMS_SCALE_BITS ) / LJ_YM2612_PMS_SCALE_FACTOR,
+	(1 << LJ_YM2612_PMS_SCALE_BITS ) / LJ_YM2612_PMS_SCALE_FACTOR,
+	(2 << LJ_YM2612_PMS_SCALE_BITS ) / LJ_YM2612_PMS_SCALE_FACTOR,
+	(3 << LJ_YM2612_PMS_SCALE_BITS ) / LJ_YM2612_PMS_SCALE_FACTOR,
+	(4 << LJ_YM2612_PMS_SCALE_BITS ) / LJ_YM2612_PMS_SCALE_FACTOR,
+	(6 << LJ_YM2612_PMS_SCALE_BITS ) / LJ_YM2612_PMS_SCALE_FACTOR,
+	(12 << LJ_YM2612_PMS_SCALE_BITS ) / LJ_YM2612_PMS_SCALE_FACTOR,
+	(24 << LJ_YM2612_PMS_SCALE_BITS ) / LJ_YM2612_PMS_SCALE_FACTOR
 };
 
 typedef enum LJ_YM2612_ADSR {
@@ -2649,11 +2651,6 @@ LJ_YM2612_RESULT LJ_YM2612_generateOutput(LJ_YM2612* const ym2612Ptr, int numCyc
 				/* LFO PMS settings and how it changes fnum value : a scaling to it e.g fnum * (1+scale) */
 				const int pmsMaxFnumScale = channelPtr->pmsMaxFnumScale;
 				int pmsFnumScale = ((pmsMaxFnumScale * ym2612Ptr->lfo.value) >> LJ_YM2612_SIN_SCALE_BITS);
-				/* pmsFnumScale needs to be scaled by 1/360 to match the documentation and cents units */
-				/* pmsFnumScale is in the units of LJ_YM2612_PMS_SCALE_BITS */
-				/* TODO: this 1/360 stuff should be precomputed into the pms table in some fixed point units e.g. 10 */
-				pmsFnumScale = pmsFnumScale << LJ_YM2612_PMS_SCALE_BITS;
-				pmsFnumScale = pmsFnumScale / 360;
 
 				if (pmsMaxFnumScale != 0)
 				{
