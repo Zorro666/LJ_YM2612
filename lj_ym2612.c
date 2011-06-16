@@ -210,7 +210,25 @@ static int LJ_YM2612_EG_attenuationTable[LJ_YM2612_EG_ATTENUATION_TABLE_NUM_ENTR
 /*	LFO freq	3.98	5.56	6.02	6.37	6.88	9.63	48.1	72.2	Hz	*/
 /* 						109		78		72		68		63		45		9			6			*128 FM samples */
 
-static int LJ_YM2612_LFO_freqSampleSteps[8] = { 109, 78, 72, 68, 63, 45, 9, 6 };
+/* This only works for matching AMS frequency doesn't work for matching PMS frequency */
+#define HACK_MATCH_KEGA 0
+
+#if HACK_MATCH_KEGA == 0
+#define LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT (0)
+#else
+#define LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT (1)
+#endif
+
+static int LJ_YM2612_LFO_freqSampleSteps[8] = { 
+	109 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT, 
+	78 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT, 
+	72 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT,
+	68 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT,
+	63 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT,
+	45 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT,
+	9 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT,
+	6 << LJ_YM2612_LFO_FREQ_SAMPLE_SHIFT
+};
 
 /* Make the LFO work in 128 steps per full wave */
 #define LJ_YM2612_LFO_PHI_NUM_BITS (7)
