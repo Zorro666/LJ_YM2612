@@ -151,7 +151,7 @@ OutputSamples:								; loop a lot
 	lsl.w		#0x8,			D1				; D1 = D1 << 8
 	or.w		D1,				D0				; D0 = (D0 & 0xFF) | (D1 << 8)
 OutputOneSample:
-	move.w	#0x0080,	D3				; this should be the number of cycles to output a single 44KHz sample
+	move.w	#0x0001,	D3				; this should be the number of cycles to output a single 44KHz sample
 OutputSample:
 	GUI_UPDATE D7
 	subi.w	#0x01,		D3
@@ -614,6 +614,7 @@ testProgramIndexString	DC.B	'Test Program Index',0
 	ALIGN 2
 progListStart:
 	DC.w			PROGS_START
+	DC.w			dacch5Program
 	DC.w			sampleDocProgram
 	DC.w			noteProgram
 	DC.w			noteDTProgram
@@ -642,6 +643,7 @@ progListEnd:
 	ALIGN 2
 progListNames:
 	DC.w			PROGS_START
+	DC.w			dacch5ProgramString
 	DC.w			sampleDocProgramString
 	DC.w			noteProgramString
 	DC.w			noteDTProgramString
@@ -669,6 +671,7 @@ progListNames:
 	ALIGN 2
 progListDescriptions:
 	DC.w			PROGS_START
+	DC.w			dacch5DescriptionString
 	DC.w			sampleDocDescriptionString
 	DC.w			noteDescriptionString
 	DC.w			noteDTDescriptionString
