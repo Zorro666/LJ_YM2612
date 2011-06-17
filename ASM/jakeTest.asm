@@ -32,10 +32,10 @@ check_sum equ	0x0000
 	dc.b	'SEGA GENESIS    '	;100
 	dc.b	'(C)T-01 2011.06 '	;110 release year.month
 	dc.b	'JAKE YM2612 TEST'	;120 Japan title
-	dc.b	':Sample Doc Prog'	;130
+	dc.b	':Suite of Tests '	;130
 	dc.b	'                '	;140
 	dc.b	'JAKE YM2612 TEST'	;150 US title
-	dc.b	':Sample Doc Prog'	;160
+	dc.b	':Suite of Tests '	;160
 	dc.b	'                '	;170
 	dc.b	'GM T-123456 42'  	;180 product #, version
 	dc.w	check_sum         	;18E check sum
@@ -119,10 +119,10 @@ RunProgram:
 	move.b	(A0)+,		D0				; D0 is the operation to perform
 
 	cmpi.b	#0x00,		D0
-	beq 		WritePort0
+	beq 		WritePart0
 
 	cmpi.b	#0x01,		D0
-	beq 		WritePort1
+	beq 		WritePart1
 
 	cmpi.b	#0x10,		D0
 	beq 		OutputSamples
@@ -132,16 +132,16 @@ RunProgram:
 	
 	jmp			ErrorTrap						; unknown operation to perform
 
-WritePort0:
+WritePart0:
 	move.b	(A0)+,		D0				; register
 	move.b	(A0)+,		D1				; data
-	bsr 		WriteYm2612Port0
+	bsr 		WriteYm2612Part0
 	jmp 		RunProgram
 	
-WritePort1:										; NEVER TESTED
+WritePart1:										; NEVER TESTED
 	move.b	(A0)+,		D0				; register
 	move.b	(A0)+,		D1				; data
-	bsr 		WriteYm2612Port1
+	bsr 		WriteYm2612Part1
 	jmp			RunProgram
 
 OutputSamples:								; loop a lot
@@ -164,23 +164,23 @@ EndProgram:
 	GUI_UPDATE D7
 	jmp			EndProgram
 
-WriteYM2612Port0:
+WriteYM2612Part0:
 	btst		#0x07,		0xA04000
-	bne 		WriteYM2612Port0
+	bne 		WriteYM2612Part0
 	move.b	D0,				0xA04000
-WriteYM2612DataPort0:
+WriteYM2612DataPart0:
 	btst		#0x07,		0xA04000
-	bne			WriteYM2612DataPort0
+	bne			WriteYM2612DataPart0
 	move.b	D1,0xA04001
 	rts
 
-WriteYM2612Port1:
+WriteYM2612Part1:
 	btst		#0x07,		0xA04000
-	bne 		WriteYM2612Port1
+	bne 		WriteYM2612Part1
 	move.b	D0,				0xA04002
-WriteYM2612DataPort1:
+WriteYM2612DataPart1:
 	btst		#0x07,		0xA04000
-	bne			WriteYM2612DataPort1
+	bne			WriteYM2612DataPart1
 	move.b	D1,0xA04003
 	rts
 
@@ -586,6 +586,8 @@ test ## Program:
 	TEST_PROGRAM ssgAttackInvertHold,	'SSG attack invert and hold bits'
 	TEST_PROGRAM lfoAMS,							'LFO AMS test 9.63Hz 5.9dB'
 	TEST_PROGRAM lfoPMS,							'LFO PMS test 9.63Hz'
+	TEST_PROGRAM part1,								'part1 channel 3'
+	TEST_PROGRAM dacch5,							'part1 dac enable stops channel 5'
 
 	ALIGN 2
 tilesStart:
@@ -632,6 +634,8 @@ progListStart:
 	DC.w			ssgAttackInvertHoldProgram
 	DC.w			lfoAMSProgram
 	DC.w			lfoPMSProgram
+	DC.w			part1Program
+	DC.w			dacch5Program
 progListEnd:
 	DC.w			PROGS_END
 
@@ -658,6 +662,8 @@ progListNames:
 	DC.w			ssgAttackInvertHoldProgramString
 	DC.w			lfoAMSProgramString
 	DC.w			lfoPMSProgramString
+	DC.w			part1ProgramString
+	DC.w			dacch5ProgramString
 	DC.w			PROGS_END
 
 	ALIGN 2
@@ -683,6 +689,8 @@ progListDescriptions:
 	DC.w			ssgAttackInvertHoldDescriptionString
 	DC.w			lfoAMSDescriptionString
 	DC.w			lfoPMSDescriptionString
+	DC.w			part1DescriptionString
+	DC.w			dacch5DescriptionString
 	DC.w			PROGS_END
 
 	MACRO GLOBAL_VARIABLE name, numBytes

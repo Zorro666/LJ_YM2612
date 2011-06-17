@@ -1,6 +1,4 @@
 High Priority:
-TEST_APP:never tested channels on part 1 (3,4,5) 
-TEST_APP:test dac enabled stops channel 5
 YM2612:test SSG + LFO programs on real hardware
 
 Medium Priority:
