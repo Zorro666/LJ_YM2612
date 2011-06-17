@@ -1790,12 +1790,18 @@ static void ym2612_timerModeChanged(LJ_YM2612* const ym2612Ptr)
 
 static void ym2612_lfoClear(LJ_YM2612_LFO* const lfoPtr, LJ_YM2612* ym2612Ptr)
 {
+	const LJ_YM_UINT8 lfoFreq = 0;
+	const int freqSampleSteps = LJ_YM2612_LFO_freqSampleSteps[lfoFreq];
+
 	ym2612_timerClear(&lfoPtr->timer);
 
-	lfoPtr->timerCountPerUpdate = 0;
 	lfoPtr->counter = 0;
 	lfoPtr->value = 0;
 	lfoPtr->changed = 0;
+	lfoPtr->enable = 0;
+
+	lfoPtr->timerCountPerUpdate = (freqSampleSteps << LJ_YM2612_LFO_TIMER_NUM_BITS);
+	lfoPtr->freq = lfoFreq;
 
 	if (ym2612Ptr->debugFlags & LJ_YM2612_DEBUG)
 	{
