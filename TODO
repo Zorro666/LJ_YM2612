@@ -2,23 +2,19 @@ High Priority:
 YM2612:test SSG + LFO programs on real hardware
 
 Medium Priority:
-YM2612:not happy with special if case for invert+hold - generic not happy when attenuation > 0x200 then invert it
 YM2612:key-on should just set the ATTACK state, ATTACK state should do inf rate & volume calculation
-YM2612:key off and release state with the SSG settings especially attack
-YM2612:SSG what is its special attenuation value to trigger it to next cycle
 
 Low Priority:
+YM2612:not happy with special if case for invert+hold - generic not happy when attenuation > 0x200 then invert it
+YM2612:key off and release state with the SSG settings especially attack
+YM2612:SSG what is its special attenuation value to trigger it to next cycle
 YM2612:implement MEM output from OP1 & OP2 for slots - read Steve Strange reply on forums
 
 Future Stuff:
 
 High Priority:
-VGM:read all of data into memory and read from memory instead of disk
-VGM:handle the other commands (skip correct amount of data basically)
-
-Medium Priority:
 YM2612:ADSR delta calculation work out the equation that makes it
 
+Medium Priority:
+
 Low Priority:
-TEST_APP:test all block & fnum values then put output into FFT to output the frequency
-TEST_APP:have real time graph plotting thing
