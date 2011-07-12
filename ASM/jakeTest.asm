@@ -119,23 +119,23 @@ RunProgram:
 	move.b	(A0)+,		D0				; D0 is the operation to perform
 
 	cmpi.b	#0x00,		D0
-	beq 		WritePart0
+	beq.s		WritePart0
 
 	cmpi.b	#0x01,		D0
-	beq 		WritePart1
+	beq.s		WritePart1
 
 	cmpi.b	#0x10,		D0
-	beq 		OutputSamples
+	beq.s		OutputSamples
 
 	cmpi.b	#0xFF,		D0
-	beq 		EndProgram
+	beq.s 	EndProgram
 	
 	jmp			ErrorTrap						; unknown operation to perform
 
 WritePart0:
 	move.b	(A0)+,		D0				; register
 	move.b	(A0)+,		D1				; data
-	bsr 		WriteYm2612Part0
+	bsr.s		WriteYm2612Part0
 	jmp 		RunProgram
 	
 WritePart1:										; NEVER TESTED
@@ -277,7 +277,7 @@ UpdateGUI:										; test for joypad input & draw screen text
 	MACRO TEST_BUTTON BUTTON, RESULT
 	move.b 	D4, 			D2				; test for BUTTON button
 	andi.b 	#BUTTON,	D2
-	beq 		Not ## BUTTON ## \?	; test for BUTTON button not-pressed (0) -> pressed (1)
+	beq.s 	Not ## BUTTON ## \?	; test for BUTTON button not-pressed (0) -> pressed (1)
 
 	move.b 	#RESULT,	D7				; BUTTON button was pressed
 	jmp 		SavePadState
@@ -303,7 +303,7 @@ NextProgram:
 	addi.w	#$02,			A2			; go to the next program
 	move.w	(A2),			D0			; test the program
 	cmpi.w	#PROGS_END, D0		; have we reached the end
-	bne			NEXT_SAVE
+	bne.s		NEXT_SAVE
 	lea			progListStart,	A2	; reset to the start of the list
 	addi.w	#0x02,		A2			; +2 to get past the sentinel value
 NEXT_SAVE:
@@ -316,7 +316,7 @@ PrevProgram:
 	subi.w	#$02,			A2			; go to the next program
 	move.w	(A2),			D0			; test the program
 	cmpi.w	#PROGS_START, D0	; have we reached the start
-	bne			PREV_SAVE
+	bne.s		PREV_SAVE
 	lea			progListEnd,	A2	; reset to the end of the list
 	subi.w	#0x02,		A2			; -2 to get past the sentinel value
 PREV_SAVE:
@@ -487,7 +487,7 @@ PrintAt:
 
 .loop	move.b	(A6)+,D2
 	and.b	#0xFF,D2
-	beq	.exit					; check for 0 terminator
+	beq.s	.exit					; check for 0 terminator
 
 	jsr	PrintCharAt
 	add.b	#1,D0
