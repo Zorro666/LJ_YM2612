@@ -189,6 +189,12 @@ LJ_WAV_RESULT LJ_WAV_FILE_writeChannel( LJ_WAV_FILE* const wavFile, void* sample
 	}
 
 	result = (int)fwrite(sampleData, (size_t)(wavFile->numBytesPerChannel), 1, wavFile->fileH);
+	if (result != 1)
+	{
+		fprintf(stderr,"LJ_WAV_writeChannel: error writing sample\n");
+		fclose(wavFile->fileH);
+		return LJ_WAV_ERROR;
+	}
 	wavFile->numBytesWritten += wavFile->numBytesPerChannel;
 
 	return LJ_WAV_OK;

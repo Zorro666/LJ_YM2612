@@ -80,7 +80,7 @@ test:
 
 %: %.o 
 	@echo Linking $@
-	@$(LINK) $(LINK_FLAGS) -o $@ $^
+	@$(LINK) $(LINK_FLAGS) -o $@ $^ $(LINK_FLAGS)
 
 .PHONY: all clean nuke format tags
 .SUFFIXES:            # Delete the default suffixes
